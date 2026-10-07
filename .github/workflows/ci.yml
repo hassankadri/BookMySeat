@@ -22,7 +22,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build backend image
-        run: docker build -t bookmyseat-backend-ci ./BookMySeat-main/backend
+        run: docker build -t bookmyseat-backend-ci ./backend
 
       - name: Build frontend image
-        run: docker build -t bookmyseat-frontend-ci ./BookMySeat-main/frontend
+        run: docker build -t bookmyseat-frontend-ci ./frontend
