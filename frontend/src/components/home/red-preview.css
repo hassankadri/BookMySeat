@@ -1,0 +1,111 @@
+
+/*
+ * BookMySeat — Crimson Theme Preview
+ *
+ * Homepage only.
+ * Does not change layouts, animations, backend,
+ * or any other application pages.
+ *
+ * Remove the import from Home.jsx to revert.
+ */
+
+.bms-home {
+  --bms-red: #d71935;
+  --bms-red-hover: #ed2443;
+}
+
+/* Primary calls to action */
+.bms-home :is(
+  [data-testid="hero-find-shows"],
+  [data-testid="opening-showtimes"],
+  [data-testid="programme-showtimes"],
+  [data-testid="ask-open"],
+  [data-testid="account-signin"],
+  [data-testid="account-bookings"]
+) {
+  background-color: var(--bms-red);
+  border-color: var(--bms-red);
+  color: #ffffff;
+}
+
+.bms-home :is(
+  [data-testid="hero-find-shows"],
+  [data-testid="opening-showtimes"],
+  [data-testid="programme-showtimes"],
+  [data-testid="ask-open"],
+  [data-testid="account-signin"],
+  [data-testid="account-bookings"]
+):hover {
+  background-color: var(--bms-red-hover);
+  border-color: var(--bms-red-hover);
+  color: #ffffff;
+}
+
+/* Movie carousel progress indicator */
+.bms-home .bms-progress {
+  background-color: var(--bms-red);
+}
+
+/* Active film in the desktop Playing Now list */
+.bms-home #programme
+[data-testid^="programme-item-"][aria-current="true"] {
+  color: var(--bms-red-hover);
+}
+
+/* Selected favorite button */
+.bms-home [data-testid="programme-favorite"][aria-pressed="true"] {
+  background-color: var(--bms-red);
+  border-color: var(--bms-red);
+  color: #ffffff;
+}
+
+.bms-home [data-testid="programme-favorite"][aria-pressed="true"] svg {
+  fill: #ffffff;
+}
+
+/* Trailer play buttons */
+.bms-home [data-testid^="next-play-"] {
+  background-color: var(--bms-red);
+  color: #ffffff;
+}
+
+.bms-home [data-testid^="next-play-"]:hover {
+  background-color: var(--bms-red-hover);
+}
+
+.bms-home [data-testid^="next-play-"] svg {
+  fill: #ffffff;
+}
+
+/*
+ * Original How Booking Works section:
+ * selected steps, timeline, seat selection,
+ * and the sample booking action.
+ */
+.bms-home #how .bg-aisle {
+  background-color: var(--bms-red);
+}
+
+.bms-home #how .border-aisle {
+  border-color: var(--bms-red);
+}
+
+.bms-home #how .text-aisle {
+  color: var(--bms-red-hover);
+}
+
+.bms-home #how .bg-aisle.text-hall {
+  color: #ffffff;
+}
+
+/* FAQ: red hover and expanded question */
+.bms-home #faq button[data-state="open"],
+.bms-home #faq button:hover {
+  color: var(--bms-red-hover);
+}
+
+/*
+ * Keep the original white FAQ text,
+ * dark backgrounds, ticket design,
+ * and white AI assistant section.
+ */

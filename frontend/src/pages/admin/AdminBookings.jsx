@@ -1,1207 +1,1076 @@
+
 import React, {
+  useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
-
+import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertTriangle,
   CalendarDays,
   CheckCircle2,
-  Clock,
+  Clock3,
   CreditCard,
   IndianRupee,
   MapPin,
   RefreshCw,
   RotateCcw,
+  ChevronDown,
   Search,
+  ShieldCheck,
   Ticket,
   User,
   X,
   XCircle,
 } from "lucide-react";
-
-import {
-  AnimatePresence,
-  motion,
-} from "framer-motion";
-
 import axios from "axios";
 import toast from "react-hot-toast";
+import { useAuth } from "../../context/AuthContext";
 
-import {
-  useAuth,
-} from "../../context/AuthContext";
+// Admin refund approval is separate from manual refunds.
+// Customer requests: /api/customer-bookings/:id/refund-request
+// Admin approvals: /api/customer-bookings/admin/refund-requests/:id/approve
 
-const API_URL =
-  process.env.REACT_APP_BACKEND_URL;
+const API_URL = (
+  process.env.REACT_APP_BACKEND_URL || ""
+).replace(/\/$/, "");
 
 const STATUSES = [
   "ALL",
+  "REFUND_PENDING",
   "CONFIRMED",
   "PENDING_PAYMENT",
   "PAYMENT_FAILED",
   "EXPIRED",
   "CANCELLED",
-  "REFUND_PENDING",
   "REFUNDED",
 ];
 
-// =====================================================
-// HELPERS
-// =====================================================
+const money = (value) =>
+  `₹${Number(value || 0).toLocaleString("en-IN")}`;
 
-const formatDate = (
-  value
-) => {
-  if (!value) {
-    return "—";
-  }
+const friendly = (value) =>
+  String(value || "UNKNOWN").replaceAll("_", " ");
 
-  const date =
-    new Date(value);
-
-  if (
-    Number.isNaN(
-      date.getTime()
-    )
-  ) {
-    return "—";
-  }
-
-  return new Intl.DateTimeFormat(
-    "en-IN",
-    {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }
-  ).format(date);
-};
-
-const getStatusClasses =
-  (status) => {
-    switch (status) {
-      case "CONFIRMED":
-        return "bg-green-500/10 text-green-400 border-green-500/20";
-
-      case "PENDING_PAYMENT":
-        return "bg-yellow-500/10 text-yellow-400 border-yellow-500/20";
-
-      case "REFUNDED":
-        return "bg-blue-500/10 text-blue-400 border-blue-500/20";
-
-      case "REFUND_PENDING":
-        return "bg-purple-500/10 text-purple-400 border-purple-500/20";
-
-      case "CANCELLED":
-      case "PAYMENT_FAILED":
-      case "EXPIRED":
-        return "bg-red-500/10 text-red-400 border-red-500/20";
-
-      default:
-        return "bg-zinc-800 text-zinc-400 border-white/10";
-    }
-  };
-
-const friendlyStatus = (
-  status
-) =>
-  String(status || "UNKNOWN")
-    .replaceAll("_", " ");
-
-const getBookingCode = (
-  booking
-) =>
+const bookingCode = (booking) =>
   booking.bookingCode ||
   booking.bookingReference ||
-  String(
-    booking._id || ""
-  ).slice(-8);
+  String(booking._id || "").slice(-8);
 
-const isPaidBooking = (
-  booking
-) =>
-  booking.status ===
-    "CONFIRMED" ||
-  booking.paymentStatus ===
-    "completed" ||
-  booking.payment
-    ?.status === "PAID";
+function dateLabel(value) {
+  if (!value) return "—";
 
-// =====================================================
-// PAGE
-// =====================================================
+  const date = new Date(value);
 
-const AdminBookings = () => {
-  const {
-    token,
-  } = useAuth();
+  return Number.isNaN(date.getTime())
+    ? "—"
+    : new Intl.DateTimeFormat("en-IN", {
+        timeZone: "Asia/Kolkata",
+        dateStyle: "medium",
+        timeStyle: "short",
+      }).format(date);
+}
 
-  const [
-    bookings,
-    setBookings,
-  ] = useState([]);
+function statusStyle(status) {
+  switch (status) {
+    case "CONFIRMED":
+      return "border-emerald-500/20 bg-emerald-500/10 text-emerald-300";
 
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
+    case "REFUND_PENDING":
+      return "border-violet-500/25 bg-violet-500/10 text-violet-300";
 
-  const [
-    search,
-    setSearch,
-  ] = useState("");
+    case "REFUNDED":
+      return "border-sky-500/20 bg-sky-500/10 text-sky-300";
 
-  const [
-    status,
-    setStatus,
-  ] = useState("ALL");
+    case "PENDING_PAYMENT":
+      return "border-amber-500/20 bg-amber-500/10 text-amber-300";
 
-  const [
-    selectedBooking,
-    setSelectedBooking,
-  ] = useState(null);
+    default:
+      return "border-white/10 bg-white/[0.05] text-white/60";
+  }
+}
 
-  const [
-    actionType,
-    setActionType,
-  ] = useState(null);
+function MiniStat({ label, value, icon: Icon }) {
+  return (
+    <div className="rounded-[23px] border border-white/[0.08] bg-white/[0.035] p-5">
+      <div className="flex items-center justify-between text-white/40">
+        <span className="text-[11px] uppercase tracking-[0.18em]">
+          {label}
+        </span>
+        <Icon size={17} />
+      </div>
 
-  const [
-    reason,
-    setReason,
-  ] = useState("");
+      <p className="mt-3 text-2xl font-semibold tracking-tight text-white">
+        {value}
+      </p>
+    </div>
+  );
+}
 
-  const [
-    processing,
-    setProcessing,
-  ] = useState(false);
+function Info({ icon: Icon, label, value, secondary }) {
+  return (
+    <div className="min-w-0 rounded-[16px] border border-white/[0.055] bg-white/[0.023] p-3.5">
+      <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.15em] text-white/40">
+        <Icon
+          size={13}
+          className="text-[#d64c64]"
+        />
+        {label}
+      </div>
 
-  // ===================================================
-  // FETCH
-  // ===================================================
+      <p className="mt-2 break-words text-sm font-medium text-white/85">
+        {value || "—"}
+      </p>
 
-  const fetchBookings =
-    async () => {
-      setLoading(true);
+      {secondary && (
+        <p className="mt-1 break-words text-xs text-white/40">
+          {secondary}
+        </p>
+      )}
+    </div>
+  );
+}
 
-      try {
-        const params = {
-          limit: 100,
-        };
+export default function AdminBookings() {
+  const { token } = useAuth();
 
-        if (
-          status !== "ALL"
-        ) {
-          params.status =
-            status;
-        }
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshFeedback, setRefreshFeedback] = useState("");
 
-        const response =
-          await axios.get(
-            `${API_URL}/api/admin/bookings`,
-            {
-              params,
-
-              headers: {
-                Authorization:
-                  `Bearer ${token}`,
-              },
-            }
-          );
-
-        setBookings(
-          response.data
-            .bookings || []
-        );
-      } catch (error) {
-        console.error(
-          "Bookings error:",
-          error
-        );
-
-        toast.error(
-          "Could not load bookings."
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
+  // Clear successful refresh text after five seconds.
   useEffect(() => {
-    fetchBookings();
-  }, [
-    token,
-    status,
-  ]);
+    if (!refreshFeedback) return undefined;
 
-  // ===================================================
-  // SEARCH
-  // ===================================================
-
-  const filteredBookings =
-    useMemo(() => {
-      const query =
-        search
-          .trim()
-          .toLowerCase();
-
-      if (!query) {
-        return bookings;
-      }
-
-      return bookings.filter(
-        (booking) => {
-          const values = [
-            getBookingCode(
-              booking
-            ),
-
-            booking.user
-              ?.name,
-
-            booking.user
-              ?.email,
-
-            booking.movie
-              ?.title,
-
-            booking.show
-              ?.theatre
-              ?.name,
-
-            booking.show
-              ?.screen
-              ?.name,
-
-            booking.status,
-
-            booking.paymentStatus,
-
-            ...(booking.seats ||
-              []),
-          ];
-
-          return values
-            .filter(Boolean)
-            .some(
-              (value) =>
-                String(value)
-                  .toLowerCase()
-                  .includes(
-                    query
-                  )
-            );
-        }
-      );
-    }, [
-      bookings,
-      search,
-    ]);
-
-  // ===================================================
-  // ACTION MODAL
-  // ===================================================
-
-  const openAction = (
-    booking,
-    type
-  ) => {
-    setSelectedBooking(
-      booking
+    const timer = window.setTimeout(
+      () => setRefreshFeedback(""),
+      5000
     );
 
-    setActionType(
-      type
-    );
+    return () => window.clearTimeout(timer);
+  }, [refreshFeedback]);
 
-    setReason("");
-  };
+  const refreshController = useRef(null);
+  const [statusOpen, setStatusOpen] = useState(false);
+  const statusMenuRef = useRef(null);
 
-  const closeAction =
-    () => {
-      if (processing) {
-        return;
-      }
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("ALL");
+  const [selected, setSelected] = useState(null);
+  const [action, setAction] = useState(null);
+  const [reason, setReason] = useState("");
+  const [processing, setProcessing] = useState(false);
 
-      setSelectedBooking(
-        null
-      );
+  const fetchBookings = useCallback(
+    async (silent = false, signal) => {
+      if (!token) return false;
 
-      setActionType(
-        null
-      );
-
-      setReason("");
-    };
-
-  // ===================================================
-  // CANCEL
-  // ===================================================
-
-  const cancelBooking =
-    async () => {
-      if (
-        !selectedBooking
-      ) {
-        return;
-      }
-
-      setProcessing(true);
+      if (!silent) setLoading(true);
 
       try {
-        await axios.post(
-          `${API_URL}/api/admin/bookings/${selectedBooking._id}/cancel`,
+        const params = { limit: 100 };
 
-          {
-            reason:
-              reason.trim() ||
-              "Cancelled by admin",
-          },
+        if (status !== "ALL") {
+          params.status = status;
+        }
 
+        const response = await axios.get(
+          `${API_URL}/api/admin/bookings`,
           {
+            params,
             headers: {
-              Authorization:
-                `Bearer ${token}`,
+              Authorization: `Bearer ${token}`,
             },
+            signal,
           }
         );
 
-        toast.success(
-          "Booking cancelled."
-        );
+        if (signal?.aborted) return false;
 
-        closeAfterAction();
-
-        await fetchBookings();
+        setBookings(response.data?.bookings || []);
+        return true;
       } catch (error) {
-        toast.error(
-          error.response
-            ?.data
-            ?.error ||
-            "Could not cancel booking."
-        );
-      } finally {
-        setProcessing(false);
-      }
-    };
-
-  // ===================================================
-  // REFUND
-  // ===================================================
-
-  const refundBooking =
-    async () => {
-      if (
-        !selectedBooking
-      ) {
-        return;
-      }
-
-      if (
-        !reason.trim()
-      ) {
-        toast.error(
-          "Enter a refund reason."
-        );
-
-        return;
-      }
-
-      setProcessing(true);
-
-      try {
-        const response =
-          await axios.post(
-            `${API_URL}/api/admin/bookings/${selectedBooking._id}/refund`,
-
-            {
-              reason:
-                reason.trim(),
-            },
-
-            {
-              headers: {
-                Authorization:
-                  `Bearer ${token}`,
-              },
-            }
-          );
-
-        if (
-          response.data
-            ?.pending
-        ) {
-          toast.success(
-            "Refund submitted to Stripe and is processing."
-          );
-        } else {
-          toast.success(
-            "Refund completed successfully."
-          );
+        if (signal?.aborted || axios.isCancel(error)) {
+          return false;
         }
 
-        closeAfterAction();
-
-        await fetchBookings();
-      } catch (error) {
         console.error(
-          "Refund error:",
+          "Admin bookings load:",
           error
         );
 
         toast.error(
-          error.response
-            ?.data
-            ?.error ||
-            "Could not refund booking."
+          error.response?.data?.error ||
+          "Could not load bookings."
         );
+
+        return false;
       } finally {
-        setProcessing(false);
+        if (!signal?.aborted && !silent) {
+          setLoading(false);
+        }
+      }
+    },
+    [token, status]
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    fetchBookings(false, controller.signal);
+
+    return () => controller.abort();
+  }, [fetchBookings]);
+
+  useEffect(
+    () => () => refreshController.current?.abort(),
+    []
+  );
+
+  useEffect(() => {
+    if (!statusOpen) return undefined;
+
+    const dismiss = (event) => {
+      if (
+        event.type === "keydown" &&
+        event.key === "Escape"
+      ) {
+        setStatusOpen(false);
+      } else if (
+        event.type === "pointerdown" &&
+        !statusMenuRef.current?.contains(
+          event.target
+        )
+      ) {
+        setStatusOpen(false);
       }
     };
 
-  const closeAfterAction =
-    () => {
-      setSelectedBooking(
-        null
+    document.addEventListener(
+      "pointerdown",
+      dismiss
+    );
+
+    document.addEventListener(
+      "keydown",
+      dismiss
+    );
+
+    return () => {
+      document.removeEventListener(
+        "pointerdown",
+        dismiss
       );
 
-      setActionType(
-        null
+      document.removeEventListener(
+        "keydown",
+        dismiss
       );
-
-      setReason("");
     };
+  }, [statusOpen]);
 
-  // ===================================================
-  // COUNTS
-  // ===================================================
+  const handleRefresh = async () => {
+    if (loading || refreshing) return;
 
-  const confirmedCount =
-    bookings.filter(
-      (booking) =>
-        booking.status ===
-        "CONFIRMED"
-    ).length;
+    const controller = new AbortController();
 
-  const refundedCount =
-    bookings.filter(
-      (booking) =>
-        booking.status ===
-        "REFUNDED"
-    ).length;
+    refreshController.current = controller;
+    setRefreshing(true);
+    setRefreshFeedback("");
 
-  const visibleRevenue =
-    bookings
-      .filter(
-        (booking) =>
-          booking.status ===
-          "CONFIRMED"
-      )
-      .reduce(
-        (
-          total,
-          booking
-        ) =>
-          total +
-          Number(
-            booking.totalAmount ||
-              0
-          ),
-        0
+    try {
+      const [success] = await Promise.all([
+        fetchBookings(true, controller.signal),
+        new Promise((resolve) =>
+          setTimeout(resolve, 1200)
+        ),
+      ]);
+
+      if (controller.signal.aborted) return;
+
+      if (success) {
+        const confirmation =
+          "Bookings refreshed successfully.";
+
+        setRefreshFeedback(confirmation);
+        toast.success(confirmation);
+      }
+    } finally {
+      if (!controller.signal.aborted) {
+        setRefreshing(false);
+      }
+
+      if (refreshController.current === controller) {
+        refreshController.current = null;
+      }
+    }
+  };
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+
+    if (!q) return bookings;
+
+    return bookings.filter((booking) =>
+      [
+        bookingCode(booking),
+        booking.user?.name,
+        booking.user?.email,
+        booking.movie?.title,
+        booking.show?.theatre?.name,
+        booking.show?.screen?.name,
+        booking.status,
+        booking.paymentStatus,
+        booking.cancellationReason,
+        ...(booking.seats || []),
+      ]
+        .filter(Boolean)
+        .some((value) =>
+          String(value)
+            .toLowerCase()
+            .includes(q)
+        )
+    );
+  }, [bookings, search]);
+
+  const counts = useMemo(
+    () => ({
+      total: bookings.length,
+
+      confirmed: bookings.filter(
+        (b) => b.status === "CONFIRMED"
+      ).length,
+
+      requests: bookings.filter(
+        (b) =>
+          b.status === "REFUND_PENDING" &&
+          b.refundRequest?.requestedAt
+      ).length,
+
+      revenue: bookings
+        .filter(
+          (b) => b.status === "CONFIRMED"
+        )
+        .reduce(
+          (sum, b) =>
+            sum + Number(b.totalAmount || 0),
+          0
+        ),
+    }),
+    [bookings]
+  );
+
+  function openAction(booking, type) {
+    setSelected(booking);
+    setAction(type);
+    setReason("");
+  }
+
+  function closeAction() {
+    if (processing) return;
+
+    setSelected(null);
+    setAction(null);
+    setReason("");
+  }
+
+  async function submitAction() {
+    if (!selected || !action || processing) {
+      return;
+    }
+
+    if (
+      action === "refund" &&
+      !reason.trim()
+    ) {
+      toast.error(
+        "Enter a reason for this manual refund."
       );
+      return;
+    }
+
+    setProcessing(true);
+
+    try {
+      let path;
+      let body = {};
+
+      if (action === "approve") {
+        path =
+          `${API_URL}/api/customer-bookings/admin/refund-requests/` +
+          `${selected._id}/approve`;
+      } else if (action === "refund") {
+        path =
+          `${API_URL}/api/admin/bookings/` +
+          `${selected._id}/refund`;
+
+        body = {
+          reason: reason.trim(),
+        };
+      } else {
+        path =
+          `${API_URL}/api/admin/bookings/` +
+          `${selected._id}/cancel`;
+
+        body = {
+          reason:
+            reason.trim() ||
+            "Cancelled by admin",
+        };
+      }
+
+      const response = await axios.post(
+        path,
+        body,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      toast.success(
+        response.data?.message ||
+        "Booking updated."
+      );
+
+      setSelected(null);
+      setAction(null);
+      setReason("");
+
+      await fetchBookings(true);
+    } catch (error) {
+      console.error(
+        "Admin booking action:",
+        error
+      );
+
+      toast.error(
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        "The action could not be completed."
+      );
+    } finally {
+      setProcessing(false);
+    }
+  }
 
   return (
-    <div>
-
-      {/* HEADER */}
-
-      <div className="flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
-
+    <div className="text-white">
+      <header className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
         <div>
-          <p className="text-sm uppercase tracking-[0.3em] text-red-500">
+          <p className="text-[11px] uppercase tracking-[0.25em] text-[#ea536b]">
             Transactions
           </p>
 
-          <h1 className="mt-2 text-3xl font-bold">
-            Bookings
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">
+            Bookings & refunds
           </h1>
 
-          <p className="mt-2 text-sm text-zinc-500">
-            Review payments, tickets,
-            cancellations and refunds.
+          <p className="mt-2 text-sm leading-6 text-white/45">
+            Manage bookings, review customer cancellations
+            and approve Stripe refunds.
           </p>
         </div>
 
-        <button
-          onClick={
-            fetchBookings
-          }
-          className="flex items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-sm text-zinc-400 transition hover:bg-white/5 hover:text-white"
-        >
-          <RefreshCw className="h-4 w-4" />
+        <div className="flex flex-col items-start gap-2 lg:items-end">
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={loading || refreshing}
+            aria-busy={refreshing}
+            className="inline-flex items-center gap-3 rounded-full border border-white/20 px-5 py-3 text-sm font-semibold text-[#ededed] transition-colors duration-300 hover:border-[#D71935] hover:bg-[#D71935]/10 disabled:cursor-wait disabled:opacity-60"
+          >
+            <motion.span
+              className="inline-flex h-4 w-4 items-center justify-center"
+              animate={
+                refreshing
+                  ? { rotate: 360 }
+                  : { rotate: 0 }
+              }
+              transition={
+                refreshing
+                  ? {
+                      duration: 2.4,
+                      repeat: Infinity,
+                      ease: "linear",
+                    }
+                  : {
+                      duration: 0.25,
+                      ease: "easeOut",
+                    }
+              }
+            >
+              <RefreshCw size={16} />
+            </motion.span>
 
-          Refresh
-        </button>
+            {refreshing
+              ? "Refreshing..."
+              : "Refresh data"}
+          </button>
 
-      </div>
+          <p
+            role="status"
+            aria-live="polite"
+            className="min-h-4 text-xs text-emerald-300"
+          >
+            {refreshFeedback}
+          </p>
+        </div>
+      </header>
 
-      {/* MINI STATS */}
-
-      <div className="mt-8 grid gap-4 sm:grid-cols-3">
-
+      <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MiniStat
-          label="Loaded Bookings"
-          value={
-            bookings.length
-          }
+          label="Loaded bookings"
+          value={counts.total}
           icon={Ticket}
         />
 
         <MiniStat
           label="Confirmed"
-          value={
-            confirmedCount
-          }
-          icon={
-            CheckCircle2
-          }
+          value={counts.confirmed}
+          icon={CheckCircle2}
         />
 
         <MiniStat
-          label="Visible Revenue"
-          value={`₹${visibleRevenue.toLocaleString(
-            "en-IN"
-          )}`}
-          icon={
-            IndianRupee
-          }
+          label="Refund requests"
+          value={counts.requests}
+          icon={RotateCcw}
         />
 
+        <MiniStat
+          label="Visible revenue"
+          value={money(counts.revenue)}
+          icon={IndianRupee}
+        />
       </div>
 
-      {/* CONTROLS */}
-
       <div className="mt-7 flex flex-col gap-3 lg:flex-row">
-
         <div className="relative flex-1">
-
-          <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-600" />
+          <Search
+            size={17}
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30"
+          />
 
           <input
             value={search}
-            onChange={(
-              event
-            ) =>
-              setSearch(
-                event.target
-                  .value
-              )
+            onChange={(e) =>
+              setSearch(e.target.value)
             }
-            placeholder="Search booking, customer, movie, seat..."
-            className="w-full rounded-xl border border-white/10 bg-zinc-900 py-3 pl-11 pr-4 text-sm outline-none focus:border-red-500"
+            placeholder="Search booking, customer, movie, seat or reason..."
+            className="w-full rounded-2xl border border-white/[0.08] bg-white/[0.035] py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-white/30 focus:border-[#D71935]/60"
           />
-
         </div>
 
-        <select
-          value={status}
-          onChange={(
-            event
-          ) =>
-            setStatus(
-              event.target.value
-            )
-          }
-          className="rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm outline-none focus:border-red-500"
+        <div
+          ref={statusMenuRef}
+          className="relative w-full shrink-0 lg:w-64"
         >
+          <button
+            type="button"
+            aria-haspopup="listbox"
+            aria-expanded={statusOpen}
+            aria-controls="bookings-status-options"
+            onClick={() =>
+              setStatusOpen((open) => !open)
+            }
+            className={`flex w-full items-center justify-between gap-3 rounded-2xl border bg-[#19191d] px-4 py-3 text-left text-sm text-[#ededf0] outline-none transition-colors duration-200 focus-visible:border-[#D71935] ${
+              statusOpen
+                ? "border-[#D71935]/60"
+                : "border-white/[0.10] hover:border-white/25"
+            }`}
+          >
+            <span>
+              {status === "ALL"
+                ? "All statuses"
+                : friendly(status)}
+            </span>
 
-          {STATUSES.map(
-            (item) => (
-              <option
-                key={item}
-                value={item}
+            <motion.span
+              animate={{
+                rotate: statusOpen ? 180 : 0,
+              }}
+              transition={{ duration: 0.22 }}
+            >
+              <ChevronDown
+                size={16}
+                className="text-[#9d9da9]"
+              />
+            </motion.span>
+          </button>
+
+          <AnimatePresence>
+            {statusOpen && (
+              <motion.div
+                id="bookings-status-options"
+                role="listbox"
+                aria-label="Filter booking status"
+                initial={{
+                  opacity: 0,
+                  y: -7,
+                  scale: 0.985,
+                }}
+                animate={{
+                  opacity: 1,
+                  y: 0,
+                  scale: 1,
+                }}
+                exit={{
+                  opacity: 0,
+                  y: -5,
+                  scale: 0.985,
+                }}
+                transition={{
+                  duration: 0.2,
+                  ease: [0.22, 1, 0.36, 1],
+                }}
+                className="absolute left-0 right-0 top-full z-50 mt-2 max-h-80 overflow-y-auto rounded-2xl border border-white/[0.13] bg-[#202025] p-1.5 shadow-[0_24px_65px_rgba(0,0,0,0.55)]"
               >
-                {item === "ALL"
-                  ? "All Statuses"
-                  : friendlyStatus(
-                      item
+                {STATUSES.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    role="option"
+                    aria-selected={status === item}
+                    onClick={() => {
+                      setStatus(item);
+                      setStatusOpen(false);
+                      setRefreshFeedback("");
+                    }}
+                    className={`flex w-full items-center justify-between rounded-xl px-3.5 py-3 text-left text-[13px] font-medium transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#D71935] ${
+                      status === item
+                        ? "bg-[#D71935]/15 text-[#fff0f3]"
+                        : "text-[#c6c6ce] hover:bg-white/[0.07] hover:text-white"
+                    }`}
+                  >
+                    <span>
+                      {item === "ALL"
+                        ? "All statuses"
+                        : friendly(item)}
+                    </span>
+
+                    {status === item && (
+                      <span
+                        className="h-1.5 w-1.5 rounded-full bg-[#f15a75]"
+                        aria-hidden="true"
+                      />
                     )}
-              </option>
-            )
-          )}
-
-        </select>
-
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
-      {/* LIST */}
-
       {loading ? (
-        <div className="py-24 text-center text-zinc-500">
+        <div className="py-24 text-center text-white/45">
           Loading bookings...
         </div>
-      ) : filteredBookings.length ===
-        0 ? (
-        <div className="mt-8 rounded-2xl border border-white/10 py-24 text-center">
-
-          <Ticket className="mx-auto h-10 w-10 text-zinc-700" />
-
-          <p className="mt-4 text-zinc-500">
-            No bookings found.
-          </p>
-
+      ) : filtered.length === 0 ? (
+        <div className="mt-8 rounded-[25px] border border-white/[0.08] bg-white/[0.025] py-20 text-center text-white/45">
+          No bookings match your filters.
         </div>
       ) : (
         <div className="mt-7 space-y-4">
+          {filtered.map((booking, index) => {
+            const confirmed =
+              booking.status === "CONFIRMED";
 
-          {filteredBookings.map(
-            (
-              booking,
-              index
-            ) => {
-              const paid =
-                isPaidBooking(
-                  booking
-                );
+            const unpaid =
+              booking.status === "PENDING_PAYMENT";
 
-              const canRefund =
-                paid &&
-                booking.status !==
-                  "REFUNDED" &&
-                booking.status !==
-                  "REFUND_PENDING";
+            const request =
+              booking.status === "REFUND_PENDING" &&
+              Boolean(
+                booking.refundRequest?.requestedAt
+              );
 
-              const canCancel =
-                !paid &&
-                ![
-                  "CANCELLED",
-                  "REFUNDED",
-                  "EXPIRED",
-                ].includes(
-                  booking.status
-                );
+            const requestStage =
+              booking.refundRequest?.status ||
+              "REQUESTED";
 
-              return (
-                <motion.div
-                  key={
-                    booking._id
-                  }
-                  initial={{
-                    opacity: 0,
-                    y: 15,
-                  }}
-                  animate={{
-                    opacity: 1,
-                    y: 0,
-                  }}
-                  transition={{
-                    delay:
-                      Math.min(
-                        index *
-                          0.02,
-                        0.25
-                      ),
-                  }}
-                  className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/50"
-                >
+            const seatReleased = Boolean(
+              booking.refundRequest?.seatReleasedAt
+            );
 
-                  {/* TOP */}
+            return (
+              <motion.article
+                key={booking._id}
+                initial={{
+                  opacity: 0,
+                  y: 12,
+                }}
+                animate={{
+                  opacity: 1,
+                  y: 0,
+                }}
+                transition={{
+                  delay: Math.min(
+                    index * 0.02,
+                    0.2
+                  ),
+                }}
+                className="overflow-hidden rounded-[24px] border border-white/[0.08] bg-[linear-gradient(130deg,rgba(255,255,255,0.04),rgba(255,255,255,0.014))]"
+              >
+                <div className="flex flex-col gap-5 p-5 xl:flex-row xl:justify-between">
+                  <div className="min-w-0 xl:w-64 xl:shrink-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-xs font-semibold text-white/75">
+                        #{bookingCode(booking)}
+                      </span>
 
-                  <div className="flex flex-col gap-5 p-5 xl:flex-row xl:items-start xl:justify-between">
-
-                    {/* BOOKING */}
-
-                    <div className="min-w-0">
-
-                      <div className="flex flex-wrap items-center gap-3">
-
-                        <p className="font-mono text-sm font-semibold text-white">
-                          #
-                          {getBookingCode(
-                            booking
-                          )}
-                        </p>
-
-                        <span
-                          className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${getStatusClasses(
-                            booking.status
-                          )}`}
-                        >
-                          {friendlyStatus(
-                            booking.status
-                          )}
-                        </span>
-
-                        {booking.ticketUsed && (
-                          <span className="rounded-full border border-purple-500/20 bg-purple-500/10 px-2.5 py-1 text-[10px] font-semibold text-purple-400">
-                            TICKET USED
-                          </span>
-                        )}
-
-                      </div>
-
-                      <h2 className="mt-4 text-lg font-bold">
-                        {booking.movie
-                          ?.title ||
-                          "Unknown Movie"}
-                      </h2>
-
-                      <div className="mt-3 flex items-start gap-2 text-sm text-zinc-500">
-
-                        <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
-
-                        <span>
-                          {booking.show
-                            ?.theatre
-                            ?.name ||
-                            "Unknown Theatre"}
-
-                          {" • "}
-
-                          {booking.show
-                            ?.screen
-                            ?.name ||
-                            "Unknown Screen"}
-                        </span>
-
-                      </div>
-
-                    </div>
-
-                    {/* INFO */}
-
-                    <div className="grid flex-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:max-w-[720px]">
-
-                      <Info
-                        icon={User}
-                        label="Customer"
-                        value={
-                          booking.user
-                            ?.name ||
-                          "Unknown"
-                        }
-                        secondary={
-                          booking.user
-                            ?.email
-                        }
-                      />
-
-                      <Info
-                        icon={
-                          CalendarDays
-                        }
-                        label="Show"
-                        value={formatDate(
-                          booking.show
-                            ?.startTime
-                        )}
-                      />
-
-                      <Info
-                        icon={Ticket}
-                        label="Seats"
-                        value={
-                          booking.seats
-                            ?.join(
-                              ", "
-                            ) ||
-                          "—"
-                        }
-                      />
-
-                      <Info
-                        icon={
-                          IndianRupee
-                        }
-                        label="Amount"
-                        value={`₹${Number(
-                          booking.totalAmount ||
-                            0
-                        ).toLocaleString(
-                          "en-IN"
+                      <span
+                        className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.09em] ${statusStyle(
+                          booking.status
                         )}`}
-                      />
-
+                      >
+                        {friendly(booking.status)}
+                      </span>
                     </div>
 
+                    <h2 className="mt-3 text-xl font-semibold tracking-tight">
+                      {booking.movie?.title ||
+                        "Movie"}
+                    </h2>
+
+                    <p className="mt-2 flex items-start gap-2 text-xs leading-5 text-white/45">
+                      <MapPin
+                        size={15}
+                        className="mt-0.5 shrink-0 text-[#D71935]"
+                      />
+                      {booking.show?.theatre?.name ||
+                        "Cinema"}{" "}
+                      ·{" "}
+                      {booking.show?.screen?.name ||
+                        "Screen"}
+                    </p>
                   </div>
 
-                  {/* PAYMENT ROW */}
+                  <div className="grid min-w-0 flex-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <Info
+                      icon={User}
+                      label="Customer"
+                      value={booking.user?.name}
+                      secondary={
+                        booking.user?.email
+                      }
+                    />
 
-                  <div className="grid gap-4 border-t border-white/5 bg-black/10 px-5 py-4 md:grid-cols-3">
-
-                    <div className="flex items-center gap-3">
-
-                      <CreditCard className="h-4 w-4 text-zinc-600" />
-
-                      <div>
-                        <p className="text-[10px] uppercase tracking-wider text-zinc-700">
-                          Payment
-                        </p>
-
-                        <p className="mt-1 text-xs font-medium text-zinc-400">
-                          {booking.paymentStatus ||
-                            booking.payment
-                              ?.status ||
-                            "Unknown"}
-                        </p>
-                      </div>
-
-                    </div>
-
-                    <div className="flex items-center gap-3">
-
-                      <Clock className="h-4 w-4 text-zinc-600" />
-
-                      <div>
-                        <p className="text-[10px] uppercase tracking-wider text-zinc-700">
-                          Booked
-                        </p>
-
-                        <p className="mt-1 text-xs font-medium text-zinc-400">
-                          {formatDate(
-                            booking.createdAt
-                          )}
-                        </p>
-                      </div>
-
-                    </div>
-
-                    <div className="flex flex-wrap justify-start gap-2 md:justify-end">
-
-                      {canCancel && (
-                        <button
-                          onClick={() =>
-                            openAction(
-                              booking,
-                              "cancel"
-                            )
-                          }
-                          className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/5 px-4 py-2 text-xs font-medium text-red-400 transition hover:bg-red-500/10"
-                        >
-                          <XCircle className="h-4 w-4" />
-
-                          Cancel
-                        </button>
+                    <Info
+                      icon={CalendarDays}
+                      label="Show"
+                      value={dateLabel(
+                        booking.show?.startTime
                       )}
+                    />
 
-                      {canRefund && (
+                    <Info
+                      icon={Ticket}
+                      label="Seats"
+                      value={
+                        booking.seats?.join(", ") ||
+                        "—"
+                      }
+                    />
+
+                    <Info
+                      icon={IndianRupee}
+                      label="Amount"
+                      value={money(
+                        booking.totalAmount
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {request && (
+                  <div className="mx-5 mb-4 rounded-[18px] border border-violet-500/20 bg-violet-500/[0.06] p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <span className="inline-flex items-center gap-2 text-xs font-semibold text-violet-200">
+                        <ShieldCheck size={16} />
+                        Customer refund request
+                      </span>
+
+                      <span className="text-xs text-violet-200/70">
+                        {requestStage === "REQUESTED"
+                          ? "Awaiting admin approval"
+                          : `Stripe / approval: ${friendly(
+                              requestStage
+                            )}`}
+                      </span>
+                    </div>
+
+                    <p className="mt-3 text-sm text-white/75">
+                      <span className="text-white/40">
+                        Reason:
+                      </span>{" "}
+                      {booking.cancellationReason ||
+                        "No reason provided"}
+                    </p>
+
+                    <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-white/45">
+                      <span>
+                        Requested:{" "}
+                        {dateLabel(
+                          booking.refundRequest?.requestedAt
+                        )}
+                      </span>
+
+                      <span>
+                        Seats:{" "}
+                        {seatReleased
+                          ? "Released"
+                          : "Release needs attention"}
+                      </span>
+                    </div>
+
+                    {booking.refundRequest?.lastError && (
+                      <p className="mt-2 text-xs leading-5 text-amber-200">
+                        Attention:{" "}
+                        {booking.refundRequest.lastError}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-3 border-t border-white/[0.06] bg-black/[0.08] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-wrap items-center gap-5 text-xs text-white/45">
+                    <span className="flex items-center gap-2">
+                      <CreditCard size={15} />
+                      {friendly(
+                        booking.paymentStatus ||
+                          booking.payment?.status
+                      )}
+                    </span>
+
+                    <span className="flex items-center gap-2">
+                      <Clock3 size={15} />
+                      {dateLabel(
+                        booking.createdAt
+                      )}
+                    </span>
+
+                    {booking.ticketUsed && (
+                      <span className="text-violet-300">
+                        Ticket used
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {unpaid && (
+                      <button
+                        onClick={() =>
+                          openAction(
+                            booking,
+                            "cancel"
+                          )
+                        }
+                        className="inline-flex items-center gap-2 rounded-full border border-rose-500/20 bg-rose-500/[0.07] px-4 py-2 text-xs font-medium text-rose-300 hover:bg-rose-500/10"
+                      >
+                        <XCircle size={15} />
+                        Cancel unpaid booking
+                      </button>
+                    )}
+
+                    {confirmed &&
+                      !booking.ticketUsed && (
                         <button
-                          disabled={
-                            booking.ticketUsed
-                          }
                           onClick={() =>
                             openAction(
                               booking,
                               "refund"
                             )
                           }
-                          className="flex items-center gap-2 rounded-lg border border-blue-500/20 bg-blue-500/5 px-4 py-2 text-xs font-medium text-blue-400 transition hover:bg-blue-500/10 disabled:cursor-not-allowed disabled:opacity-30"
+                          className="inline-flex items-center gap-2 rounded-full border border-sky-500/20 bg-sky-500/[0.07] px-4 py-2 text-xs font-medium text-sky-300 hover:bg-sky-500/10"
                         >
-                          <RotateCcw className="h-4 w-4" />
-
-                          Full Refund
+                          <RotateCcw size={15} />
+                          Manual full refund
                         </button>
                       )}
 
-                    </div>
-
+                    {request && (
+                      <button
+                        onClick={() =>
+                          openAction(
+                            booking,
+                            "approve"
+                          )
+                        }
+                        className="inline-flex items-center gap-2 rounded-full border border-violet-400/30 bg-violet-400/15 px-5 py-2 text-xs font-semibold text-violet-100 transition hover:bg-violet-400/20"
+                      >
+                        <ShieldCheck size={15} />
+                        {requestStage ===
+                        "REQUESTED"
+                          ? "Approve & refund"
+                          : "Check Stripe refund"}
+                      </button>
+                    )}
                   </div>
-
-                </motion.div>
-              );
-            }
-          )}
-
+                </div>
+              </motion.article>
+            );
+          })}
         </div>
       )}
 
-      {/* ACTION MODAL */}
-
       <AnimatePresence>
-
-        {selectedBooking &&
-          actionType && (
+        {selected && action && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 p-4 backdrop-blur-lg"
+          >
             <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="admin-action-heading"
               initial={{
                 opacity: 0,
+                y: 15,
+                scale: 0.97,
               }}
               animate={{
                 opacity: 1,
+                y: 0,
+                scale: 1,
               }}
               exit={{
                 opacity: 0,
+                scale: 0.97,
               }}
-              className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+              className="w-full max-w-lg rounded-[27px] border border-white/10 bg-[#151519] p-6 shadow-2xl sm:p-7"
             >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-[#e25670]">
+                    Booking action
+                  </p>
 
-              <motion.div
-                initial={{
-                  opacity: 0,
-                  scale: 0.95,
-                  y: 20,
-                }}
-                animate={{
-                  opacity: 1,
-                  scale: 1,
-                  y: 0,
-                }}
-                exit={{
-                  opacity: 0,
-                  scale: 0.95,
-                }}
-                className="w-full max-w-lg rounded-3xl border border-white/10 bg-[#111113] p-6"
-              >
-
-                <div className="flex items-start justify-between">
-
-                  <div className="flex gap-4">
-
-                    <div
-                      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
-                        actionType ===
-                        "refund"
-                          ? "bg-blue-500/10"
-                          : "bg-red-500/10"
-                      }`}
-                    >
-
-                      {actionType ===
-                      "refund" ? (
-                        <RotateCcw className="h-6 w-6 text-blue-400" />
-                      ) : (
-                        <AlertTriangle className="h-6 w-6 text-red-400" />
-                      )}
-
-                    </div>
-
-                    <div>
-
-                      <h2 className="text-xl font-bold">
-                        {actionType ===
-                        "refund"
-                          ? "Refund Booking"
-                          : "Cancel Booking"}
-                      </h2>
-
-                      <p className="mt-1 text-sm text-zinc-500">
-                        #
-                        {getBookingCode(
-                          selectedBooking
-                        )}
-                      </p>
-
-                    </div>
-
-                  </div>
-
-                  <button
-                    onClick={
-                      closeAction
-                    }
-                    className="rounded-lg p-2 text-zinc-600 hover:bg-white/5 hover:text-white"
+                  <h2
+                    id="admin-action-heading"
+                    className="mt-2 text-xl font-semibold"
                   >
-                    <X className="h-5 w-5" />
-                  </button>
+                    {action === "approve"
+                      ? "Approve customer refund"
+                      : action === "refund"
+                        ? "Manual full refund"
+                        : "Cancel unpaid booking"}
+                  </h2>
 
+                  <p className="mt-2 font-mono text-xs text-white/40">
+                    #{bookingCode(selected)}
+                  </p>
                 </div>
 
-                {actionType ===
-                "refund" ? (
-                  <div className="mt-6 rounded-xl border border-blue-500/20 bg-blue-500/5 p-4">
+                <button
+                  onClick={closeAction}
+                  disabled={processing}
+                  aria-label="Close"
+                  className="rounded-full border border-white/10 p-2 text-white/50 hover:text-white disabled:opacity-50"
+                >
+                  <X size={18} />
+                </button>
+              </div>
 
-                    <p className="text-sm font-medium text-blue-300">
-                      Full Stripe Refund
-                    </p>
+              <div className="mt-6 rounded-[18px] border border-white/[0.07] bg-white/[0.035] p-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle
+                    size={19}
+                    className="mt-0.5 shrink-0 text-amber-300"
+                  />
 
-                    <p className="mt-2 text-sm leading-6 text-zinc-500">
-                      ₹
-                      {Number(
-                        selectedBooking.totalAmount ||
-                          0
-                      ).toLocaleString(
-                        "en-IN"
-                      )}{" "}
-                      will be refunded through the original Stripe payment.
-                      The booked seats will only be released after Stripe confirms the refund.
-                    </p>
+                  <div className="text-sm leading-6 text-white/65">
+                    {action === "approve" ? (
+                      <>
+                        <p className="text-white/85">
+                          Approve the customer's
+                          cancellation and initiate
+                          the full{" "}
+                          {money(
+                            selected.totalAmount
+                          )}{" "}
+                          Stripe refund?
+                        </p>
 
+                        <p className="mt-2">
+                          The ticket was invalidated
+                          when the customer requested
+                          cancellation. Its seat must
+                          be safely released before
+                          Stripe is refunded.
+                        </p>
+
+                        <p className="mt-2">
+                          Customer reason:{" "}
+                          {selected.cancellationReason ||
+                            "Not provided"}
+                        </p>
+                      </>
+                    ) : action === "refund" ? (
+                      "This manual admin action issues a Stripe refund for a paid booking. It does not require a customer request."
+                    ) : (
+                      "This will cancel the selected unpaid booking."
+                    )}
                   </div>
-                ) : (
-                  <div className="mt-6 rounded-xl border border-red-500/20 bg-red-500/5 p-4">
+                </div>
+              </div>
 
-                    <p className="text-sm leading-6 text-zinc-400">
-                      This unpaid booking will be cancelled and its reserved seats released.
-                    </p>
-
-                  </div>
-                )}
-
-                {selectedBooking.ticketUsed &&
-                  actionType ===
-                    "refund" && (
-                    <div className="mt-4 rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-4 text-sm text-yellow-400">
-                      This ticket has already been used. Refund is blocked.
-                    </div>
-                  )}
-
-                <div className="mt-6">
-
-                  <label className="mb-2 block text-sm text-zinc-400">
-                    {actionType ===
-                    "refund"
-                      ? "Refund Reason"
-                      : "Cancellation Reason"}
+              {action !== "approve" && (
+                <>
+                  <label
+                    htmlFor="admin-reason"
+                    className="mt-5 block text-sm text-white/70"
+                  >
+                    Reason
                   </label>
 
                   <textarea
-                    value={reason}
-                    onChange={(
-                      event
-                    ) =>
-                      setReason(
-                        event.target
-                          .value
-                      )
-                    }
+                    id="admin-reason"
+                    rows={3}
                     maxLength={500}
-                    rows={4}
-                    placeholder={
-                      actionType ===
-                      "refund"
-                        ? "Example: Customer requested cancellation..."
-                        : "Reason for cancellation..."
+                    value={reason}
+                    onChange={(e) =>
+                      setReason(e.target.value)
                     }
-                    className="w-full resize-none rounded-xl border border-white/10 bg-black/30 px-4 py-3 outline-none focus:border-red-500"
+                    placeholder="Explain this action..."
+                    className="mt-2 w-full resize-none rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white outline-none focus:border-[#D71935]/70"
                   />
+                </>
+              )}
 
-                  <p className="mt-2 text-right text-xs text-zinc-700">
-                    {reason.length}
-                    /500
-                  </p>
+              <div className="mt-6 grid grid-cols-2 gap-3">
+                <button
+                  disabled={processing}
+                  onClick={closeAction}
+                  className="rounded-full border border-white/10 bg-white/[0.035] px-4 py-3 text-sm text-white/80 disabled:opacity-50"
+                >
+                  Go back
+                </button>
 
-                </div>
-
-                <div className="mt-6 grid grid-cols-2 gap-3">
-
-                  <button
-                    disabled={
-                      processing
-                    }
-                    onClick={
-                      closeAction
-                    }
-                    className="rounded-xl border border-white/10 py-3 text-sm font-medium text-zinc-400 hover:bg-white/5"
-                  >
-                    Go Back
-                  </button>
-
-                  <button
-                    disabled={
-                      processing ||
-                      (
-                        actionType ===
-                          "refund" &&
-                        selectedBooking.ticketUsed
-                      )
-                    }
-                    onClick={
-                      actionType ===
-                      "refund"
-                        ? refundBooking
-                        : cancelBooking
-                    }
-                    className={`rounded-xl py-3 text-sm font-semibold text-white disabled:opacity-40 ${
-                      actionType ===
-                      "refund"
-                        ? "bg-blue-600 hover:bg-blue-500"
-                        : "bg-red-600 hover:bg-red-500"
-                    }`}
-                  >
-                    {processing
-                      ? "Processing..."
-                      : actionType ===
-                        "refund"
-                      ? "Confirm Refund"
-                      : "Confirm Cancel"}
-                  </button>
-
-                </div>
-
-              </motion.div>
-
+                <button
+                  disabled={processing}
+                  onClick={submitAction}
+                  className="rounded-full bg-[#D71935] px-4 py-3 text-sm font-semibold text-white hover:bg-[#e62e49] disabled:opacity-50"
+                >
+                  {processing
+                    ? "Processing..."
+                    : action === "approve"
+                      ? "Approve & refund"
+                      : action === "refund"
+                        ? "Confirm refund"
+                        : "Confirm cancellation"}
+                </button>
+              </div>
             </motion.div>
-          )}
-
+          </motion.div>
+        )}
       </AnimatePresence>
-
     </div>
   );
-};
-
-// =====================================================
-// SMALL COMPONENTS
-// =====================================================
-
-const MiniStat = ({
-  icon: Icon,
-  label,
-  value,
-}) => (
-  <div className="rounded-2xl border border-white/10 bg-zinc-900/50 p-5">
-
-    <div className="flex items-center justify-between">
-
-      <div>
-        <p className="text-xs text-zinc-600">
-          {label}
-        </p>
-
-        <p className="mt-2 text-2xl font-bold">
-          {value}
-        </p>
-      </div>
-
-      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/10">
-        <Icon className="h-5 w-5 text-red-500" />
-      </div>
-
-    </div>
-
-  </div>
-);
-
-const Info = ({
-  icon: Icon,
-  label,
-  value,
-  secondary,
-}) => (
-  <div className="rounded-xl bg-black/20 p-3">
-
-    <div className="flex items-center gap-2">
-
-      <Icon className="h-3.5 w-3.5 text-zinc-600" />
-
-      <p className="text-[10px] uppercase tracking-wider text-zinc-700">
-        {label}
-      </p>
-
-    </div>
-
-    <p className="mt-2 truncate text-xs font-medium text-zinc-300">
-      {value || "—"}
-    </p>
-
-    {secondary && (
-      <p className="mt-1 truncate text-[10px] text-zinc-600">
-        {secondary}
-      </p>
-    )}
-
-  </div>
-);
-
-export default AdminBookings;
+}

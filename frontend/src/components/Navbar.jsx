@@ -1,99 +1,386 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Film, Search, User, LogOut, Heart, Ticket } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
-import { motion } from 'framer-motion';
+
+import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { LayoutGroup, motion, useMotionValueEvent, useScroll } from "framer-motion";
+import { Menu } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+import { Avatar, triggerClass } from "./nav/AccountTrigger";
+
+// =====================================================
+// BookMySeat navbar
+//
+//  * Exactly 64px tall, fixed, z-50 on every route. Other pages depend on that:
+//    admin/Admin.jsx pins its sidebar at top-16 and many pages use pt-16 to pt-28.
+//  * Transparent only on the homepage routes ("/" and "/booking-cancel"), and only
+//    while the homepage's opening section (#bms-opening) is on screen. Solid everywhere else.
+//  * Same links, auth behaviour and data-testid values as before, plus Cinemas and Assistant.
+//  * The account menu and the mobile menu (Radix dropdown and dialog) load on demand, so they
+//    stay out of the main bundle. They are preloaded when idle for the visitors who can use them.
+//  * Self-contained: it does not import from components/home.
+// =====================================================
+
+const NAV_HEIGHT = 64;
+
+// A failed download is retried once. React.lazy remembers a rejection forever and an uncaught one
+// unmounts the whole app, so failures are also contained by ChunkBoundary below.
+const withRetry = (load) => () => load().catch(() => new Promise((resolve) => setTimeout(resolve, 700)).then(load));
+const loadAccountMenu = withRetry(() => import("./nav/AccountMenu"));
+const loadMobileSheet = withRetry(() => import("./nav/MobileSheet"));
+const AccountMenu = lazy(loadAccountMenu);
+const MobileSheet = lazy(loadMobileSheet);
+const preload = (load) => load().catch(() => {});
+
+/**
+ * If a menu's code cannot be downloaded (a flaky connection, or a new deploy that has replaced the
+ * old files), show the fallback instead of blanking the page. The fallback reloads the page, which
+ * fetches the current files.
+ */
+class ChunkBoundary extends React.Component {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch() {
+    this.props.onFail?.();
+  }
+
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
+
+const CORE_LINKS = [
+  { to: "/", label: "Home", id: "nav-home", exact: true },
+  { to: "/cinemas", label: "Cinemas", id: "nav-cinemas" },
+  { to: "/ai-search", label: "Assistant", id: "nav-assistant" },
+  { to: "/contact", label: "Contact Us", id: "nav-contact" },
+];
+
+const MEMBER_LINKS = [
+  { to: "/favorites", label: "Favorites", id: "nav-favorites" },
+  { to: "/my-bookings", label: "My Bookings", id: "nav-my-bookings" },
+];
+
+const ADMIN_LINK = { to: "/admin", label: "Admin", id: "nav-admin" };
+
+const ring =
+  "outline-none focus-visible:ring-2 focus-visible:ring-paper focus-visible:ring-offset-2 focus-visible:ring-offset-black";
+
+const idle = (fn) => {
+  if (typeof window.requestIdleCallback === "function") {
+    const id = window.requestIdleCallback(fn, { timeout: 2500 });
+    return () => window.cancelIdleCallback(id);
+  }
+
+  const id = window.setTimeout(fn, 1200);
+  return () => window.clearTimeout(id);
+};
+
+const Logo = () => (
+  <span className="flex items-center gap-2.5">
+    <svg viewBox="0 0 32 32" className="h-7 w-7" fill="none" aria-hidden="true">
+      <path d="M3.5 12.5C7 7.2 11.4 4.8 16 4.8s9 2.4 12.5 7.7" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M9 27.2v-8.1a3.2 3.2 0 0 1 3.2-3.2h7.6a3.2 3.2 0 0 1 3.2 3.2v8.1" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+      <rect x="6.6" y="19.6" width="3.4" height="7.6" rx="1.7" fill="#fff" />
+      <rect x="22" y="19.6" width="3.4" height="7.6" rx="1.7" fill="#fff" />
+      <rect x="11.2" y="10.4" width="9.6" height="4.6" rx="2.3" fill="#fff" />
+    </svg>
+
+    <span className="font-display text-[21px] font-bold leading-none tracking-[-0.03em] text-paper [font-variation-settings:'wdth'_92,'opsz'_48]">
+      BookMySeat
+    </span>
+  </span>
+);
 
 const Navbar = () => {
   const { user, logout, isAuthenticated } = useAuth();
-  const [showUserMenu, setShowUserMenu] = useState(false);
+  const { pathname } = useLocation();
   const navigate = useNavigate();
+
+  const isHome = pathname === "/" || pathname === "/booking-cancel";
+  const isAdmin = user?.role === "admin";
+
+  const [solid, setSolid] = useState(!isHome);
+  const [hovered, setHovered] = useState(null);
+  const [hasMain, setHasMain] = useState(false);
+
+  // Menus load on demand. A click that arrives before its chunk does is remembered and honoured.
+  const [sheet, setSheet] = useState(false);
+  const [sheetWanted, setSheetWanted] = useState(false);
+  const [accountWanted, setAccountWanted] = useState(false);
+  const [menusBroken, setMenusBroken] = useState(false);
+  const menuButton = useRef(null);
+
+  // Transparent while the homepage opening is still on screen, solid otherwise.
+  const { scrollY } = useScroll();
+
+  const measure = useCallback(() => {
+    if (!isHome) {
+      setSolid(true);
+      return;
+    }
+
+    const opening = document.getElementById("bms-opening");
+
+    setSolid(
+      opening
+        ? opening.getBoundingClientRect().bottom <= NAV_HEIGHT
+        : window.scrollY > 24
+    );
+  }, [isHome]);
+
+  useMotionValueEvent(scrollY, "change", measure);
+
+  useEffect(() => {
+    measure();
+    window.addEventListener("resize", measure);
+
+    return () => window.removeEventListener("resize", measure);
+  }, [measure, pathname]);
+
+  // Close the mobile menu on navigation.
+  useEffect(() => {
+    setSheet(false);
+    setHasMain(Boolean(document.getElementById("main-content")));
+  }, [pathname]);
+
+  // Warm up only what this visitor can use.
+  useEffect(
+    () =>
+      idle(() => {
+        if (isAuthenticated) preload(loadAccountMenu);
+
+        if (window.matchMedia("(max-width: 1023px)").matches) {
+          preload(loadMobileSheet);
+        }
+      }),
+    [isAuthenticated]
+  );
 
   const handleLogout = () => {
     logout();
-    setShowUserMenu(false);
-    navigate('/');
+    navigate("/");
   };
 
+  const reloadPage = () => window.location.reload();
+
+  const openSheet = () => {
+    if (menusBroken) {
+      reloadPage();
+      return;
+    }
+
+    setSheetWanted(true);
+    setSheet(true);
+  };
+
+  const isActive = (link) => {
+    if (
+      link.to === "/cinemas" &&
+      (pathname === "/movies" || pathname.startsWith("/movie/"))
+    ) {
+      return true;
+    }
+
+    return link.exact
+      ? pathname === link.to
+      : pathname === link.to || pathname.startsWith(`${link.to}/`);
+  };
+
+  const desktopLinks = [
+    ...CORE_LINKS.map((link) => ({ ...link, xlOnly: false })),
+    ...(isAuthenticated
+      ? MEMBER_LINKS.map((link) => ({ ...link, xlOnly: true }))
+      : []),
+    ...(isAdmin ? [{ ...ADMIN_LINK, xlOnly: true }] : []),
+  ];
+
+  const sheetLinks = [
+    ...CORE_LINKS,
+    ...(isAuthenticated ? MEMBER_LINKS : []),
+    ...(isAdmin ? [ADMIN_LINK] : []),
+  ];
+
   return (
-    <motion.nav 
-      initial={{ y: -100 }}
-      animate={{ y: 0 }}
-      className="fixed top-0 w-full z-50 glassmorphism"
-      data-testid="main-navbar"
-    >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          <Link to="/" className="flex items-center space-x-2" data-testid="logo-link">
-            <Film className="h-8 w-8 text-red-600" strokeWidth={1.5} />
-            <span className="text-xl font-black tracking-tight">BookMySeat</span>
+    <>
+      {hasMain && (
+        <a
+          href="#main-content"
+          className="fixed left-4 top-3 z-[95] -translate-y-24 rounded-full bg-paper px-5 py-2.5 text-sm font-semibold text-ink transition-transform focus:translate-y-0 focus:outline-none"
+        >
+          Skip to content
+        </a>
+      )}
+
+      <nav
+        data-testid="main-navbar"
+        aria-label="Main"
+        className="fixed inset-x-0 top-0 z-50 box-border h-16"
+      >
+        {/* Transparent and solid navbar backgrounds */}
+        <div
+          aria-hidden="true"
+          className={`pointer-events-none absolute inset-0 bg-gradient-to-b from-black/60 to-transparent transition-opacity duration-300 ${
+            solid ? "opacity-0" : "opacity-100"
+          }`}
+        />
+
+        <div
+          aria-hidden="true"
+          className={`pointer-events-none absolute inset-0 border-b border-line bg-black/90 backdrop-blur-xl transition-opacity duration-300 ${
+            solid ? "opacity-100" : "opacity-0"
+          }`}
+        />
+
+        <div className="relative mx-auto flex h-full max-w-[1400px] items-center justify-between px-5 lg:px-8">
+          <Link
+            to="/"
+            data-testid="logo-link"
+            aria-label="BookMySeat home"
+            className={`rounded-full ${ring}`}
+          >
+            <Logo />
           </Link>
 
-          <div className="hidden md:flex items-center space-x-8">
-            <Link to="/" className="text-zinc-400 hover:text-white transition-colors duration-300" data-testid="nav-home">Home</Link>
-            <Link to="/movies" className="text-zinc-400 hover:text-white transition-colors duration-300" data-testid="nav-movies">Movies</Link>
-            <Link to="/contact" className="text-zinc-400 hover:text-white transition-colors duration-300" data-testid="nav-contact">Contact Us</Link>
-            {isAuthenticated && (
-              <>
-                <Link to="/favorites" className="text-zinc-400 hover:text-white transition-colors duration-300" data-testid="nav-favorites">Favorites</Link>
-                <Link to="/my-bookings" className="text-zinc-400 hover:text-white transition-colors duration-300" data-testid="nav-my-bookings">My Bookings</Link>
-              </>
-            )}
-            {user?.role === 'admin' && (
-              <Link to="/admin" className="text-red-500 hover:text-red-400 transition-colors duration-300" data-testid="nav-admin">Admin</Link>
-            )}
-          </div>
-
-          <div className="flex items-center space-x-4">
-            {isAuthenticated ? (
-              <div className="relative">
-                <button
-                  onClick={() => setShowUserMenu(!showUserMenu)}
-                  className="flex items-center space-x-2 bg-zinc-900 px-4 py-2 rounded-full hover:bg-zinc-800 transition-all duration-300"
-                  data-testid="user-menu-button"
+          <LayoutGroup id="bms-nav">
+            <ul
+              className="relative hidden items-center gap-0.5 lg:flex"
+              onMouseLeave={() => setHovered(null)}
+            >
+              {desktopLinks.map((link) => (
+                <li
+                  key={link.to}
+                  className={`relative ${link.xlOnly ? "hidden xl:block" : ""}`}
                 >
-                  <User className="h-5 w-5" strokeWidth={1.5} />
-                  <span className="hidden md:block">{user?.name}</span>
-                </button>
-                {showUserMenu && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="absolute right-0 mt-2 w-48 glassmorphism rounded-xl py-2 shadow-xl"
-                    data-testid="user-menu-dropdown"
+                  <Link
+                    to={link.to}
+                    data-testid={link.id}
+                    onMouseEnter={() => setHovered(link.to)}
+                    onFocus={() => setHovered(link.to)}
+                    onBlur={() => setHovered(null)}
+                    aria-current={isActive(link) ? "page" : undefined}
+                    className={`relative z-10 block rounded-full px-3.5 py-2 text-[15px] transition-colors duration-300 ${ring} ${
+                      isActive(link)
+                        ? "text-paper"
+                        : "text-soft hover:text-paper"
+                    }`}
                   >
-                    <Link to="/favorites" className="flex items-center px-4 py-2 hover:bg-white/10 transition-colors" data-testid="dropdown-favorites">
-                      <Heart className="h-4 w-4 mr-2" strokeWidth={1.5} />
-                      Favorites
-                    </Link>
-                    <Link to="/my-bookings" className="flex items-center px-4 py-2 hover:bg-white/10 transition-colors" data-testid="dropdown-bookings">
-                      <Ticket className="h-4 w-4 mr-2" strokeWidth={1.5} />
-                      My Bookings
-                    </Link>
+                    {link.label}
+                  </Link>
+
+                  {hovered === link.to && (
+                    <motion.span
+                      layoutId="bms-nav-hover"
+                      className="absolute inset-0 z-0 rounded-full bg-white/10"
+                      transition={{
+                        type: "spring",
+                        stiffness: 420,
+                        damping: 36,
+                      }}
+                    />
+                  )}
+
+                  {isActive(link) && (
+                    <motion.span
+                      layoutId="bms-nav-dot"
+                      className="absolute -bottom-0.5 left-1/2 z-10 h-1 w-1 -translate-x-1/2 rounded-full bg-paper"
+                      transition={{
+                        type: "spring",
+                        stiffness: 420,
+                        damping: 36,
+                      }}
+                    />
+                  )}
+                </li>
+              ))}
+            </ul>
+          </LayoutGroup>
+
+          <div className="flex items-center gap-2">
+            {isAuthenticated ? (
+              <ChunkBoundary
+                onFail={() => setMenusBroken(true)}
+                fallback={
+                  <button
+                    type="button"
+                    data-testid="user-menu-button"
+                    aria-label="Reload to open the account menu"
+                    onClick={reloadPage}
+                    className={triggerClass}
+                  >
+                    <Avatar user={user} />
+                  </button>
+                }
+              >
+                <Suspense
+                  fallback={
                     <button
-                      onClick={handleLogout}
-                      className="flex items-center w-full px-4 py-2 hover:bg-white/10 transition-colors text-red-500"
-                      data-testid="logout-button"
+                      type="button"
+                      data-testid="user-menu-button"
+                      aria-label="Open account menu"
+                      onClick={() => setAccountWanted(true)}
+                      className={triggerClass}
                     >
-                      <LogOut className="h-4 w-4 mr-2" strokeWidth={1.5} />
-                      Logout
+                      <Avatar user={user} />
                     </button>
-                  </motion.div>
-                )}
-              </div>
+                  }
+                >
+                  <AccountMenu
+                    user={user}
+                    isAdmin={isAdmin}
+                    onLogout={handleLogout}
+                    autoOpen={accountWanted}
+                  />
+                </Suspense>
+              </ChunkBoundary>
             ) : (
               <Link
                 to="/auth"
-                className="bg-red-600 hover:bg-red-500 px-6 py-2 rounded-full font-semibold transition-all duration-300 active:scale-95"
                 data-testid="login-button"
+                className={`hidden h-10 items-center rounded-full border border-line-strong px-5 text-sm font-semibold text-paper transition-colors hover:border-paper min-[370px]:inline-flex ${ring}`}
               >
                 Sign In
               </Link>
             )}
+
+            <button
+              ref={menuButton}
+              type="button"
+              aria-label="Open menu"
+              aria-haspopup="dialog"
+              aria-expanded={sheet}
+              onClick={openSheet}
+              onPointerEnter={() => preload(loadMobileSheet)}
+              className={`flex h-10 w-10 items-center justify-center rounded-full border border-line-strong text-paper transition-colors hover:border-paper lg:hidden ${ring}`}
+            >
+              <Menu className="h-5 w-5" strokeWidth={1.6} />
+            </button>
+
+            {sheetWanted && (
+              <ChunkBoundary
+                onFail={() => setMenusBroken(true)}
+                fallback={null}
+              >
+                <Suspense fallback={null}>
+                  <MobileSheet
+                    open={sheet}
+                    onOpenChange={setSheet}
+                    links={sheetLinks}
+                    isActive={isActive}
+                    isAuthenticated={isAuthenticated}
+                    onLogout={handleLogout}
+                    logo={<Logo />}
+                    triggerRef={menuButton}
+                  />
+                </Suspense>
+              </ChunkBoundary>
+            )}
           </div>
         </div>
-      </div>
-    </motion.nav>
+      </nav>
+    </>
   );
 };
 

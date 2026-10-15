@@ -1,3 +1,4 @@
+
 import React, {
   useCallback,
   useEffect,
@@ -5,2191 +6,1631 @@ import React, {
   useRef,
   useState,
 } from "react";
-
+import axios from "axios";
+import toast from "react-hot-toast";
+import { io } from "socket.io-client";
+import { motion, useReducedMotion } from "framer-motion";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Armchair,
+  CalendarDays,
+  Clock3,
+  Info,
+  MapPin,
+  MonitorPlay,
+  ShieldCheck,
+  Ticket,
+  Timer,
+} from "lucide-react";
 import {
   useNavigate,
   useParams,
   useSearchParams,
 } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import { useBooking } from "../context/BookingContext";
+import "./BookingCinema.css";
 
-import {
-  Armchair,
-  Clock,
-  MapPin,
-  Ticket,
-} from "lucide-react";
-
-import axios from "axios";
-
-import toast from "react-hot-toast";
-
-import {
-  io,
-} from "socket.io-client";
-
-import {
-  useAuth,
-} from "../context/AuthContext";
-
-import {
-  useBooking,
-} from "../context/BookingContext";
+// ============================================================
+// BOOKMYSEAT — CINEMATIC SEAT SELECTION V3
+//
+// Uses actual physical Screen.seats, Redis locks, Socket.IO,
+// server-defined ticket pricing, and the existing checkout flow.
+// ============================================================
 
 const API_URL =
-  process.env.REACT_APP_BACKEND_URL;
+  process.env.REACT_APP_BACKEND_URL || "http://localhost:5000";
 
+const HOLD_KEY = "bookmyseat_seat_hold";
+const CHECKOUT_KEY = "bookmyseat_checkout";
 const MAX_SEATS = 10;
 
-const HOLD_STORAGE_KEY =
-  "bookmyseat_seat_hold";
+const money = (value) =>
+  `₹${Number(value || 0).toLocaleString("en-IN")}`;
 
-const CHECKOUT_STORAGE_KEY =
-  "bookmyseat_checkout";
+const normalizeIds = (input) =>
+  Array.isArray(input)
+    ? [
+        ...new Set(
+          input
+            .map((item) =>
+              String(
+                typeof item === "string"
+                  ? item
+                  : item?.seatId || ""
+              )
+                .trim()
+                .toUpperCase()
+            )
+            .filter(Boolean)
+        ),
+      ]
+    : [];
 
-// =====================================================
-// HELPERS
-// =====================================================
+const dateText = (date) =>
+  date
+    ? new Intl.DateTimeFormat("en-IN", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        timeZone: "Asia/Kolkata",
+      }).format(new Date(date))
+    : "—";
 
-const normalizeSeatIds = (
-  value
-) => {
-  if (
-    !Array.isArray(value)
-  ) {
-    return [];
-  }
+const timeText = (date) =>
+  date
+    ? new Intl.DateTimeFormat("en-IN", {
+        hour: "numeric",
+        minute: "2-digit",
+        timeZone: "Asia/Kolkata",
+      }).format(new Date(date))
+    : "—";
 
-  return [
-    ...new Set(
-      value
-        .map((item) => {
-          if (
-            typeof item ===
-            "string"
-          ) {
-            return item
-              .trim()
-              .toUpperCase();
-          }
-
-          return String(
-            item?.seatId ||
-              ""
-          )
-            .trim()
-            .toUpperCase();
-        })
-        .filter(Boolean)
-    ),
-  ];
-};
-
-const formatTime = (
-  value
-) => {
-  if (!value) {
-    return "—";
-  }
-
-  return new Intl.DateTimeFormat(
-    "en-IN",
-    {
-      hour: "numeric",
-      minute: "2-digit",
-    }
-  ).format(
-    new Date(value)
-  );
-};
-
-const formatDate = (
-  value
-) => {
-  if (!value) {
-    return "—";
-  }
-
-  return new Intl.DateTimeFormat(
-    "en-IN",
-    {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    }
-  ).format(
-    new Date(value)
-  );
-};
-
-const formatCountdown = (
-  seconds
-) => {
-  const safe =
-    Math.max(
-      seconds,
-      0
-    );
-
-  const minutes =
-    Math.floor(
-      safe / 60
-    );
-
-  const remaining =
-    safe % 60;
-
-  return `${String(
-    minutes
-  ).padStart(
+const countText = (seconds) =>
+  `${String(Math.floor(Math.max(seconds, 0) / 60)).padStart(
     2,
     "0"
-  )}:${String(
-    remaining
-  ).padStart(
-    2,
-    "0"
-  )}`;
-};
+  )}:${String(Math.max(seconds, 0) % 60).padStart(2, "0")}`;
 
-// =====================================================
-// PAGE
-// =====================================================
+const imageSrc = (value) =>
+  typeof value === "string" &&
+  /^(https?:\/\/|\/)/i.test(value.trim())
+    ? value.trim()
+    : "";
 
-const Booking = () => {
-  const {
-    id: movieId,
-  } =
-    useParams();
+// ============================================================
+// REALISTIC CINEMA CHAIR
+// ============================================================
 
-  const [
-    searchParams,
-  ] =
-    useSearchParams();
+function SeatIcon({
+  status = "available",
+  category = "REGULAR",
+  size = "normal",
+}) {
+  return (
+    <span
+      className={`bms-chair bms-chair--${status} bms-chair--${size} bms-chair--${String(
+        category
+      ).toLowerCase()}`}
+      aria-hidden="true"
+    >
+      <span className="bms-chair__back" />
+      <span className="bms-chair__cushion" />
+      <span className="bms-chair__arm bms-chair__arm--left" />
+      <span className="bms-chair__arm bms-chair__arm--right" />
+      <span className="bms-chair__base" />
+    </span>
+  );
+}
 
-  const navigate =
-    useNavigate();
+function StatusLegend({ status, title }) {
+  return (
+    <span className="bms-seat-legend__item">
+      <SeatIcon status={status} size="mini" />
+      <span>{title}</span>
+    </span>
+  );
+}
+
+// ============================================================
+// MAIN BOOKING PAGE
+// ============================================================
+
+function Booking() {
+  const { id: movieId } = useParams();
+  const [params] = useSearchParams();
+  const navigate = useNavigate();
+  const reducedMotion = useReducedMotion();
 
   const {
     token,
     isAuthenticated,
     loading: authLoading,
-  } =
-    useAuth();
+  } = useAuth();
 
-  const {
-    updateBooking,
-  } =
-    useBooking();
+  const { updateBooking } = useBooking();
 
   const showId =
-    searchParams.get(
-      "show"
-    ) ||
-    localStorage.getItem(
-      "bookmyseat_show"
-    );
+    params.get("show") ||
+    localStorage.getItem("bookmyseat_show");
 
   const theatreId =
-    searchParams.get(
-      "theatre"
-    ) ||
-    localStorage.getItem(
-      "bookmyseat_theatre"
-    );
+    params.get("theatre") ||
+    localStorage.getItem("bookmyseat_theatre");
 
-  const [
-    show,
-    setShow,
-  ] =
-    useState(null);
+  const [show, setShow] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState("");
 
-  const [
-    loading,
-    setLoading,
-  ] =
-    useState(true);
+  const [selectedSeats, setSelectedSeats] = useState([]);
+  const [bookedSeats, setBookedSeats] = useState([]);
+  const [lockedSeats, setLockedSeats] = useState([]);
 
-  const [
-    selectedSeats,
-    setSelectedSeats,
-  ] =
-    useState([]);
+  const [hold, setHold] = useState(null);
+  const [secondsLeft, setSecondsLeft] = useState(0);
 
-  const selectedSeatsRef =
-    useRef([]);
+  const [seatAction, setSeatAction] = useState(null);
+  const [proceeding, setProceeding] = useState(false);
+  const [focusType, setFocusType] = useState("ALL");
 
-  const [
-    lockedSeats,
-    setLockedSeats,
-  ] =
-    useState([]);
-
-  const [
-    bookedSeats,
-    setBookedSeats,
-  ] =
-    useState([]);
-
-  const [
-    hold,
-    setHold,
-  ] =
-    useState(null);
-
-  const holdRef =
-    useRef(null);
-
-  const [
-    secondsLeft,
-    setSecondsLeft,
-  ] =
-    useState(0);
-
-  const [
-    seatAction,
-    setSeatAction,
-  ] =
-    useState(null);
-
-  const [
-    proceeding,
-    setProceeding,
-  ] =
-    useState(false);
-
-  // ===================================================
-  // KEEP REFS CURRENT
-  // ===================================================
+  const selectedRef = useRef([]);
+  const holdRef = useRef(null);
 
   useEffect(() => {
-    selectedSeatsRef.current =
-      selectedSeats;
+    selectedRef.current = selectedSeats;
   }, [selectedSeats]);
 
   useEffect(() => {
-    holdRef.current =
-      hold;
+    holdRef.current = hold;
   }, [hold]);
 
-  // ===================================================
-  // AUTH
-  // ===================================================
+  // ==========================================================
+  // AUTHENTICATION
+  // ==========================================================
 
   useEffect(() => {
-    if (
-      authLoading
-    ) {
-      return;
+    if (!authLoading && !isAuthenticated) {
+      toast.error("Please login to book tickets.");
+      navigate("/auth", { replace: true });
     }
+  }, [authLoading, isAuthenticated, navigate]);
 
-    if (
-      !isAuthenticated
-    ) {
-      toast.error(
-        "Please login to book tickets."
-      );
-
-      navigate(
-        "/auth"
-      );
-    }
-  }, [
-    authLoading,
-    isAuthenticated,
-    navigate,
-  ]);
-
-  // ===================================================
-  // RESTORE EXISTING HOLD AFTER REFRESH
-  // ===================================================
+  // ==========================================================
+  // RESTORE EXISTING SEAT HOLD
+  // ==========================================================
 
   useEffect(() => {
-    if (!showId) {
-      return;
-    }
+    if (!showId) return;
 
     try {
-      const raw =
-        sessionStorage.getItem(
-          HOLD_STORAGE_KEY
-        );
-
-      if (!raw) {
-        return;
-      }
-
-      const saved =
-        JSON.parse(raw);
-
-      if (
-        String(
-          saved.showId
-        ) !==
-        String(showId)
-      ) {
-        return;
-      }
-
-      if (
-        !saved.expiresAt ||
-        new Date(
-          saved.expiresAt
-        ) <= new Date()
-      ) {
-        sessionStorage.removeItem(
-          HOLD_STORAGE_KEY
-        );
-
-        return;
-      }
-
-      const restoredSeats =
-        normalizeSeatIds(
-          saved.seatIds
-        );
-
-      if (
-        restoredSeats.length ===
-        0 ||
-        !saved.lockId
-      ) {
-        return;
-      }
-
-      setSelectedSeats(
-        restoredSeats
+      const saved = JSON.parse(
+        sessionStorage.getItem(HOLD_KEY) || "null"
       );
+
+      if (!saved || String(saved.showId) !== String(showId)) {
+        return;
+      }
+
+      if (
+        !saved.lockId ||
+        !saved.expiresAt ||
+        Date.parse(saved.expiresAt) <= Date.now()
+      ) {
+        sessionStorage.removeItem(HOLD_KEY);
+        return;
+      }
+
+      const seats = normalizeIds(saved.seatIds);
+
+      if (!seats.length) return;
+
+      setSelectedSeats(seats);
 
       setHold({
-        lockId:
-          saved.lockId,
-
-        expiresAt:
-          saved.expiresAt,
+        lockId: saved.lockId,
+        expiresAt: saved.expiresAt,
       });
-    } catch (error) {
-      sessionStorage.removeItem(
-        HOLD_STORAGE_KEY
-      );
+    } catch (_) {
+      sessionStorage.removeItem(HOLD_KEY);
     }
   }, [showId]);
 
-  // ===================================================
-  // SAVE HOLD LOCALLY
-  // ===================================================
-
   const saveHold = useCallback(
-    ({
-      seatIds,
-      lockId,
-      expiresAt,
-    }) => {
+    (seatIds, nextHold) => {
       if (
-        !lockId ||
-        !expiresAt ||
-        !seatIds?.length
+        !nextHold?.lockId ||
+        !nextHold?.expiresAt ||
+        !seatIds.length
       ) {
-        sessionStorage.removeItem(
-          HOLD_STORAGE_KEY
-        );
-
+        sessionStorage.removeItem(HOLD_KEY);
         return;
       }
 
       sessionStorage.setItem(
-        HOLD_STORAGE_KEY,
-
+        HOLD_KEY,
         JSON.stringify({
           showId,
           seatIds,
-          lockId,
-          expiresAt,
+          lockId: nextHold.lockId,
+          expiresAt: nextHold.expiresAt,
         })
       );
     },
     [showId]
   );
 
-  // ===================================================
-  // LOAD SHOW
-  // ===================================================
+  // ==========================================================
+  // LOAD ACTUAL SHOW, SCREEN AND BOOKED SEATS
+  // ==========================================================
 
   useEffect(() => {
-    const loadShow =
-      async () => {
+    if (authLoading || !isAuthenticated) return;
+
+    if (!showId) {
+      toast.error("Please select a show first.");
+
+      navigate(
+        `/movie/${movieId}${
+          theatreId ? `?theatre=${theatreId}` : ""
+        }`,
+        { replace: true }
+      );
+
+      return;
+    }
+
+    let live = true;
+
+    setLoading(true);
+    setFailed("");
+
+    axios
+      .get(`${API_URL}/api/shows/${showId}`)
+      .then(({ data }) => {
+        if (!live) return;
+
+        const nextShow = data?.show;
+
+        if (!nextShow) {
+          throw new Error("Show not found.");
+        }
+
+        const loadedId =
+          nextShow.movie?._id || nextShow.movie;
+
         if (
-          authLoading ||
-          !isAuthenticated
+          movieId &&
+          String(loadedId) !== String(movieId)
         ) {
-          return;
+          throw new Error(
+            "Selected show does not belong to this movie."
+          );
         }
 
-        if (!showId) {
-          toast.error(
-            "Please select a show first."
-          );
+        setShow(nextShow);
 
-          navigate(
-            `/movie/${movieId}${
-              theatreId
-                ? `?theatre=${theatreId}`
-                : ""
-            }`,
-            {
-              replace: true,
-            }
-          );
+        setBookedSeats(
+          normalizeIds(nextShow.bookedSeats)
+        );
 
-          return;
-        }
+        localStorage.setItem(
+          "bookmyseat_show",
+          String(nextShow._id)
+        );
 
-        setLoading(true);
-
-        try {
-          const response =
-            await axios.get(
-              `${API_URL}/api/shows/${showId}`
-            );
-
-          const loadedShow =
-            response.data?.show;
-
-          if (
-            !loadedShow
-          ) {
-            throw new Error(
-              "Show not found."
-            );
-          }
-
-          const loadedMovieId =
-            loadedShow.movie
-              ?._id ||
-            loadedShow.movie;
-
-          if (
-            movieId &&
-            String(
-              loadedMovieId
-            ) !==
-              String(
-                movieId
-              )
-          ) {
-            throw new Error(
-              "Selected show does not belong to this movie."
-            );
-          }
-
-          setShow(
-            loadedShow
-          );
-
-          setBookedSeats(
-            normalizeSeatIds(
-              loadedShow.bookedSeats
-            )
-          );
-
+        if (nextShow.theatre?._id) {
           localStorage.setItem(
-            "bookmyseat_show",
-            loadedShow._id
-          );
-
-          if (
-            loadedShow.theatre
-              ?._id
-          ) {
-            localStorage.setItem(
-              "bookmyseat_theatre",
-              loadedShow.theatre._id
-            );
-          }
-
-          if (
-            loadedShow.theatre
-              ?.name
-          ) {
-            localStorage.setItem(
-              "bookmyseat_theatre_name",
-              loadedShow.theatre.name
-            );
-          }
-        } catch (error) {
-          console.error(
-            "Load booking show:",
-            error
-          );
-
-          toast.error(
-            error.response
-              ?.data
-              ?.message ||
-              error.message ||
-              "Could not load this show."
-          );
-        } finally {
-          setLoading(
-            false
+            "bookmyseat_theatre",
+            String(nextShow.theatre._id)
           );
         }
-      };
 
-    loadShow();
+        if (nextShow.theatre?.name) {
+          localStorage.setItem(
+            "bookmyseat_theatre_name",
+            nextShow.theatre.name
+          );
+        }
+      })
+      .catch((error) => {
+        if (!live) return;
+
+        console.error("Load booking show:", error);
+
+        setFailed(
+          error.response?.data?.message ||
+            error.message ||
+            "Could not load this show."
+        );
+      })
+      .finally(() => {
+        if (live) setLoading(false);
+      });
+
+    return () => {
+      live = false;
+    };
   }, [
+    authLoading,
+    isAuthenticated,
     showId,
     movieId,
     theatreId,
-    authLoading,
-    isAuthenticated,
     navigate,
   ]);
 
-  // ===================================================
-  // LOAD REDIS LOCKS
-  // ===================================================
+  // ==========================================================
+  // FETCH REDIS SEAT LOCKS
+  // ==========================================================
 
-  const refreshLockedSeats =
-    useCallback(
-      async () => {
-        if (!showId) {
-          return;
-        }
+  const refreshLockedSeats = useCallback(async () => {
+    if (!showId) return;
 
-        try {
-          const response =
-            await axios.get(
-              `${API_URL}/api/seat-locks/${showId}`
-            );
+    try {
+      const { data } = await axios.get(
+        `${API_URL}/api/seat-locks/${showId}`
+      );
 
-          setLockedSeats(
-            normalizeSeatIds(
-              response.data
-                ?.lockedSeats
-            )
-          );
-        } catch (error) {
-          console.error(
-            "Load seat locks:",
-            error
-          );
-        }
-      },
-      [showId]
-    );
+      setLockedSeats(normalizeIds(data?.lockedSeats));
+    } catch (error) {
+      console.error("Load seat locks:", error);
+    }
+  }, [showId]);
 
   useEffect(() => {
-    if (!showId) {
-      return;
-    }
+    if (!showId) return;
 
     refreshLockedSeats();
 
-    // Socket.IO is the real-time path.
-    // Polling is only a recovery fallback if an event is missed.
-    const interval =
-      setInterval(
-        refreshLockedSeats,
-        15000
-      );
+    // Socket.IO is primary. Polling recovers missed events.
+    const interval = setInterval(
+      refreshLockedSeats,
+      15000
+    );
 
-    return () =>
-      clearInterval(
-        interval
-      );
-  }, [
-    showId,
-    refreshLockedSeats,
-  ]);
+    return () => clearInterval(interval);
+  }, [showId, refreshLockedSeats]);
 
-  // ===================================================
-  // SOCKET.IO LIVE SEAT UPDATES
-  // ===================================================
+  // ==========================================================
+  // SOCKET.IO REAL-TIME SEAT UPDATES
+  // ==========================================================
 
   useEffect(() => {
-    if (!showId) {
-      return;
-    }
+    if (!showId) return;
 
-    const socket =
-      io(API_URL, {
-        transports: [
-          "websocket",
-          "polling",
-        ],
+    const socket = io(API_URL, {
+      transports: ["websocket", "polling"],
+      reconnection: true,
+    });
 
-        reconnection: true,
-      });
+    const matches = (payload) =>
+      !payload?.showId ||
+      String(payload.showId) === String(showId);
 
-    socket.emit(
-      "show:join",
-      {
-        showId,
-      }
-    );
+    const onHeld = (payload) => {
+      if (!matches(payload)) return;
 
-    const eventMatchesShow =
-      (payload) => {
-        if (
-          !payload?.showId
-        ) {
-          return true;
-        }
+      setLockedSeats((old) => [
+        ...new Set([
+          ...old,
+          ...normalizeIds(payload?.seatIds),
+        ]),
+      ]);
+    };
 
-        return (
-          String(
-            payload.showId
-          ) ===
-          String(showId)
-        );
-      };
+    const onReleased = (payload) => {
+      if (!matches(payload)) return;
 
-    const handleHeld =
-      (payload) => {
-        if (
-          !eventMatchesShow(
-            payload
-          )
-        ) {
-          return;
-        }
+      const released = new Set(
+        normalizeIds(payload?.seatIds)
+      );
 
-        const seats =
-          normalizeSeatIds(
-            payload?.seatIds
-          );
+      setLockedSeats((old) =>
+        old.filter((id) => !released.has(id))
+      );
+    };
 
-        setLockedSeats(
-          (current) =>
-            [
-              ...new Set([
-                ...current,
-                ...seats,
-              ]),
-            ]
-        );
-      };
+    const onBooked = (payload) => {
+      if (!matches(payload)) return;
 
-    const handleReleased =
-      (payload) => {
-        if (
-          !eventMatchesShow(
-            payload
-          )
-        ) {
-          return;
-        }
+      const seats = normalizeIds(payload?.seatIds);
+      const booked = new Set(seats);
 
-        const released =
-          new Set(
-            normalizeSeatIds(
-              payload?.seatIds
-            )
-          );
+      setBookedSeats((old) => [
+        ...new Set([...old, ...seats]),
+      ]);
 
-        setLockedSeats(
-          (current) =>
-            current.filter(
-              (seatId) =>
-                !released.has(
-                  seatId
-                )
-            )
-        );
-      };
+      setLockedSeats((old) =>
+        old.filter((id) => !booked.has(id))
+      );
 
-    const handleBooked =
-      (payload) => {
-        if (
-          !eventMatchesShow(
-            payload
-          )
-        ) {
-          return;
-        }
+      setSelectedSeats((old) =>
+        old.filter((id) => !booked.has(id))
+      );
+    };
 
-        const newlyBooked =
-          normalizeSeatIds(
-            payload?.seatIds
-          );
+    socket.emit("show:join", { showId });
 
-        const bookedSet =
-          new Set(
-            newlyBooked
-          );
+    socket.on("connect", () => {
+      socket.emit("show:join", { showId });
+    });
 
-        setBookedSeats(
-          (current) =>
-            [
-              ...new Set([
-                ...current,
-                ...newlyBooked,
-              ]),
-            ]
-        );
-
-        setLockedSeats(
-          (current) =>
-            current.filter(
-              (seatId) =>
-                !bookedSet.has(
-                  seatId
-                )
-            )
-        );
-
-        setSelectedSeats(
-          (current) =>
-            current.filter(
-              (seatId) =>
-                !bookedSet.has(
-                  seatId
-                )
-            )
-        );
-      };
-
-    socket.on(
-      "seats:held",
-      handleHeld
-    );
-
-    socket.on(
-      "seats:released",
-      handleReleased
-    );
-
-    socket.on(
-      "seats:booked",
-      handleBooked
-    );
+    socket.on("seats:held", onHeld);
+    socket.on("seats:released", onReleased);
+    socket.on("seats:booked", onBooked);
 
     return () => {
-      socket.emit(
-        "show:leave",
-        {
-          showId,
-        }
-      );
+      socket.emit("show:leave", { showId });
 
-      socket.off(
-        "seats:held",
-        handleHeld
-      );
-
-      socket.off(
-        "seats:released",
-        handleReleased
-      );
-
-      socket.off(
-        "seats:booked",
-        handleBooked
-      );
+      socket.off("seats:held", onHeld);
+      socket.off("seats:released", onReleased);
+      socket.off("seats:booked", onBooked);
 
       socket.disconnect();
     };
   }, [showId]);
 
-  // ===================================================
-  // HOLD COUNTDOWN
-  // ===================================================
+  // ==========================================================
+  // HOLD EXPIRY COUNTDOWN
+  // ==========================================================
 
   useEffect(() => {
-    if (
-      !hold?.expiresAt
-    ) {
-      setSecondsLeft(
-        0
-      );
-
+    if (!hold?.expiresAt) {
+      setSecondsLeft(0);
       return;
     }
 
     let expired = false;
 
-    const updateTimer =
-      () => {
-        const remaining =
-          Math.max(
-            Math.ceil(
-              (
-                new Date(
-                  hold.expiresAt
-                ).getTime() -
-                Date.now()
-              ) /
-                1000
-            ),
-            0
-          );
+    const tick = () => {
+      const remaining = Math.max(
+        Math.ceil(
+          (Date.parse(hold.expiresAt) - Date.now()) / 1000
+        ),
+        0
+      );
 
-        setSecondsLeft(
-          remaining
+      setSecondsLeft(remaining);
+
+      if (remaining === 0 && !expired) {
+        expired = true;
+
+        setHold(null);
+        setSelectedSeats([]);
+        selectedRef.current = [];
+
+        updateBooking({
+          selectedSeats: [],
+        });
+
+        sessionStorage.removeItem(HOLD_KEY);
+
+        refreshLockedSeats();
+
+        toast.error(
+          "Your seat hold expired. Please select your seats again."
         );
+      }
+    };
 
-        if (
-          remaining === 0 &&
-          !expired
-        ) {
-          expired = true;
+    tick();
 
-          setHold(null);
+    const interval = setInterval(tick, 1000);
 
-          setSelectedSeats(
-            []
-          );
-
-          updateBooking({
-            selectedSeats:
-              [],
-          });
-
-          sessionStorage.removeItem(
-            HOLD_STORAGE_KEY
-          );
-
-          refreshLockedSeats();
-
-          toast.error(
-            "Your seat hold expired. Please select your seats again."
-          );
-        }
-      };
-
-    updateTimer();
-
-    const timer =
-      setInterval(
-        updateTimer,
-        1000
-      );
-
-    return () =>
-      clearInterval(
-        timer
-      );
+    return () => clearInterval(interval);
   }, [
     hold?.expiresAt,
     refreshLockedSeats,
     updateBooking,
   ]);
 
-  // ===================================================
-  // SCREEN SEATS
-  // ===================================================
+  // ==========================================================
+  // REAL PHYSICAL SEATS AND PRICING
+  // ==========================================================
 
-  const physicalSeats =
-    useMemo(() => {
-      if (
-        !Array.isArray(
-          show?.screen?.seats
-        )
-      ) {
-        return [];
-      }
-
-      return show.screen.seats
-        .filter(
-          (seat) =>
-            seat.isActive !==
-            false
-        )
-        .map(
-          (seat) => ({
-            ...seat,
-
-            seatId:
-              String(
-                seat.seatId
+  const seats = useMemo(
+    () =>
+      Array.isArray(show?.screen?.seats)
+        ? show.screen.seats
+            .filter((seat) => seat.isActive !== false)
+            .map((seat) => ({
+              ...seat,
+              seatId: String(
+                seat.seatId || ""
               ).toUpperCase(),
-          })
-        );
-    }, [show]);
+            }))
+            .filter((seat) => seat.seatId)
+        : [],
+    [show]
+  );
 
-  // ===================================================
-  // PRICE MAP
-  // ===================================================
+  const seatById = useMemo(
+    () =>
+      new Map(
+        seats.map((seat) => [
+          seat.seatId,
+          seat,
+        ])
+      ),
+    [seats]
+  );
 
-  const pricing =
-    useMemo(() => {
-      const map =
-        new Map();
+  const pricing = useMemo(
+    () =>
+      new Map(
+        (show?.pricing || []).map((item) => [
+          String(item.seatType).toUpperCase(),
+          Number(item.price || 0),
+        ])
+      ),
+    [show]
+  );
 
-      if (
-        Array.isArray(
-          show?.pricing
-        )
-      ) {
-        show.pricing.forEach(
-          (item) => {
-            map.set(
-              item.seatType,
-              Number(
-                item.price ||
-                  0
-              )
-            );
-          }
-        );
+  const getSeatPrice = useCallback(
+    (seat) =>
+      pricing.get(
+        String(seat.type).toUpperCase()
+      ) ?? Number(show?.price || 0),
+    [pricing, show?.price]
+  );
+
+  // ==========================================================
+  // ORGANIZE SEATS BY ROW AND PHYSICAL COLUMN
+  // ==========================================================
+
+  const seatRows = useMemo(() => {
+    const rows = new Map();
+
+    seats.forEach((seat) => {
+      const row = String(
+        seat.row || ""
+      ).toUpperCase();
+
+      if (!row) return;
+
+      if (!rows.has(row)) {
+        rows.set(row, []);
       }
 
-      return map;
-    }, [show]);
+      rows.get(row).push(seat);
+    });
 
-  const getSeatPrice =
-    useCallback(
-      (seat) => {
-        return (
-          pricing.get(
-            seat.type
-          ) ??
+    return [...rows.entries()]
+      .map(([row, list]) => ({
+        row,
+        seats: list.sort(
+          (a, b) =>
+            Number(a.column || a.number || 0) -
+            Number(b.column || b.number || 0)
+        ),
+      }))
+      .sort((a, b) =>
+        a.row.localeCompare(
+          b.row,
+          undefined,
+          { numeric: true }
+        )
+      );
+  }, [seats]);
+
+  const seatColumns = useMemo(
+    () =>
+      Math.max(
+        0,
+        ...seats.map((seat) =>
           Number(
-            show?.price ||
+            seat.column ||
+              seat.number ||
               0
           )
-        );
-      },
-      [
-        pricing,
-        show?.price,
-      ]
-    );
-
-  // ===================================================
-  // SEAT MAP BY ROW + COLUMN
-  // ===================================================
-
-  const seatRows =
-    useMemo(() => {
-      const rows =
-        new Map();
-
-      physicalSeats.forEach(
-        (seat) => {
-          const row =
-            String(
-              seat.row ||
-                ""
-            ).toUpperCase();
-
-          if (!row) {
-            return;
-          }
-
-          if (
-            !rows.has(row)
-          ) {
-            rows.set(
-              row,
-              []
-            );
-          }
-
-          rows
-            .get(row)
-            .push(seat);
-        }
-      );
-
-      return [
-        ...rows.entries(),
-      ]
-        .map(
-          ([
-            row,
-            seats,
-          ]) => ({
-            row,
-
-            seats:
-              seats.sort(
-                (
-                  a,
-                  b
-                ) =>
-                  Number(
-                    a.column ||
-                      a.number ||
-                      0
-                  ) -
-                  Number(
-                    b.column ||
-                      b.number ||
-                      0
-                  )
-              ),
-          })
         )
-        .sort(
-          (
-            a,
-            b
-          ) =>
-            a.row.localeCompare(
-              b.row,
-              undefined,
-              {
-                numeric:
-                  true,
-              }
-            )
-        );
-    }, [physicalSeats]);
+      ),
+    [seats]
+  );
 
-  const bookedSet =
-    useMemo(
-      () =>
-        new Set(
-          bookedSeats
-        ),
-      [bookedSeats]
-    );
+  const seatMap = useMemo(
+    () =>
+      new Map(
+        seatRows.flatMap(({ row, seats: list }) =>
+          list.map((seat) => [
+            `${row}:${Number(
+              seat.column || seat.number
+            )}`,
+            seat,
+          ])
+        )
+      ),
+    [seatRows]
+  );
 
-  const lockedSet =
-    useMemo(
-      () =>
-        new Set(
-          lockedSeats
-        ),
-      [lockedSeats]
-    );
+  const selectedSet = useMemo(
+    () => new Set(selectedSeats),
+    [selectedSeats]
+  );
 
-  const selectedSet =
-    useMemo(
-      () =>
-        new Set(
-          selectedSeats
-        ),
-      [selectedSeats]
-    );
+  const bookedSet = useMemo(
+    () => new Set(bookedSeats),
+    [bookedSeats]
+  );
 
-  // ===================================================
-  // TOTAL
-  // ===================================================
+  const lockedSet = useMemo(
+    () => new Set(lockedSeats),
+    [lockedSeats]
+  );
 
-  const selectedTotal =
-    useMemo(() => {
-      return selectedSeats.reduce(
-        (
-          total,
-          seatId
-        ) => {
-          const seat =
-            physicalSeats.find(
-              (item) =>
-                item.seatId ===
-                seatId
-            );
-
-          if (!seat) {
-            return total;
-          }
-
-          return (
-            total +
-            getSeatPrice(
-              seat
-            )
-          );
-        },
+  const selectedTotal = useMemo(
+    () =>
+      selectedSeats.reduce(
+        (sum, seatId) =>
+          sum +
+          (seatById.has(seatId)
+            ? getSeatPrice(seatById.get(seatId))
+            : 0),
         0
-      );
-    }, [
+      ),
+    [
       selectedSeats,
-      physicalSeats,
+      seatById,
       getSeatPrice,
-    ]);
+    ]
+  );
 
-  // ===================================================
-  // HOLD SEAT
-  // ===================================================
-
-  const selectSeat =
-    async (seat) => {
-      const seatId =
-        seat.seatId;
-
-      if (
-        bookedSet.has(
-          seatId
-        ) ||
-        lockedSet.has(
-          seatId
+  const categories = useMemo(
+    () =>
+      (show?.pricing || []).filter((item) =>
+        seats.some(
+          (seat) =>
+            String(seat.type).toUpperCase() ===
+            String(item.seatType).toUpperCase()
         )
-      ) {
-        return;
-      }
+      ),
+    [show, seats]
+  );
 
-      if (
-        selectedSeatsRef
-          .current
-          .length >=
-        MAX_SEATS
-      ) {
-        toast.error(
-          `You can select a maximum of ${MAX_SEATS} seats.`
-        );
+  const availableCount = seats.filter(
+    (seat) =>
+      !bookedSet.has(seat.seatId) &&
+      !lockedSet.has(seat.seatId)
+  ).length;
 
-        return;
-      }
+  const seatStatus = (seatId) => {
+    if (selectedSet.has(seatId)) return "selected";
+    if (bookedSet.has(seatId)) return "booked";
+    if (lockedSet.has(seatId)) return "held";
 
-      if (seatAction) {
-        return;
-      }
+    return "available";
+  };
 
-      const nextSeats = [
-        ...selectedSeatsRef.current,
-        seatId,
+  // ==========================================================
+  // HOLD SELECTED SEAT ON SERVER
+  // ==========================================================
+
+  const selectSeat = async (seat) => {
+    if (
+      seatAction ||
+      bookedSet.has(seat.seatId) ||
+      lockedSet.has(seat.seatId)
+    ) {
+      return;
+    }
+
+    if (selectedRef.current.length >= MAX_SEATS) {
+      toast.error(
+        `You can select a maximum of ${MAX_SEATS} seats.`
+      );
+
+      return;
+    }
+
+    setSeatAction(seat.seatId);
+
+    try {
+      const next = [
+        ...selectedRef.current,
+        seat.seatId,
       ];
 
-      setSeatAction(
-        seatId
-      );
-
-      try {
-        const response =
-          await axios.post(
-            `${API_URL}/api/seat-locks/hold`,
-
-            {
-              showId,
-              seatIds:
-                nextSeats,
-            },
-
-            {
-              headers: {
-                Authorization:
-                  `Bearer ${token}`,
-              },
-            }
-          );
-
-        const result =
-          response.data;
-
-        const confirmedSelection =
-          normalizeSeatIds(
-            result.seats ||
-              nextSeats
-          );
-
-        const nextHold = {
-          lockId:
-            result.lockId,
-
-          expiresAt:
-            result.expiresAt,
-        };
-
-        setSelectedSeats(
-          confirmedSelection
-        );
-
-        setLockedSeats(
-          (current) =>
-            [
-              ...new Set([
-                ...current,
-                ...confirmedSelection,
-              ]),
-            ]
-        );
-
-        setHold(
-          nextHold
-        );
-
-        saveHold({
-          seatIds:
-            confirmedSelection,
-
-          lockId:
-            nextHold.lockId,
-
-          expiresAt:
-            nextHold.expiresAt,
-        });
-
-        updateBooking({
-          movie:
-            show?.movie,
-
-          show,
-
-          selectedDate:
-            show?.startTime,
-
-          selectedTime:
-            show?.startTime,
-
-          selectedSeats:
-            confirmedSelection,
-        });
-      } catch (error) {
-        console.error(
-          "Hold seat error:",
-          error
-        );
-
-        toast.error(
-          error.response
-            ?.data
-            ?.message ||
-            "This seat is no longer available."
-        );
-
-        refreshLockedSeats();
-      } finally {
-        setSeatAction(
-          null
-        );
-      }
-    };
-
-  // ===================================================
-  // RELEASE ONE SEAT
-  // ===================================================
-
-  const releaseSeat =
-    async (seat) => {
-      const seatId =
-        seat.seatId;
-
-      const currentHold =
-        holdRef.current;
-
-      if (
-        !currentHold
-          ?.lockId
-      ) {
-        setSelectedSeats(
-          (current) =>
-            current.filter(
-              (id) =>
-                id !==
-                seatId
-            )
-        );
-
-        return;
-      }
-
-      if (seatAction) {
-        return;
-      }
-
-      setSeatAction(
-        seatId
-      );
-
-      try {
-        await axios.delete(
-          `${API_URL}/api/seat-locks/release`,
-
-          {
-            data: {
-              showId,
-
-              seatIds: [
-                seatId,
-              ],
-
-              lockId:
-                currentHold.lockId,
-            },
-
-            headers: {
-              Authorization:
-                `Bearer ${token}`,
-            },
-          }
-        );
-
-        const remaining =
-          selectedSeatsRef.current.filter(
-            (id) =>
-              id !==
-              seatId
-          );
-
-        setSelectedSeats(
-          remaining
-        );
-
-        setLockedSeats(
-          (current) =>
-            current.filter(
-              (id) =>
-                id !==
-                seatId
-            )
-        );
-
-        updateBooking({
-          selectedSeats:
-            remaining,
-        });
-
-        if (
-          remaining.length ===
-          0
-        ) {
-          setHold(null);
-
-          sessionStorage.removeItem(
-            HOLD_STORAGE_KEY
-          );
-        } else {
-          saveHold({
-            seatIds:
-              remaining,
-
-            lockId:
-              currentHold.lockId,
-
-            expiresAt:
-              currentHold.expiresAt,
-          });
+      const { data } = await axios.post(
+        `${API_URL}/api/seat-locks/hold`,
+        {
+          showId,
+          seatIds: next,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         }
-      } catch (error) {
-        console.error(
-          "Release seat error:",
-          error
-        );
-
-        toast.error(
-          error.response
-            ?.data
-            ?.message ||
-            "Could not release seat."
-        );
-
-        refreshLockedSeats();
-      } finally {
-        setSeatAction(
-          null
-        );
-      }
-    };
-
-  // ===================================================
-  // SEAT CLICK
-  // ===================================================
-
-  const handleSeatClick =
-    (seat) => {
-      const seatId =
-        seat.seatId;
-
-      if (
-        selectedSet.has(
-          seatId
-        )
-      ) {
-        releaseSeat(
-          seat
-        );
-
-        return;
-      }
-
-      selectSeat(
-        seat
-      );
-    };
-
-  // ===================================================
-  // RELEASE ALL + RETURN
-  // ===================================================
-
-  const returnToShowtimes =
-    async () => {
-      const seats =
-        [
-          ...selectedSeatsRef.current,
-        ];
-
-      const currentHold =
-        holdRef.current;
-
-      if (
-        seats.length >
-          0 &&
-        currentHold
-          ?.lockId
-      ) {
-        try {
-          await axios.delete(
-            `${API_URL}/api/seat-locks/release`,
-
-            {
-              data: {
-                showId,
-
-                seatIds:
-                  seats,
-
-                lockId:
-                  currentHold.lockId,
-              },
-
-              headers: {
-                Authorization:
-                  `Bearer ${token}`,
-              },
-            }
-          );
-        } catch (error) {
-          console.error(
-            "Release seats:",
-            error
-          );
-        }
-      }
-
-      setSelectedSeats(
-        []
       );
 
-      setHold(null);
-
-      sessionStorage.removeItem(
-        HOLD_STORAGE_KEY
+      const confirmed = normalizeIds(
+        data.seats || next
       );
 
-      navigate(
-        `/movie/${movieId}?theatre=${
-          show?.theatre
-            ?._id ||
-          theatreId ||
-          ""
-        }`
-      );
-    };
-
-  // ===================================================
-  // CHECKOUT
-  // ===================================================
-
-  const proceedToCheckout =
-    () => {
-      if (
-        selectedSeats.length ===
-        0
-      ) {
-        toast.error(
-          "Select at least one seat."
-        );
-
-        return;
-      }
-
-      if (
-        !hold?.lockId ||
-        !hold?.expiresAt
-      ) {
-        toast.error(
-          "Your seat reservation is no longer valid."
-        );
-
-        return;
-      }
-
-      if (
-        new Date(
-          hold.expiresAt
-        ) <= new Date()
-      ) {
-        toast.error(
-          "Your seat reservation expired."
-        );
-
-        return;
-      }
-
-      setProceeding(
-        true
-      );
-
-      const checkoutState = {
-        movieId,
-
-        showId:
-          show._id,
-
-        seatIds: [
-          ...selectedSeats,
-        ],
-
-        lockId:
-          hold.lockId,
-
-        expiresAt:
-          hold.expiresAt,
-
-        total:
-          selectedTotal,
+      const nextHold = {
+        lockId: data.lockId,
+        expiresAt: data.expiresAt,
       };
 
-      // Checkout already knows how to restore this
-      // if the page refreshes.
-      sessionStorage.setItem(
-        CHECKOUT_STORAGE_KEY,
+      setSelectedSeats(confirmed);
+      selectedRef.current = confirmed;
 
-        JSON.stringify(
-          checkoutState
-        )
+      setLockedSeats((old) => [
+        ...new Set([
+          ...old,
+          ...confirmed,
+        ]),
+      ]);
+
+      setHold(nextHold);
+      saveHold(confirmed, nextHold);
+
+      updateBooking({
+        movie: show?.movie,
+        show,
+        selectedDate: show?.startTime,
+        selectedTime: show?.startTime,
+        selectedSeats: confirmed,
+      });
+    } catch (error) {
+      console.error("Hold seat error:", error);
+
+      toast.error(
+        error.response?.data?.message ||
+          "This seat is no longer available."
+      );
+
+      refreshLockedSeats();
+    } finally {
+      setSeatAction(null);
+    }
+  };
+
+  // ==========================================================
+  // RELEASE ONE SELECTED SEAT
+  // ==========================================================
+
+  const releaseSeat = async (seat) => {
+    if (seatAction) return;
+
+    const current = holdRef.current;
+
+    if (!current?.lockId) {
+      const remaining = selectedRef.current.filter(
+        (id) => id !== seat.seatId
+      );
+
+      setSelectedSeats(remaining);
+      selectedRef.current = remaining;
+
+      updateBooking({
+        selectedSeats: remaining,
+      });
+
+      return;
+    }
+
+    setSeatAction(seat.seatId);
+
+    try {
+      await axios.delete(
+        `${API_URL}/api/seat-locks/release`,
+        {
+          data: {
+            showId,
+            seatIds: [seat.seatId],
+            lockId: current.lockId,
+          },
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const remaining = selectedRef.current.filter(
+        (id) => id !== seat.seatId
+      );
+
+      setSelectedSeats(remaining);
+      selectedRef.current = remaining;
+
+      setLockedSeats((old) =>
+        old.filter((id) => id !== seat.seatId)
       );
 
       updateBooking({
-        movie:
-          show.movie,
-
-        show,
-
-        selectedDate:
-          show.startTime,
-
-        selectedTime:
-          show.startTime,
-
-        selectedSeats:
-          [
-            ...selectedSeats,
-          ],
+        selectedSeats: remaining,
       });
 
-      navigate(
-        "/checkout",
+      if (remaining.length) {
+        saveHold(remaining, current);
+      } else {
+        setHold(null);
+        sessionStorage.removeItem(HOLD_KEY);
+      }
+    } catch (error) {
+      console.error("Release seat error:", error);
 
-        {
-          state:
-            checkoutState,
-        }
+      toast.error(
+        error.response?.data?.message ||
+          "Could not release seat."
       );
+
+      refreshLockedSeats();
+    } finally {
+      setSeatAction(null);
+    }
+  };
+
+  const clickSeat = (seat) => {
+    if (selectedSet.has(seat.seatId)) {
+      releaseSeat(seat);
+    } else {
+      selectSeat(seat);
+    }
+  };
+
+  // ==========================================================
+  // CHANGE SHOWTIME AND RELEASE EXISTING HOLD
+  // ==========================================================
+
+  const returnToShowtimes = async () => {
+    if (seatAction || proceeding) return;
+
+    const current = holdRef.current;
+    const currentSeats = [
+      ...selectedRef.current,
+    ];
+
+    if (
+      currentSeats.length &&
+      current?.lockId
+    ) {
+      try {
+        await axios.delete(
+          `${API_URL}/api/seat-locks/release`,
+          {
+            data: {
+              showId,
+              seatIds: currentSeats,
+              lockId: current.lockId,
+            },
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+      } catch (error) {
+        console.error("Release seats:", error);
+      }
+    }
+
+    setSelectedSeats([]);
+    selectedRef.current = [];
+    setHold(null);
+
+    updateBooking({
+      selectedSeats: [],
+    });
+
+    sessionStorage.removeItem(HOLD_KEY);
+
+    navigate(
+      `/movie/${movieId}?theatre=${
+        show?.theatre?._id ||
+        theatreId ||
+        ""
+      }`
+    );
+  };
+
+  // ==========================================================
+  // EXISTING CHECKOUT CONTRACT — UNCHANGED
+  // ==========================================================
+
+  const proceedToCheckout = () => {
+    if (seatAction || proceeding) return;
+
+    if (!selectedSeats.length) {
+      toast.error("Select at least one seat.");
+      return;
+    }
+
+    if (
+      !hold?.lockId ||
+      !hold?.expiresAt ||
+      Date.parse(hold.expiresAt) <= Date.now()
+    ) {
+      toast.error(
+        "Your seat reservation expired. Please select again."
+      );
+
+      return;
+    }
+
+    setProceeding(true);
+
+    const checkoutState = {
+      movieId,
+      showId: show._id,
+      seatIds: [...selectedSeats],
+      lockId: hold.lockId,
+      expiresAt: hold.expiresAt,
+      total: selectedTotal,
     };
 
-  // ===================================================
-  // SEAT BUTTON STYLE
-  // ===================================================
+    sessionStorage.setItem(
+      CHECKOUT_KEY,
+      JSON.stringify(checkoutState)
+    );
 
-  const getSeatClass =
-    (seat) => {
-      const seatId =
-        seat.seatId;
+    updateBooking({
+      movie: show.movie,
+      show,
+      selectedDate: show.startTime,
+      selectedTime: show.startTime,
+      selectedSeats: [...selectedSeats],
+    });
 
-      if (
-        selectedSet.has(
-          seatId
-        )
-      ) {
-        return "border-red-500 bg-red-600 text-white";
-      }
+    navigate("/checkout", {
+      state: checkoutState,
+    });
+  };
 
-      if (
-        bookedSet.has(
-          seatId
-        )
-      ) {
-        return "cursor-not-allowed border-zinc-800 bg-zinc-900 text-zinc-700";
-      }
+  // ==========================================================
+  // LOADING / ERROR STATES
+  // ==========================================================
 
-      if (
-        lockedSet.has(
-          seatId
-        )
-      ) {
-        return "cursor-not-allowed border-yellow-900/50 bg-yellow-950/30 text-yellow-700";
-      }
-
-      switch (
-        seat.type
-      ) {
-        case "PREMIUM":
-          return "border-yellow-700 bg-zinc-900 text-yellow-300";
-
-        case "RECLINER":
-          return "border-purple-700 bg-zinc-900 text-purple-300";
-
-        case "LOUNGER":
-          return "border-blue-700 bg-zinc-900 text-blue-300";
-
-        case "WHEELCHAIR":
-          return "border-green-700 bg-zinc-900 text-green-300";
-
-        default:
-          return "border-zinc-600 bg-zinc-900 text-zinc-300";
-      }
-    };
-
-  // ===================================================
-  // LOADING
-  // ===================================================
-
-  if (
-    authLoading ||
-    loading
-  ) {
+  if (authLoading || loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center pt-20">
-        <p className="text-zinc-500">
-          Loading seats...
+      <main
+        className="bms-seat-page bms-seat-loading"
+        data-testid="booking-page"
+      >
+        <span className="bms-seat-spinner" />
+        Preparing your auditorium…
+      </main>
+    );
+  }
+
+  if (!show?.screen || failed) {
+    return (
+      <main
+        className="bms-seat-page bms-seat-loading"
+        data-testid="booking-page"
+      >
+        <h2>Show unavailable</h2>
+        <p>
+          {failed ||
+            "This screening could not be loaded."}
         </p>
-      </div>
+
+        <button
+          className="bms-seat-btn-secondary"
+          onClick={() => navigate("/cinemas")}
+        >
+          Browse cinemas
+        </button>
+      </main>
     );
   }
 
-  // ===================================================
-  // INVALID SHOW
-  // ===================================================
+  const poster = imageSrc(
+    show.movie?.poster ||
+      show.movie?.banner
+  );
 
-  if (
-    !show ||
-    !show.screen
-  ) {
-    return (
-      <div className="flex min-h-screen items-center justify-center pt-20">
+  const banner = imageSrc(
+    show.movie?.banner ||
+      show.movie?.poster
+  );
 
-        <div className="text-center">
+  const heading =
+    show.movie?.title ||
+    "Your screening";
 
-          <p className="text-xl font-semibold">
-            Show unavailable
-          </p>
-
-          <button
-            onClick={() =>
-              navigate(
-                "/cinemas"
-              )
-            }
-            className="mt-5 text-red-500"
-          >
-            Choose another show
-          </button>
-
-        </div>
-
-      </div>
-    );
-  }
-
-  // ===================================================
-  // PAGE
-  // ===================================================
+  // ==========================================================
+  // PREMIUM CINEMATIC INTERFACE
+  // ==========================================================
 
   return (
-    <div
-      className="min-h-screen pb-20 pt-24"
+    <main
+      className="bms-seat-page"
       data-testid="booking-page"
+      data-design-version="BMS_CINEMATIC_SEATS_V3"
     >
+      <div
+        className="bms-seat-ambient"
+        aria-hidden="true"
+        style={
+          banner
+            ? {
+                backgroundImage: `linear-gradient(90deg,#09090c 0%,rgba(9,9,12,.78) 58%,rgba(9,9,12,.55) 100%),url("${banner}")`,
+              }
+            : undefined
+        }
+      />
 
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <div className="bms-seat-container">
+        {/* MOVIE INFORMATION */}
 
-        {/* =============================================
-            SHOW INFORMATION
-        ============================================== */}
+        <motion.div
+          className="bms-seat-header"
+          initial={
+            reducedMotion
+              ? false
+              : { opacity: 0, y: 14 }
+          }
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <button
+            type="button"
+            className="bms-seat-back"
+            onClick={returnToShowtimes}
+            disabled={Boolean(
+              seatAction || proceeding
+            )}
+            aria-label="Back to showtimes"
+          >
+            <ArrowLeft size={19} />
+            <span>Back</span>
+          </button>
 
-        <div className="flex flex-col justify-between gap-6 border-b border-white/10 pb-7 md:flex-row md:items-end">
+          <div className="bms-seat-film">
+            {poster ? (
+              <img
+                className="bms-seat-film__poster"
+                src={poster}
+                alt={`${heading} poster`}
+              />
+            ) : (
+              <div className="bms-seat-film__poster bms-seat-film__poster--empty">
+                <MonitorPlay size={30} />
+              </div>
+            )}
 
-          <div>
+            <div>
+              <p className="bms-seat-eyebrow">
+                Your screening · Select your seats
+              </p>
 
-            <p className="text-sm text-zinc-500">
-              Select your seats
-            </p>
+              <h1>{heading}</h1>
 
-            <h1 className="mt-1 text-3xl font-bold">
-              {show.movie
-                ?.title ||
-                "Movie"}
-            </h1>
-
-            <div className="mt-4 flex flex-wrap gap-5 text-sm text-zinc-400">
-
-              <div className="flex items-center gap-2">
-
-                <MapPin className="h-4 w-4 text-red-500" />
-
+              <div className="bms-seat-film__metadata">
                 <span>
-                  {show.theatre
-                    ?.name ||
-                    "Cinema"}
-
-                  {" • "}
-
-                  {show.screen
-                    ?.name ||
-                    "Screen"}
+                  <MapPin size={15} />
+                  {show.theatre?.name || "Cinema"}
                 </span>
 
-              </div>
-
-              <div className="flex items-center gap-2">
-
-                <Clock className="h-4 w-4" />
-
                 <span>
-                  {formatDate(
-                    show.startTime
-                  )}
-
-                  {" • "}
-
-                  {formatTime(
-                    show.startTime
-                  )}
+                  <MonitorPlay size={15} />
+                  {show.screen?.name || "Screen"}
                 </span>
 
-              </div>
+                <span>
+                  <CalendarDays size={15} />
+                  {dateText(show.startTime)}
+                </span>
 
+                <span>
+                  <Clock3 size={15} />
+                  {timeText(show.startTime)}
+                </span>
+              </div>
             </div>
-
           </div>
 
           <button
             type="button"
-            onClick={
-              returnToShowtimes
-            }
-            className="rounded-lg border border-white/10 px-4 py-2 text-sm text-zinc-300"
+            className="bms-seat-btn-secondary bms-seat-change"
+            onClick={returnToShowtimes}
+            disabled={Boolean(
+              seatAction || proceeding
+            )}
           >
-            Change Showtime
+            <CalendarDays size={17} />
+            Change showtime
           </button>
+        </motion.div>
 
-        </div>
+        <div className="bms-seat-layout">
+          {/* AUDITORIUM / SEAT MAP */}
 
-        {/* =============================================
-            HOLD TIMER
-        ============================================== */}
+          <motion.section
+            className="bms-seat-auditorium"
+            initial={
+              reducedMotion
+                ? false
+                : { opacity: 0, y: 22 }
+            }
+            animate={{ opacity: 1, y: 0 }}
+            transition={{
+              duration: 0.6,
+              delay: 0.08,
+            }}
+            aria-label="Interactive cinema seat map"
+          >
+            <div className="bms-seat-room-head">
+              <span className="bms-seat-room-head__label">
+                AUDITORIUM EXPERIENCE
+              </span>
 
-        {selectedSeats.length >
-          0 &&
-          hold && (
-            <div className="mt-6 flex flex-col justify-between gap-3 rounded-lg border border-yellow-900/40 bg-yellow-950/10 p-4 sm:flex-row sm:items-center">
-
-              <div>
-
-                <p className="font-medium text-yellow-300">
-                  Seats temporarily reserved
-                </p>
-
-                <p className="mt-1 text-sm text-zinc-500">
-                  Complete payment before the timer expires.
-                </p>
-
-              </div>
-
-              <div className="font-mono text-xl font-bold text-yellow-300">
-                {formatCountdown(
-                  secondsLeft
-                )}
-              </div>
-
+              <span className="bms-seat-room-head__count">
+                <span className="bms-seat-live-dot" />
+                {availableCount} seats available
+              </span>
             </div>
-          )}
 
-        {/* =============================================
-            SCREEN
-        ============================================== */}
+            {/* CURVED CINEMA SCREEN */}
 
-        <div className="mx-auto mt-12 max-w-3xl">
+            <div
+              className="bms-seat-screen"
+              aria-hidden="true"
+            >
+              <div className="bms-seat-screen__curve" />
+              <span>SCREEN</span>
+              <div className="bms-seat-screen__glow" />
+            </div>
 
-          <div className="h-1 rounded-full bg-zinc-600" />
+            {/* LIVE RESERVATION COUNTDOWN */}
 
-          <p className="mt-3 text-center text-xs uppercase tracking-[0.35em] text-zinc-600">
-            Screen
-          </p>
+            {selectedSeats.length > 0 && hold && (
+              <div
+                className="bms-seat-timer"
+                role="status"
+              >
+                <span>
+                  <Timer size={16} />
+                  Your seats are held. Complete
+                  checkout before the timer ends.
+                </span>
 
-        </div>
+                <strong>
+                  {countText(secondsLeft)}
+                </strong>
+              </div>
+            )}
 
-        {/* =============================================
-            REAL PHYSICAL SEATS
-        ============================================== */}
+            {/* REAL PHYSICAL SEAT GRID */}
 
-        {seatRows.length ===
-        0 ? (
-          <div className="py-20 text-center">
+            {seatRows.length === 0 ? (
+              <div className="bms-seat-empty">
+                <Armchair size={34} />
 
-            <Armchair className="mx-auto h-10 w-10 text-zinc-700" />
-
-            <p className="mt-4 text-zinc-500">
-              This screen has no active seats configured.
-            </p>
-
-          </div>
-        ) : (
-          <div className="mt-10 overflow-x-auto pb-5">
-
-            <div className="mx-auto w-max min-w-full space-y-4">
-
-              {seatRows.map(
-                ({
-                  row,
-                  seats,
-                }) => {
-                  const maximumColumn =
-                    Math.max(
-                      ...seats.map(
-                        (seat) =>
-                          Number(
-                            seat.column ||
-                              seat.number ||
-                              0
-                          )
-                      )
-                    );
-
-                  return (
+                <p>
+                  This auditorium has no active
+                  seats configured.
+                </p>
+              </div>
+            ) : (
+              <div className="bms-seat-map-scroll">
+                <div
+                  className="bms-seat-map"
+                  style={{
+                    "--bms-cols": seatColumns,
+                  }}
+                >
+                  {seatRows.map(({ row }) => (
                     <div
+                      className="bms-seat-row"
                       key={row}
-                      className="flex items-center justify-center gap-3"
                     >
-
-                      <span className="w-6 text-center text-sm font-semibold text-zinc-500">
+                      <span className="bms-seat-row__label">
                         {row}
                       </span>
 
-                      <div className="flex gap-2">
-
+                      <div className="bms-seat-row__chairs">
                         {Array.from(
                           {
-                            length:
-                              maximumColumn,
+                            length: seatColumns,
                           },
-
-                          (
-                            _,
-                            index
-                          ) => {
+                          (_, index) => {
                             const column =
                               index + 1;
 
-                            const seat =
-                              seats.find(
-                                (item) =>
-                                  Number(
-                                    item.column ||
-                                      item.number
-                                  ) ===
-                                  column
-                              );
+                            const seat = seatMap.get(
+                              `${row}:${column}`
+                            );
 
-                            // Missing column = physical aisle.
+                            // Missing physical columns
+                            // remain empty as aisles.
                             if (!seat) {
                               return (
-                                <div
-                                  key={`aisle-${row}-${column}`}
-                                  className="w-7 sm:w-10"
+                                <span
+                                  className="bms-seat-aisle"
+                                  key={`${row}-aisle-${column}`}
+                                  aria-hidden="true"
                                 />
                               );
                             }
 
-                            const seatId =
-                              seat.seatId;
+                            const status =
+                              seatStatus(seat.seatId);
 
-                            const selected =
-                              selectedSet.has(
-                                seatId
-                              );
-
-                            const booked =
-                              bookedSet.has(
-                                seatId
-                              );
-
-                            const locked =
-                              lockedSet.has(
-                                seatId
-                              ) &&
-                              !selected;
+                            const category = String(
+                              seat.type || "REGULAR"
+                            ).toUpperCase();
 
                             const disabled =
-                              booked ||
-                              locked ||
-                              (
-                                seatAction &&
-                                seatAction !==
-                                  seatId
-                              );
+                              status === "booked" ||
+                              status === "held" ||
+                              Boolean(seatAction) ||
+                              proceeding;
+
+                            const dimmed =
+                              focusType !== "ALL" &&
+                              category !== focusType &&
+                              status !== "selected";
 
                             return (
                               <button
-                                key={
-                                  seatId
-                                }
                                 type="button"
-                                disabled={
-                                  disabled
+                                key={seat.seatId}
+                                className={`bms-seat-position${
+                                  dimmed
+                                    ? " bms-seat-position--muted"
+                                    : ""
+                                }`}
+                                title={`${
+                                  seat.seatId
+                                } · ${category} · ${money(
+                                  getSeatPrice(seat)
+                                )} · ${status}`}
+                                aria-label={`Seat ${
+                                  seat.seatId
+                                }, ${category.toLowerCase()}, ${money(
+                                  getSeatPrice(seat)
+                                )}, ${status}`}
+                                aria-pressed={
+                                  status === "selected"
                                 }
+                                disabled={disabled}
+                                data-testid={`seat-${seat.seatId}`}
                                 onClick={() =>
-                                  handleSeatClick(
-                                    seat
-                                  )
+                                  clickSeat(seat)
                                 }
-                                title={`${seatId} • ${seat.type} • ₹${getSeatPrice(
-                                  seat
-                                )}`}
-                                className={`h-8 w-8 rounded border text-[10px] font-semibold sm:h-10 sm:w-10 sm:text-xs ${getSeatClass(
-                                  seat
-                                )}`}
                               >
-                                {
-                                  seat.number
-                                }
+                                <SeatIcon
+                                  status={status}
+                                  category={category}
+                                />
+
+                                <span className="bms-seat-position__number">
+                                  {seat.number ||
+                                    column}
+                                </span>
+
+                                {seatAction ===
+                                  seat.seatId && (
+                                  <span className="bms-seat-position__busy" />
+                                )}
                               </button>
                             );
                           }
                         )}
-
                       </div>
 
+                      <span className="bms-seat-row__label">
+                        {row}
+                      </span>
                     </div>
-                  );
-                }
-              )}
+                  ))}
+                </div>
+              </div>
+            )}
 
+            {/* STATUS LEGEND */}
+
+            <div
+              className="bms-seat-legend"
+              aria-label="Seat availability legend"
+            >
+              <StatusLegend
+                status="available"
+                title="Available"
+              />
+
+              <StatusLegend
+                status="selected"
+                title="Selected"
+              />
+
+              <StatusLegend
+                status="held"
+                title="Temporarily held"
+              />
+
+              <StatusLegend
+                status="booked"
+                title="Booked"
+              />
             </div>
 
-          </div>
-        )}
+            {/* SEAT CATEGORIES */}
 
-        {/* =============================================
-            LEGEND
-        ============================================== */}
+            <div className="bms-seat-category-head">
+              <div>
+                <p className="bms-seat-eyebrow">
+                  CHOOSE YOUR COMFORT
+                </p>
 
-        <div className="mt-8 flex flex-wrap justify-center gap-5 text-xs text-zinc-500">
+                <h2>Seat categories</h2>
+              </div>
 
-          <Legend
-            className="border-zinc-600 bg-zinc-900"
-            text="Available"
-          />
+              <p>
+                Prices set by this cinema
+              </p>
+            </div>
 
-          <Legend
-            className="border-red-500 bg-red-600"
-            text="Selected"
-          />
+            <div className="bms-seat-categories">
+              {categories.map((item) => {
+                const type = String(
+                  item.seatType
+                ).toUpperCase();
 
-          <Legend
-            className="border-yellow-900 bg-yellow-950/30"
-            text="Temporarily Held"
-          />
+                const active =
+                  focusType === type;
 
-          <Legend
-            className="border-zinc-800 bg-zinc-900 opacity-40"
-            text="Booked"
-          />
+                const label =
+                  type.charAt(0) +
+                  type.slice(1).toLowerCase();
 
-        </div>
+                const descriptions = {
+                  REGULAR:
+                    "The classic cinema experience",
+                  PREMIUM:
+                    "A little more room to relax",
+                  RECLINER:
+                    "Extra comfort, every scene",
+                  LOUNGER:
+                    "Room to stretch out",
+                  WHEELCHAIR:
+                    "Accessible seating",
+                };
 
-        {/* =============================================
-            DYNAMIC SEAT PRICING
-        ============================================== */}
-
-        {show.pricing
-          ?.length >
-          0 && (
-          <div className="mx-auto mt-8 max-w-3xl">
-
-            <h2 className="text-sm font-semibold">
-              Seat Categories
-            </h2>
-
-            <div className="mt-3 flex flex-wrap gap-3">
-
-              {show.pricing.map(
-                (item) => (
-                  <div
-                    key={
-                      item.seatType
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    className={`bms-seat-category${
+                      active
+                        ? " bms-seat-category--active"
+                        : ""
+                    }`}
+                    aria-pressed={active}
+                    onClick={() =>
+                      setFocusType(
+                        active ? "ALL" : type
+                      )
                     }
-                    className="rounded-lg border border-white/10 px-3 py-2 text-sm"
                   >
-                    <span className="text-zinc-500">
-                      {
-                        item.seatType
-                      }
+                    <SeatIcon
+                      category={type}
+                      status="available"
+                      size="category"
+                    />
+
+                    <span className="bms-seat-category__text">
+                      <strong>{label}</strong>
+
+                      <small>
+                        {descriptions[type] ||
+                          "Cinema seating"}
+                      </small>
+
+                      <b>
+                        {money(item.price)}
+                      </b>
                     </span>
 
-                    <span className="ml-2 font-semibold">
-                      ₹
-                      {
-                        item.price
-                      }
-                    </span>
-                  </div>
-                )
-              )}
-
+                    <span className="bms-seat-category__radio" />
+                  </button>
+                );
+              })}
             </div>
 
-          </div>
-        )}
-
-        {/* =============================================
-            SUMMARY
-        ============================================== */}
-
-        <div className="mx-auto mt-10 max-w-3xl rounded-xl border border-white/10 bg-zinc-900 p-6">
-
-          <div className="flex items-center gap-2">
-
-            <Ticket className="h-5 w-5 text-red-500" />
-
-            <h2 className="text-lg font-semibold">
-              Booking Summary
-            </h2>
-
-          </div>
-
-          {selectedSeats.length ===
-          0 ? (
-            <p className="mt-5 text-sm text-zinc-500">
-              Select seats to continue.
-            </p>
-          ) : (
-            <>
-
-              <div className="mt-5 space-y-4">
-
-                <div className="flex justify-between gap-5">
-
-                  <span className="text-zinc-500">
-                    Seats
-                  </span>
-
-                  <span className="text-right font-medium">
-                    {selectedSeats.join(
-                      ", "
-                    )}
-                  </span>
-
-                </div>
-
-                <div className="flex justify-between">
-
-                  <span className="text-zinc-500">
-                    Tickets
-                  </span>
-
-                  <span className="font-medium">
-                    {
-                      selectedSeats.length
-                    }
-                  </span>
-
-                </div>
-
-                {/* INDIVIDUAL PRICE DETAILS */}
-
-                {selectedSeats.map(
-                  (seatId) => {
-                    const seat =
-                      physicalSeats.find(
-                        (item) =>
-                          item.seatId ===
-                          seatId
-                      );
-
-                    if (!seat) {
-                      return null;
-                    }
-
-                    return (
-                      <div
-                        key={
-                          seatId
-                        }
-                        className="flex justify-between text-sm"
-                      >
-
-                        <span className="text-zinc-500">
-                          {seatId}{" "}
-                          •{" "}
-                          {
-                            seat.type
-                          }
-                        </span>
-
-                        <span>
-                          ₹
-                          {getSeatPrice(
-                            seat
-                          )}
-                        </span>
-
-                      </div>
-                    );
-                  }
-                )}
-
-              </div>
-
-              <div className="mt-5 flex items-center justify-between border-t border-white/10 pt-5">
-
-                <span className="text-lg font-semibold">
-                  Total
-                </span>
-
-                <span className="text-2xl font-bold">
-                  ₹
-                  {selectedTotal.toLocaleString(
-                    "en-IN"
-                  )}
-                </span>
-
-              </div>
-
+            {focusType !== "ALL" && (
               <button
                 type="button"
-                disabled={
-                  proceeding ||
-                  secondsLeft <=
-                    0
+                className="bms-seat-clear-filter"
+                onClick={() =>
+                  setFocusType("ALL")
                 }
-                onClick={
-                  proceedToCheckout
-                }
-                className="mt-6 w-full rounded-lg bg-red-600 py-4 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
               >
-                {proceeding
-                  ? "Opening Checkout..."
-                  : `Pay ₹${selectedTotal.toLocaleString(
-                      "en-IN"
-                    )}`}
+                Show all seat categories
               </button>
+            )}
 
-            </>
-          )}
+            <p className="bms-seat-note">
+              <Info size={14} />
+              Choose seats directly from the map.
+              Categories only highlight their
+              locations; availability is updated
+              live.
+            </p>
+          </motion.section>
 
+          {/* STICKY BOOKING SUMMARY */}
+
+          <motion.aside
+            className="bms-seat-summary"
+            initial={
+              reducedMotion
+                ? false
+                : { opacity: 0, x: 20 }
+            }
+            animate={{ opacity: 1, x: 0 }}
+            transition={{
+              duration: 0.6,
+              delay: 0.14,
+            }}
+          >
+            <div className="bms-seat-summary__head">
+              <span className="bms-seat-summary__icon">
+                <Ticket size={22} />
+              </span>
+
+              <div>
+                <h2>Booking summary</h2>
+
+                <p>
+                  {selectedSeats.length
+                    ? `${selectedSeats.length} ${
+                        selectedSeats.length === 1
+                          ? "seat"
+                          : "seats"
+                      } selected`
+                    : "Build your cinema experience"}
+                </p>
+              </div>
+            </div>
+
+            {selectedSeats.length === 0 ? (
+              <div className="bms-seat-summary__empty">
+                <div className="bms-seat-summary__empty-chair">
+                  <SeatIcon size="large" />
+                </div>
+
+                <h3>
+                  Your perfect seats await
+                </h3>
+
+                <p>
+                  Choose your favourite seats
+                  from the auditorium to see
+                  your booking here.
+                </p>
+              </div>
+            ) : (
+              <div className="bms-seat-summary__selections">
+                <div className="bms-seat-summary__section-label">
+                  YOUR SEATS
+                </div>
+
+                <div className="bms-seat-summary__pills">
+                  {selectedSeats.map((id) => (
+                    <span
+                      className="bms-seat-summary__pill"
+                      key={id}
+                    >
+                      {id}
+                    </span>
+                  ))}
+                </div>
+
+                <div className="bms-seat-summary__lines">
+                  {selectedSeats.map((id) => {
+                    const seat = seatById.get(id);
+
+                    if (!seat) return null;
+
+                    return (
+                      <div key={id}>
+                        <span>
+                          {id} ·{" "}
+                          {String(
+                            seat.type || "Regular"
+                          ).toLowerCase()}
+                        </span>
+
+                        <strong>
+                          {money(
+                            getSeatPrice(seat)
+                          )}
+                        </strong>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {hold && (
+                  <div className="bms-seat-summary__held">
+                    <ShieldCheck size={15} />
+
+                    Seats held for
+
+                    <strong>
+                      {countText(secondsLeft)}
+                    </strong>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* LIVE PRICE BREAKDOWN */}
+
+            <div className="bms-seat-summary__total">
+              <div>
+                <span>
+                  Tickets ({selectedSeats.length})
+                </span>
+
+                <strong>
+                  {money(selectedTotal)}
+                </strong>
+              </div>
+
+              <div>
+                <span>
+                  Convenience fee
+                  <Info size={13} />
+                </span>
+
+                <span>
+                  Calculated at checkout
+                </span>
+              </div>
+
+              <div className="bms-seat-summary__grand">
+                <strong>
+                  Ticket subtotal
+                </strong>
+
+                <b>
+                  {money(selectedTotal)}
+                </b>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="bms-seat-pay"
+              disabled={
+                !selectedSeats.length ||
+                !hold?.lockId ||
+                secondsLeft <= 0 ||
+                proceeding ||
+                Boolean(seatAction)
+              }
+              onClick={proceedToCheckout}
+              data-testid="proceed-to-checkout"
+            >
+              <span>
+                {proceeding
+                  ? "Opening checkout…"
+                  : selectedSeats.length
+                  ? `Continue · ${money(
+                      selectedTotal
+                    )}`
+                  : "Select seats to continue"}
+              </span>
+
+              <ArrowRight size={18} />
+            </button>
+
+            <p className="bms-seat-summary__disclaimer">
+              <ShieldCheck size={14} />
+              Secure reservation. Final charges
+              are confirmed at checkout.
+            </p>
+          </motion.aside>
         </div>
-
       </div>
-
-    </div>
+    </main>
   );
-};
-
-// =====================================================
-// LEGEND
-// =====================================================
-
-const Legend = ({
-  className,
-  text,
-}) => (
-  <div className="flex items-center gap-2">
-
-    <div
-      className={`h-5 w-5 rounded border ${className}`}
-    />
-
-    <span>
-      {text}
-    </span>
-
-  </div>
-);
+}
 
 export default Booking;

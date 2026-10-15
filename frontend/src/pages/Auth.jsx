@@ -1,3 +1,4 @@
+
 import React, {
   useEffect,
   useState,
@@ -699,886 +700,246 @@ const AuthContent = ({
   // PAGE
   // ===================================================
 
-  return (
-    <div className="relative min-h-screen overflow-hidden bg-[#08090b] px-4 pt-24 pb-12">
+    return (
+      <div className="cine-grain relative min-h-screen overflow-hidden bg-void pt-16 text-bone">
+        <div className="grid min-h-[calc(100svh-4rem)] lg:grid-cols-[1.15fr_0.85fr]">
+          {/* ---------- the stage ---------- */}
+          <aside className="relative hidden overflow-hidden lg:block">
+            <div aria-hidden="true" className="absolute inset-0" style={{ background: "radial-gradient(70% 60% at 30% 0%, rgba(215,25,53,.34), transparent 70%)" }} />
+            <svg aria-hidden="true" viewBox="0 0 800 800" className="absolute inset-0 h-full w-full opacity-60" preserveAspectRatio="xMidYMid slice">
+              <defs>
+                <linearGradient id="beam" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stopColor="#D71935" stopOpacity="0.55" />
+                  <stop offset="1" stopColor="#D71935" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <polygon points="120,-20 260,-20 640,820 -120,820" fill="url(#beam)" opacity="0.35" />
+              <polygon points="520,-20 640,-20 980,820 380,820" fill="url(#beam)" opacity="0.2" />
+            </svg>
 
-      {/* BACKGROUND */}
-
-      <motion.div
-        animate={{
-          x: [
-            0,
-            70,
-            0,
-          ],
-
-          y: [
-            0,
-            -40,
-            0,
-          ],
-        }}
-        transition={{
-          duration: 12,
-          repeat: Infinity,
-          ease:
-            "easeInOut",
-        }}
-        className="pointer-events-none absolute -left-40 top-20 h-[420px] w-[420px] rounded-full bg-red-600/10 blur-[120px]"
-      />
-
-      <motion.div
-        animate={{
-          x: [
-            0,
-            -50,
-            0,
-          ],
-
-          y: [
-            0,
-            40,
-            0,
-          ],
-        }}
-        transition={{
-          duration: 14,
-          repeat: Infinity,
-          ease:
-            "easeInOut",
-        }}
-        className="pointer-events-none absolute -right-40 bottom-0 h-[420px] w-[420px] rounded-full bg-red-500/5 blur-[120px]"
-      />
-
-      <div className="relative mx-auto grid min-h-[650px] max-w-5xl overflow-hidden rounded-[32px] border border-white/10 bg-zinc-950/80 shadow-2xl backdrop-blur-xl lg:grid-cols-[1.05fr_0.95fr]">
-
-        {/* LEFT */}
-
-        <div className="relative hidden overflow-hidden border-r border-white/10 bg-black p-12 lg:flex lg:flex-col lg:justify-between">
-
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(239,68,68,0.18),transparent_35%)]" />
-
-          <motion.div
-            animate={{
-              y: [
-                0,
-                -14,
-                0,
-              ],
-
-              rotate: [
-                -7,
-                -4,
-                -7,
-              ],
-            }}
-            transition={{
-              duration: 5,
-              repeat: Infinity,
-              ease:
-                "easeInOut",
-            }}
-            className="absolute right-10 top-24 h-32 w-52 rounded-2xl border border-red-500/20 bg-red-500/5"
-          >
-            <div className="absolute left-5 top-5 h-2 w-20 rounded-full bg-white/10" />
-
-            <div className="absolute left-5 top-11 h-2 w-32 rounded-full bg-white/5" />
-
-            <Ticket className="absolute bottom-5 right-5 h-7 w-7 text-red-500/60" />
-          </motion.div>
-
-          <motion.div
-            animate={{
-              y: [
-                0,
-                12,
-                0,
-              ],
-
-              rotate: [
-                7,
-                4,
-                7,
-              ],
-            }}
-            transition={{
-              duration: 6,
-              repeat: Infinity,
-              ease:
-                "easeInOut",
-            }}
-            className="absolute right-24 top-44 h-32 w-52 rounded-2xl border border-white/10 bg-zinc-900/80"
-          />
-
-          <div className="relative z-10">
-
-            <div className="flex items-center gap-3">
-
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-red-600">
-                <Ticket className="h-6 w-6" />
-              </div>
-
-              <span className="text-xl font-bold">
-                BookMySeat
-              </span>
-
+            {/* a ticket that turns slowly in space */}
+            <div className="absolute right-[6%] top-[7%] [perspective:1400px]">
+              <motion.div
+                animate={{ rotateY: [-22, 14, -22], rotateX: [10, 2, 10], y: [0, -16, 0] }}
+                transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
+                style={{ transformStyle: "preserve-3d" }}
+                className="relative h-[250px] w-[440px] rounded-[28px] border border-white/15 bg-gradient-to-br from-char via-[#1d1d23] to-void shadow-[0_60px_140px_-30px_rgba(215,25,53,.55)]"
+              >
+                <div className="absolute inset-y-0 left-[68%] w-px border-l-2 border-dashed border-white/15" />
+                <div className="absolute -left-4 top-1/2 h-8 w-8 -translate-y-1/2 rounded-full bg-void" />
+                <div className="absolute -right-4 top-1/2 h-8 w-8 -translate-y-1/2 rounded-full bg-void" />
+                <div className="absolute left-8 top-8">
+                  <p className="text-sm text-zinc-500">BookMySeat</p>
+                  <p className="cine-display mt-3 text-4xl text-bone">Admit<br />one.</p>
+                </div>
+                <div className="absolute bottom-8 left-8 flex items-center gap-3 text-sm text-zinc-400">
+                  <Ticket className="h-5 w-5 text-crimson" />
+                  Your digital ticket
+                </div>
+                <div className="absolute inset-y-8 right-8 flex w-[24%] flex-col items-center justify-center gap-2">
+                  {[7, 3, 9, 4, 8, 2, 6, 5, 9, 3].map((w, i) => (
+                    <span key={i} className="block h-[5px] rounded-full bg-bone/70" style={{ width: `${w * 9}%` }} />
+                  ))}
+                </div>
+                <div className="absolute inset-0 rounded-[28px] bg-gradient-to-tr from-transparent via-white/[0.04] to-white/[0.1]" />
+              </motion.div>
             </div>
 
-          </div>
+            <div className="relative flex h-full flex-col justify-end p-14 xl:p-20">
+              <motion.h1
+                initial={{ opacity: 0, y: 40 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 1, ease: [0.2, 0.7, 0.1, 1] }}
+                className="cine-display text-[clamp(4rem,8.5vw,9rem)] text-bone"
+              >
+                Book.<br />Pay.<br />Enjoy.
+              </motion.h1>
+              <p className="mt-8 max-w-md text-[17px] leading-relaxed text-zinc-400">
+                Pick your film, reserve your seats and walk in with a digital ticket.
+              </p>
+            </div>
+          </aside>
 
-          <div className="relative z-10">
-
-            <p className="text-sm uppercase tracking-[0.3em] text-red-500">
-              Your movie night starts here
-            </p>
-
-            <h1 className="mt-5 text-5xl font-bold leading-[1.05]">
-
-              Book.
-              <br />
-
-              Pay.
-              <br />
-
-              <span className="text-red-500">
-                Enjoy.
-              </span>
-
-            </h1>
-
-            <p className="mt-6 max-w-sm text-sm leading-6 text-zinc-500">
-              Pick your movie, reserve your seats and enter
-              the theatre with your digital ticket.
-            </p>
-
-          </div>
-
-          <div className="relative z-10 flex items-center gap-3 text-xs text-zinc-600">
-
-            <ShieldCheck className="h-4 w-4 text-green-500" />
-
-            Secure authentication
-
-          </div>
-
-        </div>
-
-        {/* RIGHT */}
-
-        <div className="flex items-center p-7 sm:p-10 lg:p-12">
-
-          <div className="w-full">
-
-            <AnimatePresence mode="wait">
-
-              {/* LOGIN / REGISTER */}
-
-              {(
-                mode ===
-                  "login" ||
-                mode ===
-                  "register"
-              ) && (
-                <motion.div
-                  key={mode}
-                  initial={{
-                    opacity: 0,
-
-                    x:
-                      mode ===
-                      "login"
-                        ? -20
-                        : 20,
-                  }}
-                  animate={{
-                    opacity: 1,
-                    x: 0,
-                  }}
-                  exit={{
-                    opacity: 0,
-                  }}
-                >
-
-                  <div className="mb-7">
-
-                    <p className="text-sm uppercase tracking-[0.25em] text-red-500">
-                      {isLogin
-                        ? "Welcome back"
-                        : "Join BookMySeat"}
-                    </p>
-
-                    <h2 className="mt-2 text-3xl font-bold">
-                      {isLogin
-                        ? "Sign in"
-                        : "Create account"}
-                    </h2>
-
-                    <p className="mt-2 text-sm text-zinc-500">
-                      {isLogin
-                        ? "Continue to your movies and bookings."
-                        : "Create your BookMySeat account."}
-                    </p>
-
-                  </div>
-
-                  {/* GOOGLE */}
-
-                  {googleEnabled && (
-                    <motion.div
-                      initial={{
-                        opacity: 0,
-                        y: -8,
-                      }}
-                      animate={{
-                        opacity: 1,
-                        y: 0,
-                      }}
-                      whileHover={{
-                        scale:
-                          1.01,
-                      }}
-                      className="overflow-hidden rounded-xl"
-                    >
-
-                      <GoogleLogin
-                        onSuccess={
-                          handleGoogleSuccess
-                        }
-                        onError={() =>
-                          toast.error(
-                            "Google sign-in failed."
-                          )
-                        }
-                        theme="filled_black"
-                        size="large"
-                        shape="pill"
-                        text="continue_with"
-                        logo_alignment="left"
-                        width="400"
-                      />
-
-                    </motion.div>
-                  )}
-
-                  {!googleEnabled && (
-                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs text-amber-400">
-                      Google login is not configured.
-                    </div>
-                  )}
-
-                  {/* OR */}
-
-                  <div className="my-6 flex items-center gap-4">
-
-                    <div className="h-px flex-1 bg-white/10" />
-
-                    <span className="text-xs uppercase tracking-[0.2em] text-zinc-600">
-                      or
-                    </span>
-
-                    <div className="h-px flex-1 bg-white/10" />
-
-                  </div>
-
-                  <form
-                    onSubmit={
-                      handleSubmit
-                    }
-                    className="space-y-5"
-                  >
-
-                    {!isLogin && (
-                      <div>
-
-                        <label className="mb-2 block text-sm text-zinc-400">
-                          Name
-                        </label>
-
-                        <div className="group relative rounded-xl border border-white/10 bg-black/30 focus-within:border-red-500">
-
-                          <User className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-600 group-focus-within:text-red-500" />
-
-                          <input
-                            name="name"
-                            value={
-                              formData.name
-                            }
-                            onChange={
-                              handleChange
-                            }
-                            required
-                            placeholder="Your name"
-                            className="w-full bg-transparent py-4 pl-12 pr-4 outline-none"
-                          />
-
-                        </div>
-
-                      </div>
-                    )}
-
-                    <div>
-
-                      <label className="mb-2 block text-sm text-zinc-400">
-                        Email
-                      </label>
-
-                      <div className="group relative rounded-xl border border-white/10 bg-black/30 focus-within:border-red-500">
-
-                        <Mail className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-600 group-focus-within:text-red-500" />
-
-                        <input
-                          type="email"
-                          name="email"
-                          value={
-                            formData.email
-                          }
-                          onChange={
-                            handleChange
-                          }
-                          required
-                          placeholder="you@example.com"
-                          className="w-full bg-transparent py-4 pl-12 pr-4 outline-none"
-                        />
-
-                      </div>
-
-                    </div>
-
-                    <div>
-
-                      <div className="mb-2 flex justify-between">
-
-                        <label className="text-sm text-zinc-400">
-                          Password
-                        </label>
-
-                        {isLogin && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setMode(
-                                "forgot"
-                              )
-                            }
-                            className="text-xs text-red-500 hover:text-red-400"
-                          >
-                            Forgot password?
-                          </button>
-                        )}
-
-                      </div>
-
-                      <div className="group relative rounded-xl border border-white/10 bg-black/30 focus-within:border-red-500">
-
-                        <Lock className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-600" />
-
-                        <input
-                          type={
-                            showPassword
-                              ? "text"
-                              : "password"
-                          }
-                          name="password"
-                          value={
-                            formData.password
-                          }
-                          onChange={
-                            handleChange
-                          }
-                          required
-                          minLength={6}
-                          placeholder="••••••••"
-                          className="w-full bg-transparent py-4 pl-12 pr-12 outline-none"
-                        />
-
+          {/* ---------- the form ---------- */}
+          <section className="relative flex items-center border-l border-white/10 bg-char/40 px-6 py-12 backdrop-blur-xl sm:px-12 lg:px-16">
+            <div className="mx-auto w-full max-w-[440px]">
+              <AnimatePresence mode="wait">
+                {(mode === "login" || mode === "register") && (
+                  <motion.div key={mode} initial={{ opacity: 0, x: mode === "login" ? -24 : 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.4, ease: [0.2, 0.7, 0.1, 1] }}>
+                    <div className="relative mb-9 grid grid-cols-2 rounded-full border border-white/10 bg-void/60 p-1" role="tablist" aria-label="Sign in or create an account">
+                      {[
+                        ["login", "Sign in"],
+                        ["register", "Create account"],
+                      ].map(([key, label]) => (
                         <button
+                          key={key}
                           type="button"
-                          onClick={() =>
-                            setShowPassword(
-                              (current) =>
-                                !current
-                            )
-                          }
-                          className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-white"
+                          role="tab"
+                          aria-selected={mode === key}
+                          onClick={() => setMode(key)}
+                          className={`relative z-10 rounded-full py-3 text-sm font-semibold transition-colors ${mode === key ? "text-white" : "text-zinc-500 hover:text-zinc-200"}`}
                         >
-
-                          {showPassword ? (
-                            <EyeOff className="h-5 w-5" />
-                          ) : (
-                            <Eye className="h-5 w-5" />
-                          )}
-
+                          {mode === key && <motion.span layoutId="auth-tab" className="absolute inset-0 -z-10 rounded-full bg-crimson" transition={{ type: "spring", stiffness: 420, damping: 36 }} />}
+                          {label}
                         </button>
-
-                      </div>
-
+                      ))}
                     </div>
 
-                    <motion.button
-                      whileHover={{
-                        scale:
-                          1.01,
-                      }}
-                      whileTap={{
-                        scale:
-                          0.98,
-                      }}
-                      disabled={loading}
-                      className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 py-4 font-semibold hover:bg-red-500 disabled:opacity-50"
-                    >
+                    <h2 className="cine-display text-[clamp(2.4rem,4vw,3.4rem)] text-bone">{isLogin ? "Welcome back." : "Join BookMySeat."}</h2>
+                    <p className="mt-3 text-zinc-400">{isLogin ? "Continue to your movies and bookings." : "Create your account to hold seats and keep your tickets."}</p>
 
-                      {loading
-                        ? "Please wait..."
-                        : isLogin
-                        ? "Sign In"
-                        : "Continue"}
-
-                      {!loading && (
-                        <ArrowRight className="h-4 w-4" />
+                    <div className="mt-8">
+                      {googleEnabled && (
+                        <div className="overflow-hidden rounded-full">
+                          <GoogleLogin onSuccess={handleGoogleSuccess} onError={() => toast.error("Google sign-in failed.")} theme="filled_black" size="large" shape="pill" text="continue_with" logo_alignment="left" width="360" />
+                        </div>
                       )}
-
-                    </motion.button>
-
-                  </form>
-
-                  <div className="mt-7 text-center text-sm text-zinc-500">
-
-                    {isLogin
-                      ? "New to BookMySeat? "
-                      : "Already have an account? "}
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setMode(
-                          isLogin
-                            ? "register"
-                            : "login"
-                        )
-                      }
-                      className="text-red-500 hover:text-red-400"
-                    >
-                      {isLogin
-                        ? "Create account"
-                        : "Sign in"}
-                    </button>
-
-                  </div>
-
-                </motion.div>
-              )}
-
-              {/* SIGNUP OTP */}
-
-              {mode ===
-                "signupOtp" && (
-                <motion.div
-                  key="signupOtp"
-                  initial={{
-                    opacity: 0,
-                    scale: 0.96,
-                    y: 20,
-                  }}
-                  animate={{
-                    opacity: 1,
-                    scale: 1,
-                    y: 0,
-                  }}
-                  exit={{
-                    opacity: 0,
-                  }}
-                >
-
-                  <Mail className="mb-6 h-12 w-12 text-red-500" />
-
-                  <p className="text-sm uppercase tracking-[0.25em] text-red-500">
-                    Verify email
-                  </p>
-
-                  <h2 className="mt-2 text-3xl font-bold">
-                    Check your inbox
-                  </h2>
-
-                  <p className="mt-3 text-sm text-zinc-500">
-                    Code sent to
-                  </p>
-
-                  <p className="mt-1 font-medium">
-                    {
-                      formData.email
-                    }
-                  </p>
-
-                  <form
-                    onSubmit={
-                      handleVerifySignupOtp
-                    }
-                    className="mt-8"
-                  >
-
-                    <OtpInput />
-
-                    <button
-                      disabled={
-                        loading ||
-                        otp.length !== 6
-                      }
-                      className="mt-5 w-full rounded-xl bg-red-600 py-4 font-semibold disabled:opacity-50"
-                    >
-                      Verify Email
-                    </button>
-
-                  </form>
-
-                  <div className="mt-6 text-center text-sm text-zinc-500">
-
-                    Didn't receive it?{" "}
-
-                    <button
-                      type="button"
-                      disabled={
-                        resendSeconds > 0
-                      }
-                      onClick={
-                        handleResendSignupOtp
-                      }
-                      className="text-red-500 disabled:text-zinc-600"
-                    >
-                      {resendSeconds > 0
-                        ? `Resend in ${resendSeconds}s`
-                        : "Resend"}
-                    </button>
-
-                  </div>
-
-                </motion.div>
-              )}
-
-              {/* FORGOT */}
-
-              {mode ===
-                "forgot" && (
-                <motion.div
-                  key="forgot"
-                  initial={{
-                    opacity: 0,
-                    x: 25,
-                  }}
-                  animate={{
-                    opacity: 1,
-                    x: 0,
-                  }}
-                >
-
-                  <KeyRound className="mb-6 h-12 w-12 text-red-500" />
-
-                  <p className="text-sm uppercase tracking-[0.25em] text-red-500">
-                    Account recovery
-                  </p>
-
-                  <h2 className="mt-2 text-3xl font-bold">
-                    Forgot password?
-                  </h2>
-
-                  <p className="mt-3 text-sm text-zinc-500">
-                    Enter your email and we'll send you a reset code.
-                  </p>
-
-                  <form
-                    onSubmit={
-                      handleForgotPassword
-                    }
-                    className="mt-8"
-                  >
-
-                    <div className="relative rounded-xl border border-white/10 bg-black/30">
-
-                      <Mail className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-600" />
-
-                      <input
-                        type="email"
-                        name="email"
-                        value={
-                          formData.email
-                        }
-                        onChange={
-                          handleChange
-                        }
-                        required
-                        placeholder="you@example.com"
-                        className="w-full bg-transparent py-4 pl-12 pr-4 outline-none"
-                      />
-
+                      {!googleEnabled && <div className="rounded-2xl border border-white/10 bg-void/60 px-4 py-3 text-xs text-zinc-400">Google sign-in is not configured.</div>}
                     </div>
 
-                    <button
-                      disabled={loading}
-                      className="mt-5 w-full rounded-xl bg-red-600 py-4 font-semibold disabled:opacity-50"
-                    >
-                      Send Reset Code
-                    </button>
+                    <div className="my-7 flex items-center gap-4">
+                      <div className="h-px flex-1 bg-white/10" />
+                      <span className="text-sm text-zinc-500">or with email</span>
+                      <div className="h-px flex-1 bg-white/10" />
+                    </div>
 
-                  </form>
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                      {!isLogin && (
+                        <label className="group block">
+                          <span className="mb-2 block text-sm text-zinc-400">Name</span>
+                          <span className="relative block">
+                            <User className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-600 transition-colors group-focus-within:text-crimson" />
+                            <input name="name" value={formData.name} onChange={handleChange} required placeholder="Your name" className="w-full rounded-2xl border border-white/10 bg-void/70 py-4 pl-12 pr-4 text-[15px] outline-none transition placeholder:text-zinc-600 focus:border-crimson/80" />
+                          </span>
+                        </label>
+                      )}
+                      <label className="group block">
+                        <span className="mb-2 block text-sm text-zinc-400">Email</span>
+                        <span className="relative block">
+                          <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-600 transition-colors group-focus-within:text-crimson" />
+                          <input type="email" name="email" value={formData.email} onChange={handleChange} required placeholder="you@example.com" className="w-full rounded-2xl border border-white/10 bg-void/70 py-4 pl-12 pr-4 text-[15px] outline-none transition placeholder:text-zinc-600 focus:border-crimson/80" />
+                        </span>
+                      </label>
+                      <div>
+                        <div className="mb-2 flex items-center justify-between">
+                          <label htmlFor="auth-password" className="text-sm text-zinc-400">Password</label>
+                          {isLogin && (
+                            <button type="button" onClick={() => setMode("forgot")} className="text-sm text-red-400 transition-colors hover:text-red-300">Forgot password?</button>
+                          )}
+                        </div>
+                        <span className="group relative block">
+                          <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-600 transition-colors group-focus-within:text-crimson" />
+                          <input id="auth-password" type={showPassword ? "text" : "password"} name="password" value={formData.password} onChange={handleChange} required minLength={6} placeholder="••••••••" className="w-full rounded-2xl border border-white/10 bg-void/70 py-4 pl-12 pr-12 text-[15px] outline-none transition placeholder:text-zinc-600 focus:border-crimson/80" />
+                          <button type="button" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword((current) => !current)} className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 transition-colors hover:text-white">
+                            {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                          </button>
+                        </span>
+                      </div>
+                      <motion.button whileTap={{ scale: 0.98 }} disabled={loading} className="group mt-2 flex w-full items-center justify-center gap-2 rounded-full bg-crimson py-4 font-semibold text-white transition-all hover:bg-crimson-hot hover:shadow-[0_16px_44px_-14px_rgba(215,25,53,.8)] disabled:opacity-50">
+                        {loading ? "Please wait..." : isLogin ? "Sign in" : "Continue"}
+                        {!loading && <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />}
+                      </motion.button>
+                    </form>
+                  </motion.div>
+                )}
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setMode(
-                        "login"
-                      )
-                    }
-                    className="mx-auto mt-7 flex items-center gap-2 text-sm text-zinc-500"
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-
-                    Back to sign in
-                  </button>
-
-                </motion.div>
-              )}
-
-              {/* RESET OTP */}
-
-              {mode ===
-                "resetOtp" && (
-                <motion.div
-                  key="resetOtp"
-                  initial={{
-                    opacity: 0,
-                    y: 20,
-                  }}
-                  animate={{
-                    opacity: 1,
-                    y: 0,
-                  }}
-                >
-
-                  <ShieldCheck className="mb-6 h-12 w-12 text-red-500" />
-
-                  <h2 className="text-3xl font-bold">
-                    Enter reset code
-                  </h2>
-
-                  <p className="mt-3 text-sm text-zinc-500">
-                    Sent to {
-                      formData.email
-                    }
-                  </p>
-
-                  <form
-                    onSubmit={
-                      handleVerifyResetOtp
-                    }
-                    className="mt-8"
-                  >
-
-                    <OtpInput />
-
-                    <button
-                      disabled={
-                        otp.length !== 6
-                      }
-                      className="mt-5 w-full rounded-xl bg-red-600 py-4 font-semibold disabled:opacity-50"
-                    >
-                      Verify Code
-                    </button>
-
-                  </form>
-
-                  <div className="mt-6 text-center text-sm text-zinc-500">
-
-                    <button
-                      type="button"
-                      disabled={
-                        resendSeconds > 0
-                      }
-                      onClick={
-                        handleResendResetOtp
-                      }
-                      className="text-red-500 disabled:text-zinc-600"
-                    >
-                      {resendSeconds > 0
-                        ? `Resend in ${resendSeconds}s`
-                        : "Resend code"}
-                    </button>
-
-                  </div>
-
-                </motion.div>
-              )}
-
-              {/* NEW PASSWORD */}
-
-              {mode ===
-                "newPassword" && (
-                <motion.div
-                  key="newPassword"
-                  initial={{
-                    opacity: 0,
-                    y: 20,
-                  }}
-                  animate={{
-                    opacity: 1,
-                    y: 0,
-                  }}
-                >
-
-                  <KeyRound className="mb-6 h-12 w-12 text-green-400" />
-
-                  <h2 className="text-3xl font-bold">
-                    New password
-                  </h2>
-
-                  <form
-                    onSubmit={
-                      handleNewPassword
-                    }
-                    className="mt-8 space-y-5"
-                  >
-
-                    <div className="relative rounded-xl border border-white/10 bg-black/30">
-
-                      <Lock className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-600" />
-
-                      <input
-                        type={
-                          showNewPassword
-                            ? "text"
-                            : "password"
-                        }
-                        value={
-                          newPassword
-                        }
-                        onChange={(
-                          event
-                        ) =>
-                          setNewPassword(
-                            event.target.value
-                          )
-                        }
-                        required
-                        placeholder="New password"
-                        className="w-full bg-transparent py-4 pl-12 pr-12 outline-none"
-                      />
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setShowNewPassword(
-                            (current) =>
-                              !current
-                          )
-                        }
-                        className="absolute right-4 top-1/2 -translate-y-1/2"
-                      >
-                        {showNewPassword ? (
-                          <EyeOff className="h-5 w-5" />
-                        ) : (
-                          <Eye className="h-5 w-5" />
-                        )}
+                {mode === "signupOtp" && (
+                  <motion.div key="signupOtp" initial={{ opacity: 0, scale: 0.97, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0 }}>
+                    <span className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-void/70"><Mail className="h-7 w-7 text-crimson" /></span>
+                    <h2 className="cine-display mt-8 text-[clamp(2.4rem,4vw,3.4rem)] text-bone">Check your inbox.</h2>
+                    <p className="mt-4 text-zinc-400">We sent a 6-digit code to</p>
+                    <p className="mt-1 text-lg font-medium text-bone">{formData.email}</p>
+                    <form onSubmit={handleVerifySignupOtp} className="mt-9">
+                      <OtpInput />
+                      <button disabled={loading || otp.length !== 6} className="mt-6 w-full rounded-full bg-crimson py-4 font-semibold text-white transition-all hover:bg-crimson-hot disabled:opacity-40">Verify email</button>
+                    </form>
+                    <div className="mt-6 text-center text-sm text-zinc-500">
+                      Did not get it?{" "}
+                      <button type="button" disabled={resendSeconds > 0} onClick={handleResendSignupOtp} className="text-red-400 transition-colors hover:text-red-300 disabled:text-zinc-600">
+                        {resendSeconds > 0 ? `Resend in ${resendSeconds}s` : "Resend"}
                       </button>
-
                     </div>
+                  </motion.div>
+                )}
 
-                    <div className="relative rounded-xl border border-white/10 bg-black/30">
-
-                      <Lock className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-600" />
-
-                      <input
-                        type={
-                          showNewPassword
-                            ? "text"
-                            : "password"
-                        }
-                        value={
-                          confirmPassword
-                        }
-                        onChange={(
-                          event
-                        ) =>
-                          setConfirmPassword(
-                            event.target.value
-                          )
-                        }
-                        required
-                        placeholder="Confirm password"
-                        className="w-full bg-transparent py-4 pl-12 pr-4 outline-none"
-                      />
-
-                    </div>
-
-                    <button
-                      disabled={loading}
-                      className="w-full rounded-xl bg-red-600 py-4 font-semibold disabled:opacity-50"
-                    >
-                      Change Password
+                {mode === "forgot" && (
+                  <motion.div key="forgot" initial={{ opacity: 0, x: 25 }} animate={{ opacity: 1, x: 0 }}>
+                    <span className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-void/70"><KeyRound className="h-7 w-7 text-crimson" /></span>
+                    <h2 className="cine-display mt-8 text-[clamp(2.4rem,4vw,3.4rem)] text-bone">Forgot your password?</h2>
+                    <p className="mt-4 text-zinc-400">Enter your email and we will send you a reset code.</p>
+                    <form onSubmit={handleForgotPassword} className="mt-9">
+                      <span className="group relative block">
+                        <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-600 transition-colors group-focus-within:text-crimson" />
+                        <input type="email" name="email" value={formData.email} onChange={handleChange} required placeholder="you@example.com" className="w-full rounded-2xl border border-white/10 bg-void/70 py-4 pl-12 pr-4 text-[15px] outline-none transition placeholder:text-zinc-600 focus:border-crimson/80" />
+                      </span>
+                      <button disabled={loading} className="mt-5 w-full rounded-full bg-crimson py-4 font-semibold text-white transition-all hover:bg-crimson-hot disabled:opacity-50">Send reset code</button>
+                    </form>
+                    <button type="button" onClick={() => setMode("login")} className="mx-auto mt-8 flex items-center gap-2 text-sm text-zinc-400 transition-colors hover:text-white">
+                      <ArrowLeft className="h-4 w-4" />
+                      Back to sign in
                     </button>
+                  </motion.div>
+                )}
 
-                  </form>
+                {mode === "resetOtp" && (
+                  <motion.div key="resetOtp" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+                    <span className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-void/70"><ShieldCheck className="h-7 w-7 text-crimson" /></span>
+                    <h2 className="cine-display mt-8 text-[clamp(2.4rem,4vw,3.4rem)] text-bone">Enter your code.</h2>
+                    <p className="mt-4 text-zinc-400">Sent to {formData.email}</p>
+                    <form onSubmit={handleVerifyResetOtp} className="mt-9">
+                      <OtpInput />
+                      <button disabled={otp.length !== 6} className="mt-6 w-full rounded-full bg-crimson py-4 font-semibold text-white transition-all hover:bg-crimson-hot disabled:opacity-40">Verify code</button>
+                    </form>
+                    <div className="mt-6 text-center text-sm text-zinc-500">
+                      <button type="button" disabled={resendSeconds > 0} onClick={handleResendResetOtp} className="text-red-400 transition-colors hover:text-red-300 disabled:text-zinc-600">
+                        {resendSeconds > 0 ? `Resend in ${resendSeconds}s` : "Resend code"}
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
 
-                </motion.div>
-              )}
+                {mode === "newPassword" && (
+                  <motion.div key="newPassword" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+                    <span className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-void/70"><KeyRound className="h-7 w-7 text-crimson" /></span>
+                    <h2 className="cine-display mt-8 text-[clamp(2.4rem,4vw,3.4rem)] text-bone">New password.</h2>
+                    <form onSubmit={handleNewPassword} className="mt-9 space-y-4">
+                      <span className="group relative block">
+                        <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-600 transition-colors group-focus-within:text-crimson" />
+                        <input type={showNewPassword ? "text" : "password"} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required placeholder="New password" className="w-full rounded-2xl border border-white/10 bg-void/70 py-4 pl-12 pr-12 text-[15px] outline-none transition placeholder:text-zinc-600 focus:border-crimson/80" />
+                        <button type="button" aria-label={showNewPassword ? "Hide password" : "Show password"} onClick={() => setShowNewPassword((current) => !current)} className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 transition-colors hover:text-white">
+                          {showNewPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                        </button>
+                      </span>
+                      <span className="group relative block">
+                        <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-600 transition-colors group-focus-within:text-crimson" />
+                        <input type={showNewPassword ? "text" : "password"} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required placeholder="Confirm password" className="w-full rounded-2xl border border-white/10 bg-void/70 py-4 pl-12 pr-4 text-[15px] outline-none transition placeholder:text-zinc-600 focus:border-crimson/80" />
+                      </span>
+                      <button disabled={loading} className="w-full rounded-full bg-crimson py-4 font-semibold text-white transition-all hover:bg-crimson-hot disabled:opacity-50">Change password</button>
+                    </form>
+                  </motion.div>
+                )}
 
-              {/* SUCCESS */}
-
-              {mode ===
-                "resetSuccess" && (
-                <motion.div
-                  key="success"
-                  initial={{
-                    opacity: 0,
-                    scale: 0.9,
-                  }}
-                  animate={{
-                    opacity: 1,
-                    scale: 1,
-                  }}
-                  className="text-center"
-                >
-
-                  <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-green-500/10">
-                    <Check className="h-10 w-10 text-green-400" />
-                  </div>
-
-                  <h2 className="mt-7 text-3xl font-bold">
-                    Password changed
-                  </h2>
-
-                  <p className="mt-3 text-zinc-500">
-                    You can now sign in with your new password.
-                  </p>
-
-                  <button
-                    onClick={() =>
-                      setMode(
-                        "login"
-                      )
-                    }
-                    className="mt-8 w-full rounded-xl bg-red-600 py-4 font-semibold"
-                  >
-                    Sign In
-                  </button>
-
-                </motion.div>
-              )}
-
-            </AnimatePresence>
-
-          </div>
-
+                {mode === "resetSuccess" && (
+                  <motion.div key="success" initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} className="text-center">
+                    <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-crimson/40 bg-crimson/10"><Check className="h-10 w-10 text-crimson" /></div>
+                    <h2 className="cine-display mt-8 text-[clamp(2.4rem,4vw,3.4rem)] text-bone">Password changed.</h2>
+                    <p className="mt-4 text-zinc-400">You can now sign in with your new password.</p>
+                    <button onClick={() => setMode("login")} className="mt-9 w-full rounded-full bg-crimson py-4 font-semibold text-white transition-all hover:bg-crimson-hot">Sign in</button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </section>
         </div>
-
       </div>
-
-    </div>
-  );
+    );
 };
 
 // =====================================================
 // GOOGLE PROVIDER
 // =====================================================
 
-const Auth = () => {
+const AuthInner = () => {
   if (
     !GOOGLE_CLIENT_ID
   ) {
@@ -1603,5 +964,7 @@ const Auth = () => {
     </GoogleOAuthProvider>
   );
 };
+
+const Auth = () => <AuthInner />;
 
 export default Auth;

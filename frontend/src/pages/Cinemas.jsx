@@ -1,572 +1,810 @@
-import React, {
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
 
-import {
-  Building2,
-  MapPin,
-  Search,
-} from "lucide-react";
-
-import {
-  useNavigate,
-} from "react-router-dom";
-
+import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import toast from "react-hot-toast";
+import { flushSync } from "react-dom";
+import {
+  AnimatePresence,
+  motion,
+  useReducedMotion,
+} from "framer-motion";
+import {
+  ArrowRight,
+  ArrowUpRight,
+  MapPin,
+  Film,
+  Clapperboard,
+} from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import PageShell from "../components/ui/PageShell";
 
-const API_URL =
-  process.env.REACT_APP_BACKEND_URL;
+// =====================================================
+// BACKEND CONNECTION
+// =====================================================
+
+const theatreEndpoints = () => {
+  const roots = [];
+
+  if (
+    ["localhost", "127.0.0.1"].includes(
+      window.location.hostname
+    )
+  ) {
+    roots.push(
+      `${window.location.protocol}//${window.location.hostname}:5000`
+    );
+  }
+
+  roots.push(
+    process.env.REACT_APP_BACKEND_URL,
+    process.env.REACT_APP_API_URL,
+    window.location.origin
+  );
+
+  return [
+    ...new Set(
+      roots.filter(Boolean).map((root) => {
+        const base = String(root)
+          .trim()
+          .replace(/\/+$/, "");
+
+        return /\/api$/i.test(base)
+          ? `${base}/theatres`
+          : `${base}/api/theatres`;
+      })
+    ),
+  ];
+};
+
+// =====================================================
+// CINEMA DESTINATIONS
+// =====================================================
+// These IDs are from bookmyseat_db.
+// Live API theatre records are preferred.
+// The IDs remain as fallbacks for this database.
+// =====================================================
+
+const DESTINATIONS = [
+  {
+    key: "lower-parel",
+    slug: "grand-galleria-lower-parel-mumbai",
+    theatreId: "6ace39936b6e073bf1dedef4",
+    name: "Grand Galleria Mall",
+    area: "Lower Parel",
+    city: "Mumbai",
+    address: "Senapati Bapat Marg, Lower Parel",
+    photo: "/images/cinemas/lower-parel.jpg",
+    remote:
+      "https://images.pexels.com/photos/7081167/pexels-photo-7081167.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    description:
+      "A good film. An evening in the heart of the city.",
+  },
+  {
+    key: "kurla",
+    slug: "phoenix-marketcity-kurla-mumbai",
+    theatreId: "6ace39936b6e073bf1dedf20",
+    name: "Phoenix Marketcity",
+    area: "Kurla West",
+    city: "Mumbai",
+    address: "LBS Marg, Kurla West",
+    photo: "/images/cinemas/kurla.jpg",
+    remote:
+      "https://images.pexels.com/photos/8261819/pexels-photo-8261819.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    description:
+      "Make a night of it, from first frame to final credits.",
+  },
+  {
+    key: "malad",
+    slug: "inorbit-mall-malad-mumbai",
+    theatreId: "6ace39936b6e073bf1dedf4c",
+    name: "Inorbit Mall",
+    area: "Malad West",
+    city: "Mumbai",
+    address: "Link Road, Malad West",
+    photo: "/images/cinemas/malad.jpg",
+    remote:
+      "https://images.pexels.com/photos/7991139/pexels-photo-7991139.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    description:
+      "Your next big-screen escape, closer to home.",
+  },
+  {
+    key: "ghatkopar",
+    slug: "r-city-mall-ghatkopar-mumbai",
+    theatreId: "6ace39936b6e073bf1dedf78",
+    name: "R City Mall",
+    area: "Ghatkopar West",
+    city: "Mumbai",
+    address: "LBS Marg, Ghatkopar West",
+    photo: "/images/cinemas/ghatkopar.jpg",
+    remote:
+      "https://images.pexels.com/photos/7991381/pexels-photo-7991381.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    description:
+      "A little more cinema in your everyday.",
+  },
+  {
+    key: "thane",
+    slug: "viviana-mall-thane",
+    theatreId: "6ace39936b6e073bf1dedfa4",
+    name: "Viviana Mall",
+    area: "Thane",
+    city: "Thane",
+    address: "Eastern Express Highway, Thane",
+    photo: "/images/cinemas/thane.jpg",
+    remote:
+      "https://images.pexels.com/photos/32716872/pexels-photo-32716872.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    description:
+      "The stories you came for, on a much bigger screen.",
+  },
+];
 
 // =====================================================
 // HELPERS
 // =====================================================
 
-const formatAddress = (
-  address
-) => {
-  if (!address) {
-    return "";
-  }
+const norm = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 
-  if (
-    typeof address ===
-    "string"
-  ) {
-    return address;
-  }
-
-  return [
-    address.street,
-    address.area,
-    address.city,
-    address.state,
-    address.postalCode ||
-      address.pincode,
-  ]
-    .filter(Boolean)
-    .join(", ");
-};
+const theatreFor = (destination, theatres) =>
+  theatres.find(
+    (venue) =>
+      venue.slug === destination.slug
+  ) ||
+  theatres.find(
+    (venue) =>
+      norm(venue.name) === norm(destination.name) &&
+      norm(venue.city) === norm(destination.city)
+  );
 
 // =====================================================
-// PAGE
+// CINEMA PHOTOGRAPH
 // =====================================================
 
-const Cinemas = () => {
-  const navigate =
-    useNavigate();
+function VenuePhoto({
+  destination,
+  className = "",
+  priority = false,
+}) {
+  const [sourceIndex, setSourceIndex] = useState(0);
 
-  const [
-    theatres,
-    setTheatres,
-  ] =
-    useState([]);
+  useEffect(() => {
+    setSourceIndex(0);
+  }, [destination.key]);
 
-  const [
-    loading,
-    setLoading,
-  ] =
-    useState(true);
+  const source = [
+    destination.photo,
+    destination.remote,
+  ][sourceIndex];
 
-  const [
-    selectedCity,
-    setSelectedCity,
-  ] =
-    useState("");
+  return (
+    <div
+      className={`relative overflow-hidden bg-[#141418] ${className}`}
+    >
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse at 65% 25%,rgba(215,25,53,.24),transparent 53%),linear-gradient(125deg,#25252b,#0a0a0d 70%)",
+        }}
+      />
 
-  const [
-    searchQuery,
-    setSearchQuery,
-  ] =
-    useState("");
+      {sourceIndex < 2 && (
+        <img
+          key={`${destination.key}-${sourceIndex}`}
+          src={source}
+          alt=""
+          loading={priority ? "eager" : "lazy"}
+          decoding="async"
+          onError={() =>
+            setSourceIndex(
+              (index) => index + 1
+            )
+          }
+          className="absolute inset-0 h-full w-full object-cover"
+          style={{
+            filter:
+              "brightness(1.08) saturate(1.17)",
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// =====================================================
+// CINEMAS PAGE
+// BMS_CINEMA_SLIDE_V1
+// =====================================================
+
+export default function Cinemas() {
+  const navigate = useNavigate();
+  const reducedMotion = useReducedMotion();
+
+  const [selected, setSelected] = useState(0);
+  const [city, setCity] = useState("All");
+  const [theatres, setTheatres] = useState([]);
 
   // ===================================================
-  // LOAD CINEMAS
+  // LOAD LIVE THEATRE RECORDS
   // ===================================================
 
   useEffect(() => {
-    const loadTheatres =
-      async () => {
-        setLoading(true);
+    const controller = new AbortController();
 
+    const loadTheatres = async () => {
+      for (const endpoint of theatreEndpoints()) {
         try {
-          const response =
-            await axios.get(
-              `${API_URL}/api/theatres`
-            );
+          const response = await axios.get(endpoint, {
+            signal: controller.signal,
+            timeout: 7000,
+          });
 
-          const data =
-            response.data
-              ?.theatres ||
-            response.data ||
-            [];
+          const records = Array.isArray(response.data)
+            ? response.data
+            : response.data?.theatres;
 
-          const activeTheatres =
-            Array.isArray(data)
-              ? data.filter(
-                  (theatre) =>
-                    theatre.isActive !==
-                    false
-                )
-              : [];
+          if (!Array.isArray(records)) {
+            continue;
+          }
 
-          setTheatres(
-            activeTheatres
+          const activeRecords = records.filter(
+            (venue) => venue.isActive !== false
           );
-
-          // -------------------------------------------
-          // CITY DEFAULT
-          // -------------------------------------------
-
-          const cities = [
-            ...new Set(
-              activeTheatres
-                .map(
-                  (theatre) =>
-                    theatre.city
-                )
-                .filter(Boolean)
-            ),
-          ];
-
-          const savedCity =
-            localStorage.getItem(
-              "bookmyseat_city"
-            );
 
           if (
-            savedCity &&
-            cities.includes(
-              savedCity
+            DESTINATIONS.some(
+              (place) =>
+                theatreFor(place, activeRecords)
             )
           ) {
-            setSelectedCity(
-              savedCity
-            );
-          } else if (
-            cities.length >
-            0
-          ) {
-            setSelectedCity(
-              cities[0]
-            );
+            if (!controller.signal.aborted) {
+              setTheatres(activeRecords);
+            }
+
+            return;
           }
         } catch (error) {
-          console.error(
-            "Load cinemas:",
+          if (controller.signal.aborted) return;
+
+          console.warn(
+            "Could not read cinema directory:",
+            endpoint,
             error
           );
-
-          toast.error(
-            error.response
-              ?.data
-              ?.message ||
-              "Could not load cinemas."
-          );
-        } finally {
-          setLoading(false);
         }
-      };
+      }
+    };
 
     loadTheatres();
+
+    return () => controller.abort();
   }, []);
 
   // ===================================================
-  // CITIES
+  // CITY FILTER
   // ===================================================
 
-  const cities =
-    useMemo(() => {
-      return [
-        ...new Set(
-          theatres
-            .map(
-              (theatre) =>
-                theatre.city
-            )
-            .filter(Boolean)
-        ),
-      ];
-    }, [theatres]);
+  const filtered = useMemo(
+    () =>
+      DESTINATIONS.filter(
+        (item) =>
+          city === "All" || item.city === city
+      ),
+    [city]
+  );
 
-  // ===================================================
-  // FILTER THEATRES
-  // ===================================================
+  const active = DESTINATIONS[selected];
 
-  const visibleTheatres =
-    useMemo(() => {
-      const query =
-        searchQuery
-          .trim()
-          .toLowerCase();
+  const choose = (index) => {
+    setSelected(index);
+  };
 
-      return theatres.filter(
-        (theatre) => {
-          const cityMatches =
-            !selectedCity ||
-            theatre.city ===
-              selectedCity;
+  const chooseCity = (nextCity) => {
+    setCity(nextCity);
 
-          if (!cityMatches) {
-            return false;
-          }
-
-          if (!query) {
-            return true;
-          }
-
-          const searchable =
-            [
-              theatre.name,
-              theatre.city,
-              formatAddress(
-                theatre.address
-              ),
-            ]
-              .filter(Boolean)
-              .join(" ")
-              .toLowerCase();
-
-          return searchable.includes(
-            query
-          );
-        }
+    if (
+      nextCity !== "All" &&
+      DESTINATIONS[selected].city !== nextCity
+    ) {
+      setSelected(
+        DESTINATIONS.findIndex(
+          (item) => item.city === nextCity
+        )
       );
-    }, [
-      theatres,
-      selectedCity,
-      searchQuery,
-    ]);
+    }
+  };
 
   // ===================================================
-  // SELECT CINEMA
+  // SMOOTH CINEMA -> MOVIES SLIDE
+  // ===================================================
+  //
+  // No global AnimatePresence is added.
+  //
+  // Chrome and other supporting browsers animate
+  // the previous and next page snapshots.
+  //
+  // Unsupported browsers navigate normally.
+  // Reduced-motion preference is respected.
+  //
   // ===================================================
 
-  const selectTheatre =
-    (theatre) => {
-      if (!theatre?._id) {
-        toast.error(
-          "Cinema information is incomplete."
-        );
+  const slideToMovies = (url) => {
+    if (
+      reducedMotion ||
+      typeof document.startViewTransition !== "function"
+    ) {
+      navigate(url);
+      return;
+    }
 
-        return;
+    const transitionStyles =
+      document.createElement("style");
+
+    transitionStyles.textContent = `
+      @keyframes bmsCinemaOut {
+        from {
+          opacity: 1;
+          transform: translateX(0);
+        }
+
+        to {
+          opacity: 0;
+          transform: translateX(-48px);
+        }
       }
 
-      // -----------------------------------------------
-      // Save REAL MongoDB theatre details.
-      // -----------------------------------------------
+      @keyframes bmsMoviesIn {
+        from {
+          opacity: 0;
+          transform: translateX(52px);
+        }
 
+        to {
+          opacity: 1;
+          transform: translateX(0);
+        }
+      }
+
+      ::view-transition-old(root) {
+        animation:
+          340ms cubic-bezier(.22, 1, .36, 1)
+          both bmsCinemaOut;
+      }
+
+      ::view-transition-new(root) {
+        animation:
+          460ms cubic-bezier(.22, 1, .36, 1)
+          both bmsMoviesIn;
+      }
+    `;
+
+    document.head.appendChild(transitionStyles);
+
+    try {
+      const transition =
+        document.startViewTransition(() => {
+          flushSync(() => navigate(url));
+        });
+
+      transition.finished.then(
+        () => transitionStyles.remove(),
+        () => transitionStyles.remove()
+      );
+    } catch (error) {
+      transitionStyles.remove();
+      navigate(url);
+    }
+  };
+
+  // ===================================================
+  // OPEN SELECTED CINEMA
+  // ===================================================
+
+  const openCinema = (destination) => {
+    const theatre = theatreFor(
+      destination,
+      theatres
+    );
+
+    const theatreId = String(
+      theatre?._id || destination.theatreId
+    );
+
+    const theatreName =
+      theatre?.name || destination.name;
+
+    const theatreCity =
+      theatre?.city || destination.city;
+
+    try {
       localStorage.setItem(
         "bookmyseat_theatre",
-        theatre._id
+        theatreId
       );
 
       localStorage.setItem(
         "bookmyseat_theatre_name",
-        theatre.name ||
-          ""
+        theatreName
       );
 
       localStorage.setItem(
         "bookmyseat_city",
-        theatre.city ||
-          ""
+        theatreCity
       );
+    } catch {
+      // The URL still identifies the cinema.
+    }
 
-      // -----------------------------------------------
-      // IMPORTANT:
-      //
-      // Leading "/" makes this an absolute route.
-      //
-      // Correct:
-      // /movies
-      //
-      // Wrong:
-      // /cinemas/movies
-      // -----------------------------------------------
+    const query = new URLSearchParams({
+      theatre: theatreId,
+      city: theatreCity,
+    });
 
-      navigate(
-        `/movies?theatre=${theatre._id}&city=${encodeURIComponent(
-          theatre.city ||
-            ""
-        )}`
-      );
-    };
+    slideToMovies(
+      `/movies?${query.toString()}`
+    );
+  };
 
   // ===================================================
-  // PAGE
+  // ORIGINAL DIRECTORY DESIGN
   // ===================================================
 
   return (
-    <div className="min-h-screen pb-20 pt-24">
+    <PageShell glow="left" testId="cinemas-page">
+      <main className="relative mx-auto max-w-[1480px] px-5 pb-20 pt-10 text-white md:px-10 md:pt-14">
 
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        {/* EDITORIAL HEADING */}
 
-        {/* ===========================================
-            HEADER
-        ============================================ */}
+        <motion.div
+          initial={
+            reducedMotion
+              ? false
+              : { opacity: 0, y: 20 }
+          }
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
+          transition={{
+            duration: 0.75,
+            ease: [0.22, 1, 0.36, 1],
+          }}
+          className="mb-8 flex flex-col justify-between gap-5 border-b border-white/10 pb-7 lg:mb-10 lg:flex-row lg:items-end"
+        >
+          <div>
+            <div className="mb-4 flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[.25em] text-[#ff4968]">
+              <span className="h-px w-7 bg-[#D71935]" />
 
-        <div>
+              The cinema directory
 
-          <p className="text-sm text-zinc-500">
-            Step 1
+              <span className="text-zinc-600">
+                / 05
+              </span>
+            </div>
+
+            <h1 className="cine-display text-[clamp(2.8rem,5.4vw,5.4rem)] leading-[.92] tracking-tight">
+              Where to{" "}
+              <span className="text-[#ff4562]">
+                watch.
+              </span>
+            </h1>
+          </div>
+
+          <p className="max-w-[360px] text-sm leading-relaxed text-zinc-400 md:text-base">
+            Five destinations across Mumbai and Thane.
+            Find your area, then discover what is playing.
           </p>
+        </motion.div>
 
-          <h1 className="mt-2 text-4xl font-bold">
-            Choose a Cinema
-          </h1>
+        {/* LOCATION LIST AND PHOTOGRAPH */}
 
-          <p className="mt-3 text-zinc-500">
-            Select your city and cinema to see movies currently playing there.
-          </p>
+        <div className="grid min-h-[580px] gap-6 lg:grid-cols-[.88fr_1.12fr] lg:gap-9">
 
-        </div>
+          {/* LEFT — CINEMA LIST */}
 
-        {/* ===========================================
-            CITY SELECTOR
-        ============================================ */}
+          <div className="order-2 flex min-w-0 flex-col lg:order-1">
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+              <span className="text-[10px] font-bold uppercase tracking-[.22em] text-zinc-500">
+                Select a destination
+              </span>
 
-        {!loading &&
-          cities.length >
-            0 && (
-            <div className="mt-8">
-
-              <p className="mb-3 text-xs uppercase tracking-wider text-zinc-600">
-                City
-              </p>
-
-              <div className="flex flex-wrap gap-2">
-
-                {cities.map(
-                  (city) => (
+              <div
+                className="inline-flex gap-1 rounded-full border border-white/10 bg-white/[.03] p-1"
+                aria-label="Filter by city"
+              >
+                {["All", "Mumbai", "Thane"].map(
+                  (option) => (
                     <button
-                      key={
-                        city
-                      }
+                      key={option}
                       type="button"
-                      onClick={() => {
-                        setSelectedCity(
-                          city
-                        );
-
-                        localStorage.setItem(
-                          "bookmyseat_city",
-                          city
-                        );
-                      }}
-                      className={`rounded-lg border px-4 py-2 text-sm ${
-                        selectedCity ===
-                        city
-                          ? "border-red-500 bg-red-600 text-white"
-                          : "border-white/10 bg-zinc-900 text-zinc-400"
+                      aria-pressed={city === option}
+                      onClick={() =>
+                        chooseCity(option)
+                      }
+                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-300 ${
+                        city === option
+                          ? "bg-[#D71935] text-white"
+                          : "text-zinc-400 hover:text-white"
                       }`}
                     >
-                      {city}
+                      {option}
                     </button>
                   )
                 )}
-
               </div>
-
             </div>
-          )}
 
-        {/* ===========================================
-            SEARCH
-        ============================================ */}
+            <div className="overflow-hidden rounded-[22px] border border-white/10 bg-[#0e0e11]/75">
+              {filtered.map((place) => {
+                const actualIndex =
+                  DESTINATIONS.findIndex(
+                    (item) =>
+                      item.key === place.key
+                  );
 
-        <div className="relative mt-7 max-w-md">
+                const isActive =
+                  selected === actualIndex;
 
-          <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-500" />
-
-          <input
-            type="text"
-            value={
-              searchQuery
-            }
-            onChange={(
-              event
-            ) =>
-              setSearchQuery(
-                event.target
-                  .value
-              )
-            }
-            placeholder="Search cinemas..."
-            className="w-full rounded-lg border border-white/10 bg-zinc-900 py-3 pl-10 pr-4 outline-none focus:border-red-500"
-          />
-
-        </div>
-
-        {/* ===========================================
-            LOADING
-        ============================================ */}
-
-        {loading && (
-          <div className="py-24 text-center text-zinc-500">
-            Loading cinemas...
-          </div>
-        )}
-
-        {/* ===========================================
-            CINEMA GRID
-        ============================================ */}
-
-        {!loading &&
-          visibleTheatres.length >
-            0 && (
-            <div className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-
-              {visibleTheatres.map(
-                (theatre) => (
+                return (
                   <button
-                    key={
-                      theatre._id
-                    }
                     type="button"
-                    onClick={() =>
-                      selectTheatre(
-                        theatre
-                      )
+                    key={place.key}
+                    onMouseEnter={() =>
+                      choose(actualIndex)
                     }
-                    className="overflow-hidden rounded-xl border border-white/10 bg-zinc-900 text-left"
+                    onFocus={() =>
+                      choose(actualIndex)
+                    }
+                    onClick={() =>
+                      openCinema(place)
+                    }
+                    aria-label={`View movies at ${place.name}`}
+                    className={`group relative flex w-full items-center gap-4 border-b border-white/[.08] px-4 py-4 text-left outline-none transition-colors duration-300 last:border-b-0 focus-visible:bg-white/[.08] sm:px-5 ${
+                      isActive
+                        ? "bg-white/[.075]"
+                        : "hover:bg-white/[.035]"
+                    }`}
                   >
+                    {isActive && (
+                      <motion.span
+                        layoutId="bms-selected-cinema"
+                        className="absolute bottom-3 left-0 top-3 w-[3px] rounded-r-full bg-[#D71935]"
+                        transition={{
+                          type: "spring",
+                          stiffness: 380,
+                          damping: 35,
+                        }}
+                      />
+                    )}
 
-                    {/* COVER */}
+                    <span
+                      className={`w-6 shrink-0 text-xs tabular-nums ${
+                        isActive
+                          ? "text-[#ff526e]"
+                          : "text-zinc-600"
+                      }`}
+                    >
+                      {String(
+                        actualIndex + 1
+                      ).padStart(2, "0")}
+                    </span>
 
-                    <div className="aspect-[16/8] overflow-hidden bg-zinc-800">
+                    <div className="min-w-0 flex-1">
+                      <h3
+                        className={`cine-head truncate text-lg leading-tight transition-colors sm:text-xl ${
+                          isActive
+                            ? "text-white"
+                            : "text-zinc-300"
+                        }`}
+                      >
+                        {place.name}
+                      </h3>
 
-                      {theatre.coverImage ? (
-                        <img
-                          src={
-                            theatre.coverImage
-                          }
-                          alt={
-                            theatre.name
-                          }
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-full items-center justify-center">
+                      <p className="mt-1 truncate text-xs text-zinc-500 sm:text-sm">
+                        {place.area}
 
-                          <Building2 className="h-12 w-12 text-zinc-700" />
+                        <span className="px-1 text-zinc-700">
+                          /
+                        </span>
 
-                        </div>
-                      )}
-
+                        {place.city}
+                      </p>
                     </div>
 
-                    {/* DETAILS */}
-
-                    <div className="p-5">
-
-                      <div className="flex items-start gap-3">
-
-                        <MapPin className="mt-1 h-5 w-5 shrink-0 text-red-500" />
-
-                        <div className="min-w-0">
-
-                          <h2 className="text-lg font-semibold">
-                            {
-                              theatre.name
-                            }
-                          </h2>
-
-                          <p className="mt-1 text-sm text-zinc-500">
-                            {
-                              theatre.city
-                            }
-                          </p>
-
-                        </div>
-
-                      </div>
-
-                      {theatre.address && (
-                        <p className="mt-4 line-clamp-2 text-sm text-zinc-500">
-                          {formatAddress(
-                            theatre.address
-                          )}
-                        </p>
-                      )}
-
-                      {/* AMENITIES */}
-
-                      {Array.isArray(
-                        theatre.amenities
-                      ) &&
-                        theatre
-                          .amenities
-                          .length >
-                          0 && (
-                          <div className="mt-4 flex flex-wrap gap-2">
-
-                            {theatre.amenities
-                              .slice(
-                                0,
-                                4
-                              )
-                              .map(
-                                (
-                                  amenity
-                                ) => (
-                                  <span
-                                    key={
-                                      amenity
-                                    }
-                                    className="rounded bg-white/5 px-2 py-1 text-xs text-zinc-500"
-                                  >
-                                    {
-                                      amenity
-                                    }
-                                  </span>
-                                )
-                              )}
-
-                          </div>
-                        )}
-
-                      <div className="mt-5 rounded-lg bg-red-600 py-3 text-center text-sm font-semibold text-white">
-                        View Movies
-                      </div>
-
-                    </div>
-
+                    <ArrowUpRight
+                      className={`h-5 w-5 shrink-0 transition-all duration-300 ${
+                        isActive
+                          ? "-translate-y-0.5 translate-x-0.5 text-[#ff526e]"
+                          : "text-zinc-600 group-hover:text-white"
+                      }`}
+                    />
                   </button>
-                )
-              )}
-
+                );
+              })}
             </div>
-          )}
 
-        {/* ===========================================
-            EMPTY
-        ============================================ */}
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-5">
+              <p className="text-xs leading-relaxed text-zinc-500">
+                <MapPin
+                  className="mr-1 inline h-3.5 w-3.5 text-[#ff526e]"
+                />
 
-        {!loading &&
-          visibleTheatres.length ===
-            0 && (
-            <div className="mt-10 rounded-xl border border-white/10 py-20 text-center">
-
-              <Building2 className="mx-auto h-10 w-10 text-zinc-700" />
-
-              <h2 className="mt-4 text-xl font-semibold">
-                No cinemas found
-              </h2>
-
-              <p className="mt-2 text-sm text-zinc-500">
-                No active cinemas are available for this city.
+                {filtered.length}{" "}
+                {filtered.length === 1
+                  ? "location"
+                  : "locations"}{" "}
+                in view
               </p>
 
+              <button
+                type="button"
+                onClick={() =>
+                  openCinema(active)
+                }
+                className="inline-flex items-center gap-2 text-xs font-semibold text-zinc-200 transition-colors hover:text-[#ff526e]"
+              >
+                Films at {active.name}
+
+                <ArrowRight size={15} />
+              </button>
             </div>
-          )}
+          </div>
 
-      </div>
+          {/* RIGHT — PHOTOGRAPH */}
 
-    </div>
+          <div className="order-1 min-w-0 lg:order-2">
+            <div className="group relative h-[390px] overflow-hidden rounded-[23px] border border-white/15 bg-[#131318] shadow-[0_30px_80px_rgba(0,0,0,.28)] md:h-[510px] lg:h-full lg:min-h-[580px]">
+
+              <AnimatePresence
+                mode="sync"
+                initial={false}
+              >
+                <motion.div
+                  key={active.key}
+                  className="absolute inset-0"
+                  initial={
+                    reducedMotion
+                      ? false
+                      : {
+                          opacity: 0,
+                          scale: 1.035,
+                        }
+                  }
+                  animate={{
+                    opacity: 1,
+                    scale: 1,
+                  }}
+                  exit={{
+                    opacity: 0,
+                  }}
+                  transition={{
+                    duration: reducedMotion
+                      ? 0
+                      : 0.65,
+                    ease: [0.22, 1, 0.36, 1],
+                  }}
+                >
+                  <VenuePhoto
+                    destination={active}
+                    priority
+                    className="h-full w-full"
+                  />
+                </motion.div>
+              </AnimatePresence>
+
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-black/10" />
+
+              <div className="absolute left-5 top-5 flex items-center gap-2 rounded-full border border-white/20 bg-black/35 px-3 py-2 text-[10px] font-bold uppercase tracking-[.14em] text-white/85 backdrop-blur-lg md:left-7 md:top-7">
+                <Film
+                  size={13}
+                  className="text-[#ff526e]"
+                />
+
+                Cinema destinations
+              </div>
+
+              <div className="absolute bottom-0 left-0 right-0 p-6 md:p-9">
+                <AnimatePresence
+                  mode="wait"
+                  initial={false}
+                >
+                  <motion.div
+                    key={`${active.key}-copy`}
+                    initial={
+                      reducedMotion
+                        ? false
+                        : {
+                            opacity: 0,
+                            y: 16,
+                          }
+                    }
+                    animate={{
+                      opacity: 1,
+                      y: 0,
+                    }}
+                    exit={{
+                      opacity: 0,
+                      y: -10,
+                    }}
+                    transition={{
+                      duration: reducedMotion
+                        ? 0
+                        : 0.35,
+                    }}
+                  >
+                    <div className="mb-3 flex items-center gap-3 text-[11px] font-bold uppercase tracking-[.22em] text-white/75">
+                      <span className="h-px w-8 bg-[#ff4968]" />
+
+                      {active.area} / {active.city}
+                    </div>
+
+                    <h2 className="cine-display max-w-[650px] text-[clamp(2.1rem,4.3vw,4.6rem)] leading-[.94] text-white">
+                      {active.name}
+                    </h2>
+
+                    <p className="mt-3 max-w-md text-sm leading-relaxed text-zinc-200">
+                      {active.description}
+                    </p>
+
+                    <p className="mt-2 flex items-center gap-2 text-xs text-zinc-300">
+                      <MapPin
+                        size={14}
+                        className="text-[#ff526e]"
+                      />
+
+                      {active.address}
+                    </p>
+                  </motion.div>
+                </AnimatePresence>
+
+                <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-white/25 pt-5">
+                  <span className="text-[10px] text-zinc-300/80">
+                    Editorial photograph · Interior may differ by venue
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openCinema(active)
+                    }
+                    className="inline-flex items-center gap-2 rounded-full bg-[#D71935] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#ec2847] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+                  >
+                    View films & showtimes
+
+                    <ArrowUpRight size={17} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="pointer-events-none absolute right-6 top-7 text-[10px] font-medium tracking-[.18em] text-white/70 md:right-8">
+                {String(
+                  selected + 1
+                ).padStart(2, "0")}{" "}
+                / 05
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* FOOTER */}
+
+        <div className="mt-7 flex flex-col justify-between gap-3 border-t border-white/10 pt-5 text-xs text-zinc-500 md:flex-row md:items-center">
+          <p>
+            Locations are shown as a portfolio directory;
+            screening availability comes from live BookMySeat listings.
+          </p>
+
+          <span className="inline-flex items-center gap-2 whitespace-nowrap text-zinc-400">
+            <Clapperboard
+              size={15}
+              className="text-[#ff526e]"
+            />
+
+            Made for the big screen
+          </span>
+        </div>
+      </main>
+    </PageShell>
   );
-};
-
-export default Cinemas;
+}

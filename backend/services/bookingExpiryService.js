@@ -1,384 +1,291 @@
-const Booking =
-  require("../models/Booking");
 
-const BookedSeat =
-  require("../models/BookedSeat");
+"use strict";
 
-const Show =
-  require("../models/Show");
+const Booking = require("../models/Booking");
+const BookedSeat = require("../models/BookedSeat");
+const { releaseSeats } = require("./seatLockService");
+const { getStripe } = require("../utils/stripe");
 
-const {
-  releaseSeats,
-} =
-  require("./seatLockService");
+const INTERVAL_MS = Math.max(
+  Number(process.env.BOOKING_EXPIRY_CHECK_INTERVAL_MS || 30000),
+  10000
+);
+const NO_INTENT_GRACE_MS = 10 * 60 * 1000;
 
-// How often the backend checks stale bookings.
-//
-// 30 seconds is fast enough for cleanup while
-// avoiding unnecessary database traffic.
-const EXPIRY_CHECK_INTERVAL_MS =
-  Math.max(
-    Number(
-      process.env
-        .BOOKING_EXPIRY_CHECK_INTERVAL_MS ||
-        30000
-    ),
-    10000
-  );
+let running = false;
+let intervalHandle = null;
+let initialHandle = null;
+const lastWarning = new Map();
 
-// Prevent two cleanup runs from overlapping.
-let cleanupRunning =
-  false;
+function warn(bookingId, message) {
+  const key = `${bookingId}:${message}`;
+  if (Date.now() - (lastWarning.get(key) || 0) < 300000) return;
 
-let intervalHandle =
-  null;
+  lastWarning.set(key, Date.now());
+  console.warn(`[Booking Expiry] ${bookingId}: ${message}`);
+}
 
-// =====================================================
-// RELEASE REDIS LOCK
-// =====================================================
+// Never release a lock belonging to another customer.
+async function releaseOldLock(booking) {
+  if (!booking.seatLock?.lockId) return;
 
-const releaseRedisLock =
-  async (
-    booking
-  ) => {
-    const lockId =
-      booking.seatLock
-        ?.lockId;
+  try {
+    await releaseSeats({
+      showId: booking.show,
+      seatIds: booking.seats || [],
+      userId: booking.user,
+      lockId: booking.seatLock.lockId,
+    });
+  } catch (error) {
+    console.error(
+      `[Booking Expiry] Redis release failed for ${booking._id}:`,
+      error
+    );
+  }
+}
 
-    if (!lockId) {
-      return;
-    }
+// A stale booking is only safe to expire after checking
+// the actual Stripe payment state.
+async function safeToExpire(booking) {
+  const intentId = booking.payment?.stripePaymentIntentId;
 
-    try {
-      await releaseSeats({
-        showId:
-          booking.show,
+  if (!intentId) {
+    const deadline = new Date(booking.seatLock?.expiresAt).getTime();
 
-        seatIds:
-          booking.seats ||
-          [],
-
-        userId:
-          booking.user,
-
-        lockId,
-      });
-    } catch (error) {
-      /**
-       * Do not fail the expiry process because
-       * Redis cleanup failed.
-       *
-       * Redis seat locks also have TTL, so the
-       * lock will disappear automatically.
-       */
-      console.error(
-        "Expired booking Redis cleanup:",
-        error.message
-      );
-    }
-  };
-
-// =====================================================
-// DEFENSIVE DATABASE CLEANUP
-// =====================================================
-
-const releasePermanentSeats =
-  async (
-    booking
-  ) => {
-    try {
-      /**
-       * A PENDING_PAYMENT booking should never have
-       * permanent BookedSeat records.
-       *
-       * This cleanup exists as protection against
-       * old/legacy inconsistent data.
-       */
-      await BookedSeat.deleteMany({
-        booking:
-          booking._id,
-      });
-
-      if (
-        booking.show &&
-        Array.isArray(
-          booking.seats
-        ) &&
-        booking.seats.length
-      ) {
-        await Show.updateOne(
-          {
-            _id:
-              booking.show,
-          },
-
-          {
-            $pull: {
-              bookedSeats: {
-                $in:
-                  booking.seats,
-              },
-            },
-          }
-        );
-      }
-    } catch (error) {
-      console.error(
-        "Expired booking DB seat cleanup:",
-        error.message
-      );
-    }
-  };
-
-// =====================================================
-// EXPIRE ONE BOOKING SAFELY
-// =====================================================
-
-const expireBooking =
-  async (
-    booking
-  ) => {
-    /**
-     * IMPORTANT:
-     *
-     * We update with status=PENDING_PAYMENT in the
-     * MongoDB filter.
-     *
-     * This makes the operation atomic.
-     *
-     * If the Stripe webhook confirms the booking
-     * one millisecond before this worker runs,
-     * this update no longer matches and therefore
-     * cannot overwrite CONFIRMED.
-     */
-    const expired =
-      await Booking.findOneAndUpdate(
-        {
-          _id:
-            booking._id,
-
-          status:
-            "PENDING_PAYMENT",
-
-          "seatLock.expiresAt": {
-            $lte:
-              new Date(),
-          },
-        },
-
-        {
-          $set: {
-            status:
-              "EXPIRED",
-
-            paymentStatus:
-              "expired",
-
-            "payment.status":
-              "EXPIRED",
-
-            "payment.failureReason":
-              "Seat reservation expired before payment was completed.",
-          },
-        },
-
-        {
-          new: true,
-        }
-      );
-
-    // Another process changed the booking first.
-    if (!expired) {
+    if (
+      !Number.isFinite(deadline) ||
+      Date.now() - deadline < NO_INTENT_GRACE_MS
+    ) {
       return false;
     }
 
-    await releaseRedisLock(
-      expired
-    );
-
-    await releasePermanentSeats(
-      expired
-    );
+    // Payment creation could be in progress.
+    if (
+      !["NOT_STARTED", undefined, null].includes(
+        booking.payment?.status
+      )
+    ) {
+      warn(
+        booking._id,
+        "PaymentIntent is missing but payment may have started; investigate."
+      );
+      return false;
+    }
 
     return true;
+  }
+
+  let stripe;
+  let intent;
+
+  try {
+    stripe = getStripe();
+    intent = await stripe.paymentIntents.retrieve(intentId);
+  } catch (error) {
+    warn(
+      booking._id,
+      `Stripe lookup failed; NOT expiring: ${error.message}`
+    );
+    return false;
+  }
+
+  if (
+    intent.id !== intentId ||
+    intent.metadata?.bookingId !== String(booking._id)
+  ) {
+    warn(
+      booking._id,
+      "Stripe intent metadata mismatch; NOT expiring."
+    );
+    return false;
+  }
+
+  if (
+    ["succeeded", "processing", "requires_capture"].includes(
+      intent.status
+    )
+  ) {
+    warn(
+      booking._id,
+      `Stripe payment ${intent.status}; waiting for confirmation/reconciliation.`
+    );
+    return false;
+  }
+
+  if (intent.status === "canceled") return true;
+
+  // Cancel an unpaid intent BEFORE releasing seats.
+  // If a payment succeeds concurrently, Stripe refuses
+  // cancellation and we do not expire it.
+  if (
+    [
+      "requires_payment_method",
+      "requires_confirmation",
+      "requires_action",
+    ].includes(intent.status)
+  ) {
+    try {
+      const cancelled = await stripe.paymentIntents.cancel(
+        intentId,
+        {},
+        {
+          idempotencyKey: `bms-expiry-cancel-${booking._id}`,
+        }
+      );
+
+      return cancelled.status === "canceled";
+    } catch (error) {
+      warn(
+        booking._id,
+        `Cannot verify canceled intent; NOT expiring: ${error.message}`
+      );
+      return false;
+    }
+  }
+
+  warn(
+    booking._id,
+    `Unhandled Stripe state ${intent.status}; NOT expiring.`
+  );
+  return false;
+}
+
+async function expireOne(booking) {
+  if (!(await safeToExpire(booking))) return false;
+
+  // Permanent seats can mean the webhook is midway through
+  // confirmation. Never delete them during expiry.
+  if (await BookedSeat.exists({ booking: booking._id })) {
+    warn(
+      booking._id,
+      "Permanent seat record exists; manual review required."
+    );
+    return false;
+  }
+
+  const expectedIntentId = booking.payment?.stripePaymentIntentId;
+  const expectedPaymentStatus = booking.payment?.status;
+
+  const filter = {
+    _id: booking._id,
+    status: "PENDING_PAYMENT",
+    "seatLock.expiresAt": { $lte: new Date() },
+    "payment.stripePaymentIntentId": expectedIntentId || null,
   };
 
-// =====================================================
-// CLEANUP JOB
-// =====================================================
+  if (expectedPaymentStatus) {
+    filter["payment.status"] = expectedPaymentStatus;
+  }
 
-const expirePendingBookings =
-  async () => {
-    if (cleanupRunning) {
-      return {
-        checked: 0,
-        expired: 0,
-        skipped: true,
-      };
-    }
+  const result = await Booking.findOneAndUpdate(
+    filter,
+    {
+      $set: {
+        status: "EXPIRED",
+        paymentStatus: "failed",
+        "payment.status": "FAILED",
+        "payment.failureReason":
+          "Unpaid seat hold expired; Stripe canceled or no payment was started.",
+      },
+    },
+    { new: true, runValidators: true }
+  );
 
-    cleanupRunning =
-      true;
+  if (!result) return false;
 
-    try {
-      const now =
-        new Date();
+  await releaseOldLock(result);
 
-      /**
-       * Process in batches so a very large database
-       * does not get loaded into memory at once.
-       */
-      const bookings =
-        await Booking.find({
-          status:
-            "PENDING_PAYMENT",
+  // Do NOT delete BookedSeat records or $pull Show.bookedSeats.
+  // Another confirmed booking may own the seat now.
+  return true;
+}
 
-          "seatLock.expiresAt": {
-            $exists: true,
-            $ne: null,
-            $lte: now,
-          },
-        })
+async function expirePendingBookings() {
+  if (running) {
+    return { checked: 0, expired: 0, skipped: true };
+  }
 
-          .select(
-            "_id user show seats status seatLock payment paymentStatus"
-          )
+  running = true;
 
-          .limit(200)
+  try {
+    const pending = await Booking.find({
+      status: "PENDING_PAYMENT",
+      "seatLock.expiresAt": {
+        $ne: null,
+        $lte: new Date(),
+      },
+    })
+      .select("_id user show seats status seatLock payment paymentStatus")
+      .sort({ "seatLock.expiresAt": 1 })
+      .limit(200)
+      .lean();
 
-          .lean();
+    let expired = 0;
 
-      let expiredCount =
-        0;
-
-      for (
-        const booking
-        of bookings
-      ) {
-        try {
-          const changed =
-            await expireBooking(
-              booking
-            );
-
-          if (changed) {
-            expiredCount +=
-              1;
-          }
-        } catch (error) {
-          console.error(
-            `Failed to expire booking ${booking._id}:`,
-            error
-          );
-        }
-      }
-
-      if (
-        expiredCount > 0
-      ) {
-        console.log(
-          `[Booking Expiry] Expired ${expiredCount} abandoned booking(s).`
+    for (const booking of pending) {
+      try {
+        if (await expireOne(booking)) expired++;
+      } catch (error) {
+        console.error(
+          `[Booking Expiry] Error for ${booking._id}:`,
+          error
         );
       }
+    }
 
-      return {
-        checked:
-          bookings.length,
-
-        expired:
-          expiredCount,
-
-        skipped:
-          false,
-      };
-    } catch (error) {
-      console.error(
-        "Booking expiry worker:",
-        error
+    if (expired) {
+      console.log(
+        `[Booking Expiry] Expired ${expired} verified unpaid booking(s).`
       );
-
-      return {
-        checked: 0,
-        expired: 0,
-        skipped: false,
-        error:
-          error.message,
-      };
-    } finally {
-      cleanupRunning =
-        false;
-    }
-  };
-
-// =====================================================
-// START WORKER
-// =====================================================
-
-const startBookingExpiryWorker =
-  () => {
-    // Prevent duplicate workers during hot reload.
-    if (
-      intervalHandle
-    ) {
-      return intervalHandle;
     }
 
-    console.log(
-      `[Booking Expiry] Worker started (${EXPIRY_CHECK_INTERVAL_MS / 1000}s interval).`
-    );
+    return {
+      checked: pending.length,
+      expired,
+      skipped: false,
+    };
+  } catch (error) {
+    console.error("[Booking Expiry] Worker error:", error);
 
-    /**
-     * Run once shortly after startup instead of
-     * waiting for the first interval.
-     */
-    setTimeout(
-      () => {
-        expirePendingBookings();
-      },
-      3000
-    );
+    return {
+      checked: 0,
+      expired: 0,
+      skipped: false,
+      error: error.message,
+    };
+  } finally {
+    running = false;
+  }
+}
 
-    intervalHandle =
-      setInterval(
-        () => {
-          expirePendingBookings();
-        },
-        EXPIRY_CHECK_INTERVAL_MS
-      );
+function startBookingExpiryWorker() {
+  if (intervalHandle) return intervalHandle;
 
-    /**
-     * Do not keep Node alive only because this timer
-     * still exists during shutdown.
-     */
-    if (
-      typeof intervalHandle.unref ===
-      "function"
-    ) {
-      intervalHandle.unref();
-    }
+  console.log(
+    `[Booking Expiry] Worker started (${INTERVAL_MS / 1000}s interval).`
+  );
 
-    return intervalHandle;
-  };
+  initialHandle = setTimeout(() => {
+    void expirePendingBookings();
+  }, 3000);
 
-// =====================================================
-// STOP WORKER
-// =====================================================
+  intervalHandle = setInterval(() => {
+    void expirePendingBookings();
+  }, INTERVAL_MS);
 
-const stopBookingExpiryWorker =
-  () => {
-    if (
-      !intervalHandle
-    ) {
-      return;
-    }
+  initialHandle.unref?.();
+  intervalHandle.unref?.();
 
-    clearInterval(
-      intervalHandle
-    );
+  return intervalHandle;
+}
 
-    intervalHandle =
-      null;
-  };
+function stopBookingExpiryWorker() {
+  if (initialHandle) clearTimeout(initialHandle);
+  if (intervalHandle) clearInterval(intervalHandle);
+
+  initialHandle = null;
+  intervalHandle = null;
+}
 
 module.exports = {
   expirePendingBookings,

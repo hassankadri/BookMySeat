@@ -1,0 +1,708 @@
+
+import { LayoutGroup, motion } from "framer-motion";
+import PageShell from "../components/ui/PageShell";
+import Btn from "../components/ui/Btn";
+import Tilt from "../components/home/primitives/Tilt";
+import { EmptyState, FilmPoster, Reveal } from "../components/ui/bits";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
+import {
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
+
+import {
+  Calendar,
+  Clock,
+  Heart,
+  MapPin,
+  Play,
+  Star,
+  Ticket,
+} from "lucide-react";
+
+import axios from "axios";
+import toast from "react-hot-toast";
+
+import {
+  useAuth,
+} from "../context/AuthContext";
+
+const API_URL =
+  process.env.REACT_APP_BACKEND_URL;
+
+// =====================================================
+// HELPERS
+// =====================================================
+
+const getLocalDateKey = (
+  value
+) => {
+  const date =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return "";
+  }
+
+  const year =
+    date.getFullYear();
+
+  const month =
+    String(
+      date.getMonth() + 1
+    ).padStart(
+      2,
+      "0"
+    );
+
+  const day =
+    String(
+      date.getDate()
+    ).padStart(
+      2,
+      "0"
+    );
+
+  return `${year}-${month}-${day}`;
+};
+
+const formatDay = (
+  value
+) => {
+  const date =
+    new Date(
+      `${value}T00:00:00`
+    );
+
+  return new Intl.DateTimeFormat(
+    "en-IN",
+    {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    }
+  ).format(date);
+};
+
+const formatTime = (
+  value
+) =>
+  new Intl.DateTimeFormat(
+    "en-IN",
+    {
+      hour: "numeric",
+      minute: "2-digit",
+    }
+  ).format(
+    new Date(value)
+  );
+
+const minimumPrice = (
+  show
+) => {
+  if (
+    Array.isArray(
+      show.pricing
+    ) &&
+    show.pricing.length
+  ) {
+    return Math.min(
+      ...show.pricing.map(
+        (item) =>
+          Number(
+            item.price || 0
+          )
+      )
+    );
+  }
+
+  return Number(
+    show.price || 0
+  );
+};
+
+// =====================================================
+// PAGE
+// =====================================================
+
+const MovieDetails =
+  () => {
+    const {
+      id,
+    } =
+      useParams();
+
+    const navigate =
+      useNavigate();
+
+    const [
+      searchParams,
+    ] =
+      useSearchParams();
+
+    const {
+      token,
+      isAuthenticated,
+    } =
+      useAuth();
+
+    const [
+      movie,
+      setMovie,
+    ] =
+      useState(null);
+
+    const [
+      shows,
+      setShows,
+    ] =
+      useState([]);
+
+    const [
+      selectedDate,
+      setSelectedDate,
+    ] =
+      useState("");
+
+    const [
+      loading,
+      setLoading,
+    ] =
+      useState(true);
+
+    const [
+      isFavorite,
+      setIsFavorite,
+    ] =
+      useState(false);
+
+    // =================================================
+    // THEATRE
+    // =================================================
+
+    const theatreFromUrl =
+      searchParams.get(
+        "theatre"
+      );
+
+    const selectedTheatre =
+      theatreFromUrl ||
+      localStorage.getItem(
+        "bookmyseat_theatre"
+      );
+
+    const theatreName =
+      localStorage.getItem(
+        "bookmyseat_theatre_name"
+      );
+
+    // =================================================
+    // LOAD MOVIE + SHOWS
+    // =================================================
+
+    useEffect(() => {
+      const loadPage =
+        async () => {
+          if (
+            !selectedTheatre
+          ) {
+            navigate(
+              "/cinemas",
+              {
+                replace: true,
+              }
+            );
+
+            return;
+          }
+
+          setLoading(true);
+
+          try {
+            const [
+              movieResponse,
+              showsResponse,
+            ] =
+              await Promise.all([
+                axios.get(
+                  `${API_URL}/api/movies/${id}`
+                ),
+
+                axios.get(
+                  `${API_URL}/api/shows`,
+                  {
+                    params: {
+                      movie:
+                        id,
+
+                      theatre:
+                        selectedTheatre,
+
+                      status:
+                        "SCHEDULED",
+                    },
+                  }
+                ),
+              ]);
+
+            setMovie(
+              movieResponse.data
+                .movie
+            );
+
+            const now =
+              new Date();
+
+            const upcomingShows =
+              (
+                showsResponse.data
+                  ?.shows ||
+                []
+              )
+                .filter(
+                  (show) =>
+                    show.startTime &&
+                    new Date(
+                      show.startTime
+                    ) > now
+                )
+                .sort(
+                  (a, b) =>
+                    new Date(
+                      a.startTime
+                    ) -
+                    new Date(
+                      b.startTime
+                    )
+                );
+
+            setShows(
+              upcomingShows
+            );
+
+            if (
+              upcomingShows.length >
+              0
+            ) {
+              setSelectedDate(
+                getLocalDateKey(
+                  upcomingShows[0]
+                    .startTime
+                )
+              );
+            }
+          } catch (error) {
+            console.error(
+              "Movie details error:",
+              error
+            );
+
+            toast.error(
+              error.response
+                ?.data
+                ?.message ||
+                "Failed to load movie."
+            );
+          } finally {
+            setLoading(
+              false
+            );
+          }
+        };
+
+      loadPage();
+    }, [
+      id,
+      selectedTheatre,
+      navigate,
+    ]);
+
+    // =================================================
+    // AVAILABLE DATES
+    // =================================================
+
+    const dates =
+      useMemo(() => {
+        return [
+          ...new Set(
+            shows.map(
+              (show) =>
+                getLocalDateKey(
+                  show.startTime
+                )
+            )
+          ),
+        ].filter(Boolean);
+      }, [shows]);
+
+    // =================================================
+    // SHOWS FOR SELECTED DAY
+    // =================================================
+
+    const dayShows =
+      useMemo(() => {
+        return shows.filter(
+          (show) =>
+            getLocalDateKey(
+              show.startTime
+            ) === selectedDate
+        );
+      }, [
+        shows,
+        selectedDate,
+      ]);
+
+    // =================================================
+    // FAVORITES
+    // =================================================
+
+    const handleFavorite =
+      async () => {
+        if (
+          !isAuthenticated
+        ) {
+          toast.error(
+            "Please login to add favorites."
+          );
+
+          navigate(
+            "/auth"
+          );
+
+          return;
+        }
+
+        try {
+          const response =
+            await axios.post(
+              `${API_URL}/api/movies/${id}/favorite`,
+
+              {},
+
+              {
+                headers: {
+                  Authorization:
+                    `Bearer ${token}`,
+                },
+              }
+            );
+
+          setIsFavorite(
+            response.data
+              .isFavorite
+          );
+
+          toast.success(
+            response.data
+              .message
+          );
+        } catch (error) {
+          toast.error(
+            "Failed to update favorites."
+          );
+        }
+      };
+
+    // =================================================
+    // TRAILER
+    // =================================================
+
+    const handleTrailer =
+      () => {
+        if (
+          movie?.trailer
+        ) {
+          window.open(
+            movie.trailer,
+            "_blank",
+            "noopener,noreferrer"
+          );
+        }
+      };
+
+    // =================================================
+    // SELECT REAL SHOW
+    // =================================================
+
+    const selectShow =
+      (show) => {
+        localStorage.setItem(
+          "bookmyseat_show",
+          show._id
+        );
+
+        localStorage.setItem(
+          "bookmyseat_theatre",
+          selectedTheatre
+        );
+
+        // Important:
+        // real Show ID is now passed forward.
+        navigate(
+          `/booking/${id}?show=${show._id}&theatre=${selectedTheatre}`
+        );
+      };
+
+    // =================================================
+    // LOADING
+    // =================================================
+
+    if (loading) {
+    return (
+      <PageShell glow="none">
+        <div className="flex min-h-[70vh] items-center justify-center" role="status" aria-live="polite">
+          <div className="flex flex-col items-center gap-4">
+            <span className="h-10 w-10 animate-spin rounded-full border-2 border-white/10 border-t-crimson" />
+            <p className="text-sm text-zinc-500">Loading film</p>
+          </div>
+        </div>
+      </PageShell>
+    );
+  }
+
+    if (!movie) {
+    return (
+      <PageShell glow="none">
+        <div className="flex min-h-[70vh] items-center justify-center px-5">
+          <EmptyState title="Film not found" body="It may have been removed from the schedule." action={<Btn onClick={() => navigate("/movies")}>Back to movies</Btn>} />
+        </div>
+      </PageShell>
+    );
+  }
+
+  return (
+    <PageShell glow="top" testId="movie-details-page">
+      {/* ---------- the film: its own poster, blurred, becomes the room's light ---------- */}
+      <section className="relative isolate overflow-hidden">
+        {movie.poster && (
+          <img
+            src={movie.poster}
+            alt=""
+            aria-hidden="true"
+            className="absolute inset-0 -z-20 h-full w-full scale-125 object-cover opacity-40 blur-2xl"
+          />
+        )}
+        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-void/40 via-void/70 to-void" />
+        <div className="absolute inset-0 -z-10 bg-gradient-to-r from-void via-void/60 to-transparent" />
+
+        <div className="mx-auto grid max-w-[1400px] items-end gap-10 px-5 pb-16 pt-16 md:px-8 lg:grid-cols-[340px_1fr] lg:gap-16 lg:pt-24">
+          <motion.div initial={{ opacity: 0, y: 40, rotateX: 8 }} animate={{ opacity: 1, y: 0, rotateX: 0 }} transition={{ duration: 1, ease: [0.2, 0.7, 0.1, 1] }} className="mx-auto w-full max-w-[300px] lg:mx-0 lg:max-w-none">
+            <Tilt max={7} className="rounded-[1.6rem]">
+              <div className="overflow-hidden rounded-[1.6rem] border border-white/15 shadow-[0_50px_120px_-30px_rgba(215,25,53,.45)]">
+                <FilmPoster src={movie.poster} title={movie.title} className="aspect-[2/3] w-full" />
+              </div>
+            </Tilt>
+          </motion.div>
+
+          <div className="min-w-0">
+            <motion.h1
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.9, delay: 0.1, ease: [0.2, 0.7, 0.1, 1] }}
+              className="cine-display text-[clamp(2.8rem,7vw,6.8rem)] text-bone"
+            >
+              {movie.title}
+            </motion.h1>
+
+            <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-3 text-[15px] text-zinc-300">
+              {movie.avgRating && (
+                <span className="flex items-center gap-2"><Star className="h-4 w-4 fill-crimson text-crimson" />{movie.avgRating}/5</span>
+              )}
+              {movie.duration && (
+                <span className="flex items-center gap-2"><Clock className="h-4 w-4 text-zinc-500" />{movie.duration}</span>
+              )}
+              {movie.releaseYear && (
+                <span className="flex items-center gap-2"><Calendar className="h-4 w-4 text-zinc-500" />{movie.releaseYear}</span>
+              )}
+            </div>
+
+            {movie.genre && (
+              <div className="mt-5 flex flex-wrap gap-2">
+                {String(movie.genre).split(",").map((genre) => (
+                  <span key={genre} className="rounded-full border border-white/15 px-4 py-1.5 text-sm text-zinc-300">{genre.trim()}</span>
+                ))}
+              </div>
+            )}
+
+            <p className="mt-7 max-w-2xl text-[17px] leading-8 text-zinc-300">{movie.description}</p>
+
+            {(movie.director || movie.producer) && (
+              <dl className="mt-8 flex flex-wrap gap-x-12 gap-y-4">
+                {movie.director && (
+                  <div>
+                    <dt className="text-sm text-zinc-500">Director</dt>
+                    <dd className="mt-1 text-lg font-medium text-bone">{movie.director}</dd>
+                  </div>
+                )}
+                {movie.producer && (
+                  <div>
+                    <dt className="text-sm text-zinc-500">Producer</dt>
+                    <dd className="mt-1 text-lg font-medium text-bone">{movie.producer}</dd>
+                  </div>
+                )}
+              </dl>
+            )}
+
+            <div className="mt-9 flex flex-wrap gap-3">
+              <Btn href="#showtimes" size="lg" data-testid="jump-showtimes">
+                <Ticket className="h-5 w-5" />
+                Choose a showtime
+              </Btn>
+              {movie.trailer && (
+                <Btn variant="line" size="lg" onClick={handleTrailer} data-testid="trailer-button">
+                  <Play className="h-4 w-4 fill-current" />
+                  Trailer
+                </Btn>
+              )}
+              <Btn variant="line" size="lg" onClick={handleFavorite} aria-pressed={isFavorite} data-testid="favorite-button">
+                <Heart className={`h-5 w-5 transition-all ${isFavorite ? "scale-110 fill-crimson text-crimson" : ""}`} />
+                {isFavorite ? "Saved" : "Favorite"}
+              </Btn>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ---------- showtimes ---------- */}
+      <section id="showtimes" className="scroll-mt-24 border-t border-white/10 bg-void">
+        <div className="mx-auto max-w-[1400px] px-5 py-16 md:px-8 lg:py-24">
+          <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
+            <div>
+              <p className="flex items-center gap-2 text-sm text-zinc-500"><MapPin className="h-4 w-4 text-crimson" />Showing at</p>
+              <h2 className="cine-display mt-3 text-[clamp(2rem,4.4vw,3.6rem)] text-bone">
+                {theatreName || shows[0]?.theatre?.name || "Selected cinema"}
+              </h2>
+            </div>
+            <Btn variant="line" onClick={() => navigate("/cinemas")}>Change cinema</Btn>
+          </div>
+
+          {shows.length === 0 ? (
+            <div className="mt-12">
+              <EmptyState
+                title="No upcoming shows"
+                body="This film is not scheduled at this cinema right now."
+                action={<Btn onClick={() => navigate("/cinemas")}>Choose another cinema</Btn>}
+              />
+            </div>
+          ) : (
+            <>
+              <LayoutGroup id="show-dates">
+                <div className="mt-12" role="tablist" aria-label="Date">
+                  <p className="mb-4 text-sm text-zinc-500">Date</p>
+                  <div className="cine-scroll -mx-5 flex gap-3 overflow-x-auto px-5 pb-2 md:mx-0 md:px-0">
+                    {dates.map((date) => {
+                      const d = new Date(`${date}T00:00:00`);
+                      const active = selectedDate === date;
+                      return (
+                        <button
+                          key={date}
+                          type="button"
+                          role="tab"
+                          aria-selected={active}
+                          onClick={() => setSelectedDate(date)}
+                          aria-label={formatDay(date)}
+                          data-testid={`date-${date}`}
+                          className={`relative min-w-[92px] shrink-0 overflow-hidden rounded-2xl border px-5 py-4 text-center outline-none transition-colors ${
+                            active ? "border-crimson text-white" : "border-white/10 text-zinc-400 hover:border-white/30 hover:text-white"
+                          }`}
+                        >
+                          {active && <motion.span layoutId="date-bg" className="absolute inset-0 bg-crimson" transition={{ type: "spring", stiffness: 420, damping: 36 }} />}
+                          <span className="relative block text-xs">{new Intl.DateTimeFormat("en-IN", { weekday: "short" }).format(d)}</span>
+                          <span className="cine-display cine-tabular relative mt-1 block text-3xl">{d.getDate()}</span>
+                          <span className="relative block text-xs">{new Intl.DateTimeFormat("en-IN", { month: "short" }).format(d)}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </LayoutGroup>
+
+              <div className="mt-12">
+                <p className="mb-4 text-sm text-zinc-500">Showtime</p>
+                <ul key={selectedDate} className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  <>
+                    {dayShows.map((show, i) => (
+                      <motion.li
+                        key={show._id}
+                        initial={{ opacity: 0, y: 24 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5, delay: i * 0.05, ease: [0.2, 0.7, 0.1, 1] }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => selectShow(show)}
+                          data-testid={`show-${show._id}`}
+                          className="group block w-full text-left outline-none"
+                        >
+                          <div className="cine-notch relative bg-char transition-colors duration-500 group-hover:bg-[#222228] group-focus-visible:bg-[#222228]" style={{ "--cut": "66%", borderRadius: 24 }}>
+                            <div className="flex items-start justify-between gap-4 p-6 pb-7">
+                              <div>
+                                <p className="cine-display cine-tabular text-5xl text-bone">{formatTime(show.startTime)}</p>
+                                <div className="mt-4 flex flex-wrap gap-2">
+                                  {[show.language, show.format, show.screen?.name].filter(Boolean).map((tag) => (
+                                    <span key={tag} className="rounded-full border border-white/12 px-3 py-1 text-xs text-zinc-300">{tag}</span>
+                                  ))}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-xs text-zinc-500">From</p>
+                                <p className="cine-head cine-tabular text-xl text-bone">₹{minimumPrice(show)}</p>
+                              </div>
+                            </div>
+                            <div className="mx-6 border-t-2 border-dashed border-white/10" />
+                            <div className="flex items-center justify-between px-6 py-4 text-sm">
+                              <span className="text-zinc-500">Choose your seats</span>
+                              <span className="flex h-9 w-9 items-center justify-center rounded-full border border-white/15 text-white transition-all duration-300 group-hover:border-crimson group-hover:bg-crimson">
+                                <Ticket className="h-4 w-4" />
+                              </span>
+                            </div>
+                          </div>
+                        </button>
+                      </motion.li>
+                    ))}
+                  </>
+                </ul>
+              </div>
+            </>
+          )}
+        </div>
+      </section>
+
+      {/* ---------- cast ---------- */}
+      {Array.isArray(movie.cast) && movie.cast.length > 0 && (
+        <section className="border-t border-white/10">
+          <div className="mx-auto max-w-[1400px] px-5 py-16 md:px-8 lg:py-24">
+            <Reveal>
+              <h2 className="cine-display text-[clamp(2rem,4.4vw,3.6rem)] text-bone">Cast</h2>
+            </Reveal>
+            <div className="cine-scroll -mx-5 mt-10 flex gap-8 overflow-x-auto px-5 pb-3 md:mx-0 md:px-0">
+              {movie.cast.map((actor, index) => (
+                <div key={`${actor.name}-${index}`} className="w-32 shrink-0 text-center">
+                  {actor.image ? (
+                    <img src={actor.image} alt={actor.name} className="mx-auto h-28 w-28 rounded-full border border-white/10 object-cover grayscale transition duration-500 hover:grayscale-0" />
+                  ) : (
+                    <div className="cine-head mx-auto flex h-28 w-28 items-center justify-center rounded-full border border-white/10 bg-char text-3xl text-zinc-500">{String(actor.name || "?").charAt(0)}</div>
+                  )}
+                  <p className="mt-4 text-sm font-medium text-bone">{actor.name}</p>
+                  <p className="mt-1 text-xs text-zinc-500">{actor.role}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+    </PageShell>
+  );
+};
+
+export default MovieDetails;

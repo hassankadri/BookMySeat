@@ -1,4 +1,5 @@
-import React from "react";
+
+import React, { useEffect } from "react";
 
 import "@/App.css";
 
@@ -6,19 +7,13 @@ import {
   BrowserRouter,
   Route,
   Routes,
+  useLocation,
 } from "react-router-dom";
 
-import {
-  Toaster,
-} from "react-hot-toast";
+import { Toaster } from "react-hot-toast";
 
-import {
-  AuthProvider,
-} from "./context/AuthContext";
-
-import {
-  BookingProvider,
-} from "./context/BookingContext";
+import { AuthProvider } from "./context/AuthContext";
+import { BookingProvider } from "./context/BookingContext";
 
 import Navbar from "./components/Navbar";
 
@@ -33,7 +28,6 @@ import Booking from "./pages/Booking";
 import Checkout from "./pages/Checkout";
 import Auth from "./pages/Auth";
 import MyBookings from "./pages/MyBookings";
-import Favorites from "./pages/Favorites";
 import BookingSuccess from "./pages/BookingSuccess";
 import Contact from "./pages/Contact";
 import Cinemas from "./pages/Cinemas";
@@ -55,7 +49,158 @@ import AddShow from "./pages/admin/AddShow";
 import TicketScanner from "./pages/admin/TicketScanner";
 
 // =====================================================
-// APP
+// ROUTING FIX — BMS_ROUTER_FIX_V1
+// =====================================================
+//
+// React Router renders the correct page immediately.
+//
+// Preserves:
+// - Homepage animations
+// - Movie card animations
+// - Cinema transitions
+// - Trailer effects
+// - Individual page animations
+//
+// =====================================================
+
+function AppRoutes() {
+  const location = useLocation();
+
+  useEffect(() => {
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: "auto",
+    });
+  }, [location.pathname]);
+
+  // Preserve the admin shell between admin subpages.
+  const routeKey =
+    location.pathname.startsWith("/admin")
+      ? "admin"
+      : location.pathname;
+
+  return (
+    <Routes key={routeKey}>
+      {/* PUBLIC ROUTES */}
+
+      <Route
+        path="/"
+        element={<Home />}
+      />
+
+      <Route
+        path="/movies"
+        element={<Movies />}
+      />
+
+      <Route
+        path="/cinemas"
+        element={<Cinemas />}
+      />
+
+      <Route
+        path="/movie/:id"
+        element={<MovieDetails />}
+      />
+
+      <Route
+        path="/booking/:id"
+        element={<Booking />}
+      />
+
+      <Route
+        path="/checkout"
+        element={<Checkout />}
+      />
+
+      <Route
+        path="/auth"
+        element={<Auth />}
+      />
+
+      <Route
+        path="/my-bookings"
+        element={<MyBookings />}
+      />
+
+      <Route
+        path="/booking-success"
+        element={<BookingSuccess />}
+      />
+
+      <Route
+        path="/booking-cancel"
+        element={<Home />}
+      />
+
+      <Route
+        path="/contact"
+        element={<Contact />}
+      />
+
+      <Route
+        path="/ai-search"
+        element={<AiSearch />}
+      />
+
+      {/* ADMIN ROUTES */}
+
+      <Route
+        path="/admin"
+        element={<Admin />}
+      >
+        <Route
+          path="analytics"
+          element={<AdminAnalytics />}
+        />
+
+        <Route
+          path="movies"
+          element={<AdminMovies />}
+        />
+
+        <Route
+          path="theatres"
+          element={<AdminTheatres />}
+        />
+
+        <Route
+          path="screens"
+          element={<AdminScreens />}
+        />
+
+        <Route
+          path="add-show"
+          element={<AddShow />}
+        />
+
+        <Route
+          path="shows"
+          element={<AdminShows />}
+        />
+
+        <Route
+          path="users"
+          element={<AdminUsers />}
+        />
+
+        <Route
+          path="bookings"
+          element={<AdminBookings />}
+        />
+
+        <Route
+          path="scanner"
+          element={<TicketScanner />}
+        />
+      </Route>
+    </Routes>
+  );
+}
+
+// =====================================================
+// APPLICATION
 // =====================================================
 
 function App() {
@@ -63,174 +208,38 @@ function App() {
     <AuthProvider>
       <BookingProvider>
         <BrowserRouter>
-
           <div className="App">
-
             <Navbar />
 
-            <Routes>
-
-              {/* =======================================
-                  PUBLIC ROUTES
-              ======================================== */}
-
-              <Route
-                path="/"
-                element={<Home />}
-              />
-
-              <Route
-                path="/movies"
-                element={<Movies />}
-              />
-
-              <Route
-                path="/cinemas"
-                element={<Cinemas />}
-              />
-
-              <Route
-                path="/movie/:id"
-                element={<MovieDetails />}
-              />
-
-              <Route
-                path="/booking/:id"
-                element={<Booking />}
-              />
-
-              <Route
-                path="/checkout"
-                element={<Checkout />}
-              />
-
-              <Route
-                path="/auth"
-                element={<Auth />}
-              />
-
-              <Route
-                path="/my-bookings"
-                element={<MyBookings />}
-              />
-
-              <Route
-                path="/favorites"
-                element={<Favorites />}
-              />
-
-              <Route
-                path="/booking-success"
-                element={<BookingSuccess />}
-              />
-
-              <Route
-                path="/booking-cancel"
-                element={<Home />}
-              />
-
-              <Route
-                path="/contact"
-                element={<Contact />}
-              />
-
-              {/* AI SEARCH MUST BE A PUBLIC ROUTE */}
-
-              <Route
-                path="/ai-search"
-                element={<AiSearch />}
-              />
-
-              {/* =======================================
-                  ADMIN ROUTES
-              ======================================== */}
-
-              <Route
-                path="/admin"
-                element={<Admin />}
-              >
-
-                <Route
-                  path="analytics"
-                  element={<AdminAnalytics />}
-                />
-
-                <Route
-                  path="movies"
-                  element={<AdminMovies />}
-                />
-
-                <Route
-                  path="theatres"
-                  element={<AdminTheatres />}
-                />
-
-                <Route
-                  path="screens"
-                  element={<AdminScreens />}
-                />
-
-                <Route
-                  path="add-show"
-                  element={<AddShow />}
-                />
-
-                <Route
-                  path="shows"
-                  element={<AdminShows />}
-                />
-
-                <Route
-                  path="users"
-                  element={<AdminUsers />}
-                />
-
-                <Route
-                  path="bookings"
-                  element={<AdminBookings />}
-                />
-
-                <Route
-                  path="scanner"
-                  element={<TicketScanner />}
-                />
-
-              </Route>
-
-            </Routes>
-
-            {/* =======================================
-                TOASTS
-            ======================================== */}
+            <AppRoutes />
 
             <Toaster
               position="bottom-right"
               toastOptions={{
                 style: {
-                  background:
-                    "#18181b",
-
-                  color:
-                    "#fff",
-
+                  background: "#19191D",
+                  color: "#F5F5F5",
                   border:
-                    "1px solid rgba(255,255,255,0.1)",
+                    "1px solid rgba(245,245,245,0.12)",
+                  borderRadius: "16px",
                 },
 
                 success: {
                   iconTheme: {
-                    primary:
-                      "#dc2626",
+                    primary: "#D71935",
+                    secondary: "#F5F5F5",
+                  },
+                },
 
-                    secondary:
-                      "#fff",
+                error: {
+                  iconTheme: {
+                    primary: "#D71935",
+                    secondary: "#F5F5F5",
                   },
                 },
               }}
             />
-
           </div>
-
         </BrowserRouter>
       </BookingProvider>
     </AuthProvider>

@@ -1,1737 +1,1358 @@
-import React, {
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
 
-import {
-  CalendarDays,
-  Clock,
-  Film,
-  IndianRupee,
-  MapPin,
-  Pencil,
-  Plus,
-  Save,
-  Search,
-  Trash2,
-  X,
-} from "lucide-react";
-
-import {
-  AnimatePresence,
-  motion,
-} from "framer-motion";
-
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import toast from "react-hot-toast";
-
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
-  useAuth,
-} from "../../context/AuthContext";
+  CalendarClock, IndianRupee, MapPin, Pencil, Plus,
+  RefreshCw, Search, ShieldAlert, Trash2, X,
+} from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
 
-const API_URL =
-  process.env.REACT_APP_BACKEND_URL;
+const API = (process.env.REACT_APP_BACKEND_URL || "").replace(/\/$/, "");
+const ZONE = "Asia/Kolkata";
+const INPUT = "w-full rounded-xl border border-white/10 bg-[#222227] px-4 py-3 text-sm text-white outline-none focus:border-[#D71935]/70 disabled:opacity-50";
+const FORMATS = ["STANDARD", "3D", "IMAX", "IMAX_3D", "4DX", "DOLBY_CINEMA"];
 
-const FORMATS = [
-  "STANDARD",
-  "3D",
-  "IMAX",
-  "IMAX_3D",
-  "4DX",
-  "DOLBY_CINEMA",
-];
+const idOf = (item) =>
+  String(item && typeof item === "object" ? item._id || "" : item || "");
 
-const emptyForm = {
+const fresh = () => ({
   movie: "",
   theatre: "",
   screen: "",
   language: "",
   format: "STANDARD",
-
   startTime: "",
   endTime: "",
-
   bookingOpensAt: "",
   bookingClosesAt: "",
-
   pricing: [],
-};
+});
 
-// =====================================================
-// HELPERS
-// =====================================================
+const pad = (value) => String(value).padStart(2, "0");
 
-const toInputDateTime = (
-  value
-) => {
-  if (!value) {
-    return "";
+function dateKey(value) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "";
+
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: ZONE,
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).formatToParts(date);
+
+  const find = (type) =>
+    parts.find((part) => part.type === type)?.value || "";
+
+  return `${find("year")}-${find("month")}-${find("day")}`;
+}
+
+function dateHeading(value) {
+  return new Intl.DateTimeFormat("en-IN", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: ZONE,
+  }).format(new Date(`${value}T12:00:00+05:30`));
+}
+
+function time(value) {
+  if (!value) return "—";
+
+  return new Intl.DateTimeFormat("en-IN", {
+    timeZone: ZONE,
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function inputDateTime(value) {
+  if (!value) return "";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function pricingFor(screen, previous = []) {
+  const types = [
+    ...new Set(
+      (screen?.seats || [])
+        .filter((seat) => seat.isActive !== false)
+        .map((seat) => seat.type)
+        .filter(Boolean)
+    ),
+  ];
+
+  return types.map((seatType) => ({
+    seatType,
+    price:
+      previous.find((item) => item.seatType === seatType)?.price ??
+      "",
+  }));
+}
+
+function priceFrom(show) {
+  const values = (show.pricing || [])
+    .map((item) => Number(item.price))
+    .filter((price) => Number.isFinite(price) && price >= 0);
+
+  if (values.length) {
+    return `₹${Math.min(...values).toLocaleString("en-IN")}`;
   }
 
-  const date =
-    new Date(value);
-
-  if (
-    Number.isNaN(
-      date.getTime()
-    )
-  ) {
-    return "";
-  }
-
-  const pad = (
-    number
-  ) =>
-    String(number).padStart(
-      2,
-      "0"
-    );
-
-  return `${date.getFullYear()}-${pad(
-    date.getMonth() + 1
-  )}-${pad(
-    date.getDate()
-  )}T${pad(
-    date.getHours()
-  )}:${pad(
-    date.getMinutes()
-  )}`;
-};
-
-const toIso = (
-  value
-) => {
-  if (!value) {
-    return null;
-  }
-
-  return new Date(
-    value
-  ).toISOString();
-};
-
-const formatDateTime = (
-  value
-) => {
-  if (!value) {
-    return "—";
-  }
-
-  const date =
-    new Date(value);
-
-  return new Intl.DateTimeFormat(
-    "en-IN",
-    {
-      dateStyle:
-        "medium",
-
-      timeStyle:
-        "short",
-    }
-  ).format(date);
-};
-
-const statusStyle = (
-  status
-) => {
-  switch (status) {
-    case "SCHEDULED":
-      return "bg-green-500/10 text-green-400";
-
-    case "CANCELLED":
-      return "bg-red-500/10 text-red-400";
-
-    case "COMPLETED":
-      return "bg-blue-500/10 text-blue-400";
-
-    default:
-      return "bg-zinc-800 text-zinc-400";
-  }
-};
-
-// =====================================================
-// PAGE
-// =====================================================
-
-const AdminShows = () => {
-  const {
-    token,
-  } = useAuth();
-
-  const [
-    shows,
-    setShows,
-  ] = useState([]);
-
-  const [
-    movies,
-    setMovies,
-  ] = useState([]);
-
-  const [
-    theatres,
-    setTheatres,
-  ] = useState([]);
-
-  const [
-    screens,
-    setScreens,
-  ] = useState([]);
-
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
-
-  const [
-    search,
-    setSearch,
-  ] = useState("");
-
-  const [
-    modalOpen,
-    setModalOpen,
-  ] = useState(false);
-
-  const [
-    editingShow,
-    setEditingShow,
-  ] = useState(null);
-
-  const [
-    form,
-    setForm,
-  ] = useState(
-    emptyForm
-  );
-
-  const [
-    saving,
-    setSaving,
-  ] = useState(false);
-
-  // ===================================================
-  // LOAD EVERYTHING
-  // ===================================================
-
-  const fetchData =
-    async () => {
-      setLoading(true);
-
-      try {
-        const [
-          showResponse,
-          movieResponse,
-          theatreResponse,
-          screenResponse,
-        ] =
-          await Promise.all([
-            axios.get(
-              `${API_URL}/api/admin/shows`,
-              {
-                params: {
-                  limit: 100,
-                },
-
-                headers: {
-                  Authorization:
-                    `Bearer ${token}`,
-                },
-              }
-            ),
-
-            axios.get(
-              `${API_URL}/api/admin/movies`,
-              {
-                headers: {
-                  Authorization:
-                    `Bearer ${token}`,
-                },
-              }
-            ),
-
-            axios.get(
-              `${API_URL}/api/admin/theatres`,
-              {
-                headers: {
-                  Authorization:
-                    `Bearer ${token}`,
-                },
-              }
-            ),
-
-            axios.get(
-              `${API_URL}/api/admin/screens`,
-              {
-                headers: {
-                  Authorization:
-                    `Bearer ${token}`,
-                },
-              }
-            ),
-          ]);
-
-        setShows(
-          showResponse.data
-            .shows || []
-        );
-
-        setMovies(
-          movieResponse.data
-            .movies || []
-        );
-
-        setTheatres(
-          theatreResponse.data
-            .theatres || []
-        );
-
-        setScreens(
-          screenResponse.data
-            .screens || []
-        );
-      } catch (error) {
-        console.error(
-          "Shows load error:",
-          error
-        );
-
-        toast.error(
-          "Could not load show management."
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-  useEffect(() => {
-    fetchData();
-  }, [token]);
-
-  // ===================================================
-  // FILTER SCREENS BY THEATRE
-  // ===================================================
-
-  const availableScreens =
-    useMemo(() => {
-      if (
-        !form.theatre
-      ) {
-        return [];
-      }
-
-      return screens.filter(
-        (screen) => {
-          const theatreId =
-            screen.theatre
-              ?._id ||
-            screen.theatre;
-
-          return (
-            String(
-              theatreId
-            ) ===
-              String(
-                form.theatre
-              ) &&
-            screen.isActive !==
-              false
-          );
-        }
-      );
-    }, [
-      screens,
-      form.theatre,
-    ]);
-
-  // ===================================================
-  // SEARCH LIST
-  // ===================================================
-
-  const filteredShows =
-    useMemo(() => {
-      const query =
-        search
-          .trim()
-          .toLowerCase();
-
-      if (!query) {
-        return shows;
-      }
-
-      return shows.filter(
-        (show) =>
-          show.movie?.title
-            ?.toLowerCase()
-            .includes(query) ||
-          show.theatre?.name
-            ?.toLowerCase()
-            .includes(query) ||
-          show.screen?.name
-            ?.toLowerCase()
-            .includes(query) ||
-          show.language
-            ?.toLowerCase()
-            .includes(query) ||
-          show.format
-            ?.toLowerCase()
-            .includes(query)
-      );
-    }, [
-      shows,
-      search,
-    ]);
-
-  // ===================================================
-  // CREATE PRICING FROM PHYSICAL SCREEN
-  // ===================================================
-
-  const createPricingForScreen =
-    (
-      screenId,
-      existing = []
-    ) => {
-      const screen =
-        screens.find(
-          (item) =>
-            String(
-              item._id
-            ) ===
-            String(
-              screenId
-            )
-        );
-
-      if (
-        !screen ||
-        !Array.isArray(
-          screen.seats
-        )
-      ) {
-        return [];
-      }
-
-      const seatTypes = [
-        ...new Set(
-          screen.seats
-            .filter(
-              (seat) =>
-                seat.isActive !==
-                false
-            )
-            .map(
-              (seat) =>
-                seat.type
-            )
-        ),
-      ];
-
-      return seatTypes.map(
-        (seatType) => {
-          const previous =
-            existing.find(
-              (item) =>
-                item.seatType ===
-                seatType
-            );
-
-          return {
-            seatType,
-
-            price:
-              previous?.price ??
-              "",
-          };
-        }
-      );
-    };
-
-  // ===================================================
-  // ADD SHOW
-  // ===================================================
-
-  const openAdd =
-    () => {
-      setEditingShow(
-        null
-      );
-
-      setForm({
-        ...emptyForm,
-        pricing: [],
-      });
-
-      setModalOpen(true);
-    };
-
-  // ===================================================
-  // EDIT SHOW
-  // ===================================================
-
-  const openEdit =
-    (show) => {
-      const theatreId =
-        show.theatre?._id ||
-        show.theatre ||
-        "";
-
-      const screenId =
-        show.screen?._id ||
-        show.screen ||
-        "";
-
-      setEditingShow(
-        show
-      );
-
-      setForm({
-        movie:
-          show.movie?._id ||
-          show.movie ||
-          "",
-
-        theatre:
-          theatreId,
-
-        screen:
-          screenId,
-
-        language:
-          show.language || "",
-
-        format:
-          show.format ||
-          "STANDARD",
-
-        startTime:
-          toInputDateTime(
-            show.startTime
-          ),
-
-        endTime:
-          toInputDateTime(
-            show.endTime
-          ),
-
-        bookingOpensAt:
-          toInputDateTime(
-            show.bookingOpensAt
-          ),
-
-        bookingClosesAt:
-          toInputDateTime(
-            show.bookingClosesAt
-          ),
-
-        pricing:
-          createPricingForScreen(
-            screenId,
-            show.pricing ||
-              []
-          ),
-      });
-
-      setModalOpen(true);
-    };
-
-  // ===================================================
-  // INPUT
-  // ===================================================
-
-  const handleChange =
-    (event) => {
-      const {
-        name,
-        value,
-      } = event.target;
-
-      // Theatre changed:
-      // reset screen because screens belong to theatres.
-      if (
-        name ===
-        "theatre"
-      ) {
-        setForm(
-          (current) => ({
-            ...current,
-
-            theatre:
-              value,
-
-            screen: "",
-
-            pricing: [],
-          })
-        );
-
-        return;
-      }
-
-      // Screen changed:
-      // automatically detect its physical seat categories.
-      if (
-        name ===
-        "screen"
-      ) {
-        const screen =
-          screens.find(
-            (item) =>
-              String(
-                item._id
-              ) ===
-              String(value)
-          );
-
-        setForm(
-          (current) => ({
-            ...current,
-
-            screen:
-              value,
-
-            format:
-              screen?.format ||
-              current.format,
-
-            pricing:
-              createPricingForScreen(
-                value
-              ),
-          })
-        );
-
-        return;
-      }
-
-      setForm(
-        (current) => ({
-          ...current,
-
-          [name]:
-            value,
-        })
-      );
-    };
-
-  // ===================================================
-  // UPDATE PRICE
-  // ===================================================
-
-  const updatePrice =
-    (
-      seatType,
-      value
-    ) => {
-      setForm(
-        (current) => ({
-          ...current,
-
-          pricing:
-            current.pricing.map(
-              (item) =>
-                item.seatType ===
-                seatType
-                  ? {
-                      ...item,
-
-                      price:
-                        value,
-                    }
-                  : item
-            ),
-        })
-      );
-    };
-
-  // ===================================================
-  // SAVE SHOW
-  // ===================================================
-
-  const handleSubmit =
-    async (
-      event
-    ) => {
-      event.preventDefault();
-
-      if (
-        form.pricing.length ===
-        0
-      ) {
-        toast.error(
-          "Selected screen has no active seat categories."
-        );
-
-        return;
-      }
-
-      const invalidPrice =
-        form.pricing.some(
-          (item) =>
-            item.price ===
-              "" ||
-            Number(
-              item.price
-            ) < 0
-        );
-
-      if (
-        invalidPrice
-      ) {
-        toast.error(
-          "Enter a valid price for every seat type."
-        );
-
-        return;
-      }
-
-      if (
-        new Date(
-          form.endTime
-        ) <=
-        new Date(
-          form.startTime
-        )
-      ) {
-        toast.error(
-          "End time must be after start time."
-        );
-
-        return;
-      }
-
-      setSaving(true);
-
-      try {
-        const payload = {
-          movie:
-            form.movie,
-
-          theatre:
-            form.theatre,
-
-          screen:
-            form.screen,
-
-          language:
-            form.language.trim(),
-
-          format:
-            form.format,
-
-          startTime:
-            toIso(
-              form.startTime
-            ),
-
-          endTime:
-            toIso(
-              form.endTime
-            ),
-
-          pricing:
-            form.pricing.map(
-              (item) => ({
-                seatType:
-                  item.seatType,
-
-                price:
-                  Number(
-                    item.price
-                  ),
-              })
-            ),
-
-          bookingOpensAt:
-            form.bookingOpensAt
-              ? toIso(
-                  form.bookingOpensAt
-                )
-              : null,
-
-          bookingClosesAt:
-            form.bookingClosesAt
-              ? toIso(
-                  form.bookingClosesAt
-                )
-              : null,
-        };
-
-        if (
-          editingShow
-        ) {
-          await axios.put(
-            `${API_URL}/api/shows/${editingShow._id}`,
-
-            payload,
-
-            {
-              headers: {
-                Authorization:
-                  `Bearer ${token}`,
-              },
-            }
-          );
-
-          toast.success(
-            "Show updated."
-          );
-        } else {
-          await axios.post(
-            `${API_URL}/api/shows`,
-
-            payload,
-
-            {
-              headers: {
-                Authorization:
-                  `Bearer ${token}`,
-              },
-            }
-          );
-
-          toast.success(
-            "Show created."
-          );
-        }
-
-        setModalOpen(false);
-
-        setEditingShow(
-          null
-        );
-
-        await fetchData();
-      } catch (error) {
-        console.error(
-          "Save show error:",
-          error
-        );
-
-        toast.error(
-          error.response
-            ?.data
-            ?.message ||
-            error.response
-              ?.data
-              ?.error ||
-            "Could not save show."
-        );
-      } finally {
-        setSaving(false);
-      }
-    };
-
-  // ===================================================
-  // CANCEL
-  // ===================================================
-
-  const cancelShow =
-    async (
-      show
-    ) => {
-      const confirmed =
-        window.confirm(
-          `Cancel ${show.movie?.title || "this show"} at ${formatDateTime(
-            show.startTime
-          )}?`
-        );
-
-      if (!confirmed) {
-        return;
-      }
-
-      try {
-        await axios.delete(
-          `${API_URL}/api/shows/${show._id}`,
-
-          {
-            headers: {
-              Authorization:
-                `Bearer ${token}`,
-            },
-          }
-        );
-
-        toast.success(
-          "Show cancelled."
-        );
-
-        await fetchData();
-      } catch (error) {
-        toast.error(
-          error.response
-            ?.data
-            ?.message ||
-            "Could not cancel show."
-        );
-      }
-    };
-
-  // ===================================================
-  // UI
-  // ===================================================
+  const oldPrice = Number(show.price);
+
+  return show.price != null && Number.isFinite(oldPrice)
+    ? `₹${oldPrice.toLocaleString("en-IN")}`
+    : "—";
+}
+
+function Status({ value }) {
+  const classes = {
+    SCHEDULED: "border-emerald-400/25 bg-emerald-400/10 text-emerald-300",
+    CANCELLED: "border-red-400/25 bg-red-400/10 text-red-300",
+    COMPLETED: "border-sky-400/25 bg-sky-400/10 text-sky-300",
+  };
 
   return (
-    <div>
+    <span
+      className={`rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[.12em] ${
+        classes[value] || "border-white/10 text-zinc-400"
+      }`}
+    >
+      {value || "SCHEDULED"}
+    </span>
+  );
+}
 
-      {/* HEADER */}
+function Field({ title, children }) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[.13em] text-zinc-400">
+        {title}
+      </span>
+      {children}
+    </label>
+  );
+}
 
-      <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+function ShowEditor({ show, token, movies, theatres, screens, onClose, onSaved }) {
+  const editing = Boolean(show?._id);
+  const [form, setForm] = useState(fresh);
+  const [saving, setSaving] = useState(false);
+  const [screenLoading, setScreenLoading] = useState(false);
+  const [step, setStep] = useState("screening");
+  const [fullScreen, setFullScreen] = useState(null);
 
+  const availableScreens = useMemo(
+    () =>
+      screens.filter(
+        (screen) =>
+          idOf(screen.theatre) === form.theatre &&
+          (screen.isActive !== false || idOf(screen) === form.screen)
+      ),
+    [screens, form.theatre, form.screen]
+  );
+
+  const auth = useMemo(
+    () => ({
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+    [token]
+  );
+
+  const fetchFullScreen = useCallback(
+    async (id) => {
+      const found = screens.find((item) => item._id === id);
+
+      if (Array.isArray(found?.seats) && found.seats.length > 0) {
+        return found;
+      }
+
+      const { data } = await axios.get(
+        `${API}/api/screens/${id}`,
+        auth
+      );
+
+      return data.screen || data;
+    },
+    [screens, auth]
+  );
+
+  useEffect(() => {
+    if (!show) return;
+
+    const next = editing
+      ? {
+          movie: idOf(show.movie),
+          theatre: idOf(show.theatre),
+          screen: idOf(show.screen),
+          language: show.language || "",
+          format: show.format || "STANDARD",
+          startTime: inputDateTime(show.startTime),
+          endTime: inputDateTime(show.endTime),
+          bookingOpensAt: inputDateTime(show.bookingOpensAt),
+          bookingClosesAt: inputDateTime(show.bookingClosesAt),
+          pricing: (show.pricing || []).map(({ seatType, price }) => ({
+            seatType,
+            price,
+          })),
+        }
+      : fresh();
+
+    setForm(next);
+    setStep("screening");
+    setFullScreen(null);
+
+    if (!editing || !next.screen) return;
+
+    let current = true;
+    setScreenLoading(true);
+
+    fetchFullScreen(next.screen)
+      .then((screen) => {
+        if (current) {
+          setFullScreen(screen);
+
+          setForm((before) =>
+            before.screen === next.screen
+              ? {
+                  ...before,
+                  pricing: pricingFor(screen, next.pricing),
+                }
+              : before
+          );
+        }
+      })
+      .catch(() => {
+        if (current) {
+          toast.error("Could not load saved seat categories.");
+        }
+      })
+      .finally(() => {
+        if (current) setScreenLoading(false);
+      });
+
+    return () => {
+      current = false;
+    };
+  }, [show, editing, fetchFullScreen]);
+
+  useEffect(() => {
+    const before = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const onKey = (event) => {
+      if (event.key === "Escape" && !saving) onClose();
+    };
+
+    document.addEventListener("keydown", onKey);
+
+    return () => {
+      document.body.style.overflow = before;
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [saving, onClose]);
+
+  const change = (event) => {
+    const { name, value } = event.target;
+
+    if (name === "theatre") {
+      setFullScreen(null);
+      setForm((previous) => ({
+        ...previous,
+        theatre: value,
+        screen: "",
+        pricing: [],
+      }));
+      return;
+    }
+
+    if (name === "screen") {
+      setForm((previous) => ({
+        ...previous,
+        screen: value,
+        pricing: [],
+      }));
+
+      setFullScreen(null);
+
+      if (!value) return;
+
+      setScreenLoading(true);
+
+      fetchFullScreen(value)
+        .then((screen) => {
+          setFullScreen(screen);
+          setForm((previous) =>
+            previous.screen === value
+              ? {
+                  ...previous,
+                  format: screen.format || previous.format,
+                  pricing: pricingFor(screen),
+                }
+              : previous
+          );
+        })
+        .catch(() => toast.error("Unable to load screen seating."))
+        .finally(() => setScreenLoading(false));
+
+      return;
+    }
+
+    setForm((previous) => ({
+      ...previous,
+      [name]: value,
+    }));
+  };
+
+  const save = async (event) => {
+    event.preventDefault();
+
+    if (saving || screenLoading) return;
+
+    if (
+      !form.movie ||
+      !form.theatre ||
+      !form.screen ||
+      !form.language.trim()
+    ) {
+      toast.error("Complete the movie, theatre, screen and language.");
+      setStep("screening");
+      return;
+    }
+
+    const start = new Date(form.startTime);
+    const end = new Date(form.endTime);
+
+    if (
+      !form.startTime ||
+      !form.endTime ||
+      !Number.isFinite(start.getTime()) ||
+      !Number.isFinite(end.getTime()) ||
+      start >= end
+    ) {
+      toast.error("Enter valid screening start and end times.");
+      setStep("timing");
+      return;
+    }
+
+    if (!editing && start.getTime() <= Date.now()) {
+      toast.error("New screenings must be in the future.");
+      setStep("timing");
+      return;
+    }
+
+    const open = form.bookingOpensAt
+      ? new Date(form.bookingOpensAt)
+      : null;
+
+    const close = form.bookingClosesAt
+      ? new Date(form.bookingClosesAt)
+      : null;
+
+    if (
+      (open && !Number.isFinite(open.getTime())) ||
+      (close && !Number.isFinite(close.getTime())) ||
+      (open && close && open >= close) ||
+      (open && open > start) ||
+      (close && close > start)
+    ) {
+      toast.error("Booking window must finish before the screening.");
+      setStep("timing");
+      return;
+    }
+
+    if (
+      !form.pricing.length ||
+      form.pricing.some(
+        (item) =>
+          item.price === "" ||
+          !Number.isFinite(Number(item.price)) ||
+          Number(item.price) <= 0
+      )
+    ) {
+      toast.error("Every active seat type needs a valid price.");
+      setStep("pricing");
+      return;
+    }
+
+    if (
+      editing &&
+      !window.confirm(
+        "Save changes to this scheduled show? Changing times or prices may affect existing bookings. The backend must validate this update."
+      )
+    ) {
+      return;
+    }
+
+    const payload = {
+      movie: form.movie,
+      theatre: form.theatre,
+      screen: form.screen,
+      language: form.language.trim(),
+      format: form.format,
+      startTime: start.toISOString(),
+      endTime: end.toISOString(),
+      bookingOpensAt: open ? open.toISOString() : null,
+      bookingClosesAt: close ? close.toISOString() : null,
+      pricing: form.pricing.map((item) => ({
+        seatType: item.seatType,
+        price: Number(item.price),
+      })),
+    };
+
+    setSaving(true);
+
+    try {
+      if (editing) {
+        await axios.put(
+          `${API}/api/shows/${show._id}`,
+          payload,
+          auth
+        );
+      } else {
+        await axios.post(
+          `${API}/api/shows`,
+          payload,
+          auth
+        );
+      }
+
+      toast.success(
+        editing ? "Screening updated." : "Screening created."
+      );
+
+      await onSaved();
+      onClose();
+    } catch (error) {
+      toast.error(
+        error.response?.data?.error ||
+        error.response?.data?.message ||
+        "Could not save screening."
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[115] flex justify-end"
+    >
+      <button
+        aria-label="Close screening editor"
+        type="button"
+        disabled={saving}
+        onClick={onClose}
+        className="absolute inset-0 bg-black/80 backdrop-blur-md"
+      />
+
+      <motion.aside
+        role="dialog"
+        aria-modal="true"
+        aria-label={editing ? "Edit show" : "Create show"}
+        initial={{ x: "100%" }}
+        animate={{ x: 0 }}
+        exit={{ x: "100%" }}
+        transition={{ duration: 0.36 }}
+        className="relative flex h-full w-full max-w-[780px] flex-col border-l border-white/10 bg-[#141417] text-white"
+      >
+        <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-6 py-5 sm:px-9">
+          <div>
+            <p className="text-[10px] uppercase tracking-[.21em] text-[#ff617a]">
+              Programming desk / Editor
+            </p>
+            <h2 className="mt-1 text-2xl font-semibold">
+              {editing
+                ? "Edit a screening"
+                : "Schedule a screening"}
+            </h2>
+          </div>
+
+          <button
+            type="button"
+            aria-label="Close"
+            disabled={saving}
+            onClick={onClose}
+            className="rounded-full border border-white/15 p-3"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div
+          className="flex shrink-0 gap-1 border-b border-white/10 px-6 sm:px-9"
+          role="tablist"
+          aria-label="Show editor sections"
+        >
+          {[
+            ["screening", "01  Film & cinema"],
+            ["timing", "02  Timings"],
+            ["pricing", "03  Pricing"],
+          ].map(([key, name]) => (
+            <button
+              type="button"
+              key={key}
+              role="tab"
+              aria-selected={step === key}
+              onClick={() => setStep(key)}
+              className={`border-b-2 px-3 py-4 text-[11px] font-semibold ${
+                step === key
+                  ? "border-[#D71935] text-white"
+                  : "border-transparent text-zinc-500"
+              }`}
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+
+        <form
+          noValidate
+          onSubmit={save}
+          className="flex min-h-0 flex-1 flex-col"
+        >
+          <div className="min-h-0 flex-1 overflow-y-auto p-6 sm:p-9">
+            <div hidden={step !== "screening"} className="space-y-5">
+              <Field title="Movie">
+                <select
+                  name="movie"
+                  required
+                  disabled={editing}
+                  value={form.movie}
+                  onChange={change}
+                  className={INPUT}
+                >
+                  <option value="">Choose movie</option>
+                  {movies
+                    .filter(
+                      (movie) =>
+                        movie.listingStatus !== "HIDDEN" ||
+                        movie._id === form.movie
+                    )
+                    .map((movie) => (
+                      <option key={movie._id} value={movie._id}>
+                        {movie.title}
+                      </option>
+                    ))}
+                </select>
+              </Field>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field title="Cinema">
+                  <select
+                    required
+                    name="theatre"
+                    disabled={editing}
+                    value={form.theatre}
+                    onChange={change}
+                    className={INPUT}
+                  >
+                    <option value="">Choose cinema</option>
+                    {theatres
+                      .filter(
+                        (theatre) =>
+                          theatre.isActive !== false ||
+                          theatre._id === form.theatre
+                      )
+                      .map((theatre) => (
+                        <option key={theatre._id} value={theatre._id}>
+                          {theatre.name}
+                        </option>
+                      ))}
+                  </select>
+                </Field>
+
+                <Field title="Screen">
+                  <select
+                    required
+                    name="screen"
+                    disabled={
+                      editing ||
+                      !form.theatre ||
+                      screenLoading
+                    }
+                    value={form.screen}
+                    onChange={change}
+                    className={INPUT}
+                  >
+                    <option value="">
+                      {screenLoading
+                        ? "Loading seats..."
+                        : "Choose screen"}
+                    </option>
+
+                    {availableScreens.map((screen) => (
+                      <option
+                        key={screen._id}
+                        value={screen._id}
+                      >
+                        {screen.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+
+                <Field title="Language">
+                  <input
+                    required
+                    name="language"
+                    value={form.language}
+                    onChange={change}
+                    className={INPUT}
+                    placeholder="Hindi"
+                  />
+                </Field>
+
+                <Field title="Projection">
+                  <select
+                    name="format"
+                    value={form.format}
+                    onChange={change}
+                    className={INPUT}
+                  >
+                    {FORMATS.map((format) => (
+                      <option key={format} value={format}>
+                        {format.replaceAll("_", " ")}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+
+              {editing && (
+                <p className="rounded-xl border border-white/10 bg-white/[.03] p-4 text-xs leading-5 text-zinc-400">
+                  The film, cinema and screen are locked for
+                  existing shows to avoid moving already-sold
+                  tickets to another room.
+                </p>
+              )}
+            </div>
+
+            <div hidden={step !== "timing"} className="space-y-6">
+              <div className="grid gap-5 sm:grid-cols-2">
+                <Field title="Starts">
+                  <input
+                    required
+                    name="startTime"
+                    type="datetime-local"
+                    value={form.startTime}
+                    onChange={change}
+                    className={INPUT}
+                  />
+                </Field>
+
+                <Field title="Ends">
+                  <input
+                    required
+                    name="endTime"
+                    type="datetime-local"
+                    value={form.endTime}
+                    onChange={change}
+                    className={INPUT}
+                  />
+                </Field>
+              </div>
+
+              <div className="border-t border-white/10 pt-6">
+                <p className="mb-4 text-sm font-semibold">
+                  Booking window{" "}
+                  <span className="text-xs font-normal text-zinc-500">
+                    (optional)
+                  </span>
+                </p>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field title="Booking opens">
+                    <input
+                      name="bookingOpensAt"
+                      type="datetime-local"
+                      value={form.bookingOpensAt}
+                      onChange={change}
+                      className={INPUT}
+                    />
+                  </Field>
+
+                  <Field title="Booking closes">
+                    <input
+                      name="bookingClosesAt"
+                      type="datetime-local"
+                      value={form.bookingClosesAt}
+                      onChange={change}
+                      className={INPUT}
+                    />
+                  </Field>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 rounded-xl border border-amber-400/20 bg-amber-400/[.05] p-4 text-xs leading-6 text-amber-200">
+                <ShieldAlert
+                  className="shrink-0"
+                  size={18}
+                />
+                Changing a scheduled show can affect customer
+                bookings. Backend validation remains
+                authoritative.
+              </div>
+            </div>
+
+            <div hidden={step !== "pricing"} className="space-y-4">
+              <p className="text-sm leading-6 text-zinc-400">
+                Ticket rates are determined by the selected
+                screen's real, active seat categories.
+                {fullScreen?.name
+                  ? ` ${fullScreen.name} · ${
+                      (fullScreen.seats || []).length
+                    } seats.`
+                  : ""}
+              </p>
+
+              {form.pricing.length ? (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {form.pricing.map((item) => (
+                    <Field
+                      key={item.seatType}
+                      title={item.seatType.replaceAll("_", " ")}
+                    >
+                      <div className="relative">
+                        <IndianRupee
+                          size={15}
+                          className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500"
+                        />
+
+                        <input
+                          aria-label={`${item.seatType} price`}
+                          type="number"
+                          min="1"
+                          step="1"
+                          required
+                          value={item.price}
+                          onChange={(event) =>
+                            setForm((previous) => ({
+                              ...previous,
+                              pricing: previous.pricing.map((price) =>
+                                price.seatType === item.seatType
+                                  ? {
+                                      ...price,
+                                      price: event.target.value,
+                                    }
+                                  : price
+                              ),
+                            }))
+                          }
+                          className={`${INPUT} pl-10`}
+                        />
+                      </div>
+                    </Field>
+                  ))}
+                </div>
+              ) : (
+                <p className="rounded-xl border border-white/10 p-6 text-xs text-zinc-500">
+                  {screenLoading
+                    ? "Loading screen configuration..."
+                    : "Select a screen with active seating first."}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex shrink-0 justify-between gap-3 border-t border-white/10 p-5 sm:px-9">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="rounded-full border border-white/15 px-6 py-3 text-xs font-semibold text-zinc-300"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              disabled={saving || screenLoading}
+              className="rounded-full bg-[#D71935] px-7 py-3 text-xs font-semibold hover:bg-[#e82a49] disabled:opacity-40"
+            >
+              {saving
+                ? "Saving..."
+                : editing
+                  ? "Save screening"
+                  : "Create screening"}
+            </button>
+          </div>
+        </form>
+      </motion.aside>
+    </motion.div>
+  );
+}
+
+export default function AdminShows() {
+  const { token } = useAuth();
+  const reduced = useReducedMotion();
+
+  const [shows, setShows] = useState([]);
+  const [movies, setMovies] = useState([]);
+  const [theatres, setTheatres] = useState([]);
+  const [screens, setScreens] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshFeedback, setRefreshFeedback] = useState("");
+
+  // Successful refresh confirmation disappears after five seconds.
+  useEffect(() => {
+    if (!refreshFeedback) return undefined;
+
+    const timer = window.setTimeout(
+      () => setRefreshFeedback(""),
+      5000
+    );
+
+    return () => window.clearTimeout(timer);
+  }, [refreshFeedback]);
+
+  const refreshController = useRef(null);
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("UPCOMING");
+  const [theatreId, setTheatreId] = useState("ALL");
+  const [editor, setEditor] = useState(null);
+  const [busyId, setBusyId] = useState(null);
+
+  const load = useCallback(async (signal) => {
+    if (!token) return false;
+
+    setLoading(true);
+    setError("");
+
+    const config = {
+      headers: { Authorization: `Bearer ${token}` },
+      signal,
+    };
+
+    try {
+      const [showResult, movieResult, theatreResult, screenResult] =
+        await Promise.all([
+          axios.get(`${API}/api/admin/shows`, {
+            ...config,
+            params: { limit: 100 },
+          }),
+          axios.get(`${API}/api/movies/admin/all`, config),
+          axios.get(`${API}/api/admin/theatres`, config),
+          axios.get(`${API}/api/admin/screens`, config),
+        ]);
+
+      if (signal?.aborted) return false;
+
+      setShows(showResult.data.shows || []);
+      setMovies(movieResult.data.movies || []);
+      setTheatres(theatreResult.data.theatres || []);
+      setScreens(screenResult.data.screens || []);
+
+      return true;
+    } catch (error) {
+      if (signal?.aborted || axios.isCancel(error)) {
+        return false;
+      }
+
+      setError(
+        error.response?.data?.error ||
+        "Could not load screening schedule."
+      );
+
+      return false;
+    } finally {
+      if (!signal?.aborted) setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    load(controller.signal);
+
+    return () => controller.abort();
+  }, [load]);
+
+  useEffect(
+    () => () => refreshController.current?.abort(),
+    []
+  );
+
+  const handleRefresh = async () => {
+    if (loading || refreshing) return;
+
+    const controller = new AbortController();
+    refreshController.current = controller;
+
+    setRefreshing(true);
+    setRefreshFeedback("");
+
+    try {
+      const [success] = await Promise.all([
+        load(controller.signal),
+        new Promise((resolve) => setTimeout(resolve, 1200)),
+      ]);
+
+      if (controller.signal.aborted) return;
+
+      if (success) {
+        const confirmation = "Showtimes refreshed successfully.";
+        setRefreshFeedback(confirmation);
+        toast.success(confirmation);
+      } else {
+        toast.error("Could not refresh showtimes.");
+      }
+    } finally {
+      if (!controller.signal.aborted) {
+        setRefreshing(false);
+      }
+
+      if (refreshController.current === controller) {
+        refreshController.current = null;
+      }
+    }
+  };
+
+  const counts = useMemo(
+    () => ({
+      total: shows.length,
+      upcoming: shows.filter(
+        (show) =>
+          show.status !== "CANCELLED" &&
+          new Date(show.startTime).getTime() > Date.now()
+      ).length,
+      cancelled: shows.filter(
+        (show) => show.status === "CANCELLED"
+      ).length,
+    }),
+    [shows]
+  );
+
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    return [...shows]
+      .filter((show) => {
+        const matchesText =
+          !query ||
+          [
+            show.movie?.title,
+            show.theatre?.name,
+            show.screen?.name,
+            show.language,
+            show.format,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase()
+            .includes(query);
+
+        const matchesVenue =
+          theatreId === "ALL" ||
+          idOf(show.theatre) === theatreId;
+
+        const when = new Date(show.startTime).getTime();
+
+        const matchesStatus =
+          status === "ALL" ||
+          (status === "CANCELLED" &&
+            show.status === "CANCELLED") ||
+          (status === "UPCOMING" &&
+            show.status !== "CANCELLED" &&
+            when > Date.now()) ||
+          (status === "PAST" &&
+            when <= Date.now());
+
+        return (
+          matchesText &&
+          matchesVenue &&
+          matchesStatus
+        );
+      })
+      .sort(
+        (a, b) =>
+          new Date(a.startTime).getTime() -
+          new Date(b.startTime).getTime()
+      );
+  }, [shows, search, status, theatreId]);
+
+  const grouped = useMemo(() => {
+    const groupedMap = new Map();
+
+    filtered.forEach((show) => {
+      const day =
+        dateKey(show.startTime) || "Unknown date";
+
+      if (!groupedMap.has(day)) {
+        groupedMap.set(day, []);
+      }
+
+      groupedMap.get(day).push(show);
+    });
+
+    return [...groupedMap.entries()];
+  }, [filtered]);
+
+  const cancel = async (show) => {
+    if (
+      !window.confirm(
+        `Cancel ${
+          show.movie?.title || "this screening"
+        } at ${time(show.startTime)}? Check existing customer bookings and the cancellation/refund workflow first.`
+      )
+    ) {
+      return;
+    }
+
+    setBusyId(show._id);
+
+    try {
+      await axios.delete(
+        `${API}/api/shows/${show._id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      toast.success("Show cancellation submitted.");
+      await load();
+    } catch (error) {
+      toast.error(
+        error.response?.data?.error ||
+        error.response?.data?.message ||
+        "Cannot cancel screening."
+      );
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <div className="mx-auto max-w-[1600px] text-white">
+      <header className="flex flex-wrap items-end justify-between gap-6">
         <div>
-
-          <p className="text-sm uppercase tracking-[0.3em] text-red-500">
-            Scheduling
+          <p className="flex items-center gap-3 text-[11px] font-bold uppercase tracking-[.25em] text-[#ff637d]">
+            <span className="h-px w-8 bg-[#D71935]" />
+            Programming / 06
           </p>
 
-          <h1 className="mt-2 text-3xl font-bold">
-            Shows
+          <h1 className="mt-4 text-[clamp(2.25rem,3.8vw,4rem)] font-semibold leading-none tracking-[-.075em] text-[#f2f0ed]">
+            The showtime{" "}
+            <span className="text-[#df3b56]">board.</span>
           </h1>
 
-          <p className="mt-2 text-sm text-zinc-500">
-            Schedule screenings, control pricing and manage show timings.
+          <p className="mt-5 text-sm text-zinc-400">
+            A living schedule for every screen in your network.
           </p>
-
         </div>
 
-        <motion.button
-          whileHover={{
-            scale: 1.02,
-          }}
-          whileTap={{
-            scale: 0.97,
-          }}
-          onClick={
-            openAdd
-          }
-          className="flex items-center justify-center gap-2 rounded-xl bg-red-600 px-5 py-3 font-semibold hover:bg-red-500"
+        <button
+          type="button"
+          onClick={() => setEditor({})}
+          className="inline-flex items-center gap-2 rounded-full bg-[#D71935] px-6 py-3 text-sm font-semibold transition hover:bg-[#ec2a47]"
         >
-          <Plus className="h-5 w-5" />
+          <Plus size={18} />
+          New screening
+        </button>
+      </header>
 
-          Add Show
-        </motion.button>
-
+      <div className="mt-9 grid gap-3 sm:grid-cols-3">
+        {[
+          ["Loaded screenings", counts.total],
+          ["Upcoming", counts.upcoming],
+          ["Cancelled", counts.cancelled],
+        ].map(([name, value], index) => (
+          <div
+            key={name}
+            className="rounded-[20px] border border-white/[.09] bg-[#151518] p-5"
+          >
+            <p className="text-xs text-zinc-500">{name}</p>
+            <p
+              className={`mt-2 text-3xl font-semibold tabular-nums ${
+                index === 1
+                  ? "text-[#ff617a]"
+                  : "text-white"
+              }`}
+            >
+              {value}
+            </p>
+          </div>
+        ))}
       </div>
 
-      {/* SEARCH */}
-
-      <div className="relative mt-8 max-w-md">
-
-        <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-600" />
-
-        <input
-          value={search}
-          onChange={(
-            event
-          ) =>
-            setSearch(
-              event.target.value
-            )
-          }
-          placeholder="Search movie, theatre, screen..."
-          className="w-full rounded-xl border border-white/10 bg-zinc-900 py-3 pl-11 pr-4 text-sm outline-none focus:border-red-500"
-        />
-
-      </div>
-
-      {/* LIST */}
-
-      {loading ? (
-        <div className="py-24 text-center text-zinc-500">
-          Loading shows...
+      <div className="mt-6 flex flex-wrap gap-3">
+        <div className="relative min-w-48 flex-1">
+          <Search
+            size={16}
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500"
+          />
+          <input
+            value={search}
+            onChange={(event) =>
+              setSearch(event.target.value)
+            }
+            placeholder="Film, screen, cinema..."
+            aria-label="Search screenings"
+            className={`${INPUT} pl-11`}
+          />
         </div>
-      ) : filteredShows.length ===
-        0 ? (
-        <div className="mt-8 rounded-2xl border border-white/10 py-24 text-center">
 
-          <CalendarDays className="mx-auto h-10 w-10 text-zinc-700" />
+        <select
+          value={theatreId}
+          onChange={(event) =>
+            setTheatreId(event.target.value)
+          }
+          aria-label="Filter cinema"
+          className={`${INPUT} w-auto min-w-36`}
+        >
+          <option value="ALL">All cinemas</option>
+          {theatres.map((item) => (
+            <option key={item._id} value={item._id}>
+              {item.name}
+            </option>
+          ))}
+        </select>
 
-          <p className="mt-4 text-zinc-500">
-            No shows found.
+        <button
+          type="button"
+          disabled={loading || refreshing}
+          aria-busy={refreshing}
+          onClick={handleRefresh}
+          className="inline-flex shrink-0 items-center justify-center gap-3 self-start rounded-full border border-white/20 px-5 py-3 text-sm font-semibold text-[#ededed] transition-colors duration-300 hover:border-[#D71935] hover:bg-[#D71935]/10 disabled:cursor-wait disabled:opacity-60"
+        >
+          <motion.span
+            className="inline-flex h-4 w-4 items-center justify-center"
+            animate={
+              refreshing
+                ? { rotate: 360 }
+                : { rotate: 0 }
+            }
+            transition={
+              refreshing
+                ? {
+                    duration: 2.4,
+                    repeat: Infinity,
+                    ease: "linear",
+                  }
+                : {
+                    duration: 0.25,
+                    ease: "easeOut",
+                  }
+            }
+          >
+            <RefreshCw size={16} />
+          </motion.span>
+
+          {refreshing
+            ? "Refreshing..."
+            : "Refresh data"}
+        </button>
+      </div>
+
+      <p
+        role="status"
+        aria-live="polite"
+        className="mt-2 min-h-4 text-xs text-emerald-300"
+      >
+        {refreshFeedback}
+      </p>
+
+      <div
+        className="mt-5 flex flex-wrap gap-2"
+        role="group"
+        aria-label="Schedule window"
+      >
+        {[
+          ["UPCOMING", "Upcoming"],
+          ["PAST", "Past"],
+          ["CANCELLED", "Cancelled"],
+          ["ALL", "All shows"],
+        ].map(([key, name]) => (
+          <button
+            type="button"
+            key={key}
+            aria-pressed={status === key}
+            onClick={() => setStatus(key)}
+            className={`rounded-full border px-5 py-2.5 text-xs font-semibold transition ${
+              status === key
+                ? "border-[#D71935] bg-[#D71935]"
+                : "border-white/10 text-zinc-400 hover:border-white/30 hover:text-white"
+            }`}
+          >
+            {name}
+          </button>
+        ))}
+      </div>
+
+      <p className="mt-4 text-xs text-zinc-600">
+        Showing {filtered.length} screenings from the first{" "}
+        {shows.length} results returned by the admin API
+        (limit 100).
+      </p>
+
+      {error && (
+        <p
+          role="alert"
+          className="mt-6 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200"
+        >
+          {error}
+        </p>
+      )}
+
+      {loading && shows.length === 0 ? (
+        <div
+          className="mt-8 h-96 animate-pulse rounded-3xl bg-white/5"
+          role="status"
+        />
+      ) : grouped.length === 0 ? (
+        <div className="mt-8 rounded-[26px] border border-dashed border-white/15 py-20 text-center text-zinc-400">
+          <CalendarClock
+            size={34}
+            className="mx-auto text-zinc-600"
+          />
+          <p className="mt-4 font-semibold">
+            No screenings in this view.
           </p>
-
         </div>
       ) : (
-        <div className="mt-8 space-y-4">
+        <div className="mt-8 space-y-8">
+          {grouped.map(([day, entries]) => (
+            <section
+              key={day}
+              className="grid gap-4 lg:grid-cols-[230px_minmax(0,1fr)]"
+            >
+              <div className="lg:sticky lg:top-40 lg:self-start">
+                <p className="text-[10px] font-bold uppercase tracking-[.2em] text-[#ff617c]">
+                  Programme date
+                </p>
 
-          {filteredShows.map(
-            (
-              show,
-              index
-            ) => (
-              <motion.div
-                key={
-                  show._id
-                }
-                initial={{
-                  opacity: 0,
-                  y: 15,
-                }}
-                animate={{
-                  opacity: 1,
-                  y: 0,
-                }}
-                transition={{
-                  delay:
-                    Math.min(
-                      index *
-                        0.025,
-                      0.25
-                    ),
-                }}
-                className="rounded-2xl border border-white/10 bg-zinc-900/50 p-5 transition hover:border-red-500/20"
-              >
+                <h2 className="mt-2 text-xl font-semibold leading-tight text-white">
+                  {day === "Unknown date"
+                    ? day
+                    : dateHeading(day)}
+                </h2>
 
-                <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+                <p className="mt-3 text-xs text-zinc-500">
+                  {entries.length} screenings
+                </p>
+              </div>
 
-                  {/* MOVIE */}
+              <div className="relative space-y-3 border-l border-white/10 pl-5 sm:pl-8">
+                {entries.map((show, index) => (
+                  <motion.article
+                    key={show._id}
+                    initial={
+                      reduced
+                        ? false
+                        : { opacity: 0, x: 14 }
+                    }
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{
+                      delay: Math.min(index * 0.04, 0.2),
+                    }}
+                    className="group relative rounded-[22px] border border-white/10 bg-[#151518] p-5 transition hover:border-[#D71935]/45 sm:p-6"
+                  >
+                    <span className="absolute -left-[26px] top-8 h-3 w-3 rounded-full border-[3px] border-[#D71935] bg-[#151518] sm:-left-[38px]" />
 
-                  <div className="flex min-w-0 items-center gap-4">
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      <div className="flex items-start gap-4">
+                        <p className="w-24 shrink-0 text-[clamp(1.25rem,2vw,1.8rem)] font-semibold leading-tight tracking-tight text-white tabular-nums">
+                          {time(show.startTime)}
+                        </p>
 
-                    {show.movie
-                      ?.poster ? (
-                      <img
-                        src={
-                          show.movie
-                            .poster
-                        }
-                        alt={
-                          show.movie
-                            .title
-                        }
-                        className="h-20 w-14 rounded-lg object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-20 w-14 items-center justify-center rounded-lg bg-black/30">
-                        <Film className="h-5 w-5 text-zinc-700" />
+                        <div className="h-10 w-px shrink-0 bg-white/10" />
+
+                        <div>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <h3 className="text-lg font-semibold tracking-tight text-white">
+                              {show.movie?.title ||
+                                "Film unavailable"}
+                            </h3>
+
+                            <Status value={show.status} />
+                          </div>
+
+                          <p className="mt-2 flex items-center gap-2 text-xs text-zinc-400">
+                            <MapPin size={13} />
+                            {show.theatre?.name ||
+                              "Cinema"}{" "}
+                            ·{" "}
+                            {show.screen?.name ||
+                              "Screen"}
+                          </p>
+
+                          <p className="mt-2 text-xs text-zinc-500">
+                            Ends {time(show.endTime)} ·{" "}
+                            {show.language || "—"} ·{" "}
+                            {show.format || "STANDARD"}
+                          </p>
+                        </div>
                       </div>
-                    )}
 
-                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span className="rounded-full border border-white/10 px-3 py-2 text-xs text-zinc-300">
+                          From {priceFrom(show)}
+                        </span>
 
-                      <div className="flex flex-wrap items-center gap-2">
-
-                        <h2 className="font-semibold">
-                          {show.movie
-                            ?.title ||
-                            "Unknown Movie"}
-                        </h2>
-
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-[10px] font-medium ${statusStyle(
-                            show.status
-                          )}`}
+                        <button
+                          type="button"
+                          disabled={
+                            show.status === "CANCELLED" ||
+                            busyId === show._id
+                          }
+                          onClick={() => setEditor(show)}
+                          className="flex items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-xs font-semibold hover:border-[#D71935] disabled:opacity-30"
                         >
-                          {show.status}
-                        </span>
+                          <Pencil size={14} />
+                          Edit
+                        </button>
 
+                        <button
+                          type="button"
+                          aria-label={`Cancel screening for ${
+                            show.movie?.title || "film"
+                          }`}
+                          disabled={
+                            show.status === "CANCELLED" ||
+                            busyId === show._id
+                          }
+                          onClick={() => cancel(show)}
+                          className="rounded-full border border-red-500/20 p-2 text-red-300 hover:bg-red-500/10 disabled:opacity-30"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
-
-                      <div className="mt-2 flex items-center gap-2 text-sm text-zinc-500">
-
-                        <MapPin className="h-4 w-4 text-red-500" />
-
-                        <span>
-                          {show.theatre
-                            ?.name ||
-                            "Unknown Theatre"}
-
-                          {" • "}
-
-                          {show.screen
-                            ?.name ||
-                            "Unknown Screen"}
-                        </span>
-
-                      </div>
-
                     </div>
-
-                  </div>
-
-                  {/* DETAILS */}
-
-                  <div className="grid gap-3 sm:grid-cols-4 xl:min-w-[620px]">
-
-                    <div className="rounded-xl bg-black/20 p-3">
-
-                      <p className="text-xs text-zinc-600">
-                        Starts
-                      </p>
-
-                      <p className="mt-1 text-xs font-medium sm:text-sm">
-                        {formatDateTime(
-                          show.startTime
-                        )}
-                      </p>
-
-                    </div>
-
-                    <div className="rounded-xl bg-black/20 p-3">
-
-                      <p className="text-xs text-zinc-600">
-                        Language
-                      </p>
-
-                      <p className="mt-1 text-sm font-medium">
-                        {
-                          show.language
-                        }
-                      </p>
-
-                    </div>
-
-                    <div className="rounded-xl bg-black/20 p-3">
-
-                      <p className="text-xs text-zinc-600">
-                        Format
-                      </p>
-
-                      <p className="mt-1 text-sm font-medium">
-                        {
-                          show.format
-                        }
-                      </p>
-
-                    </div>
-
-                    <div className="rounded-xl bg-black/20 p-3">
-
-                      <p className="text-xs text-zinc-600">
-                        From
-                      </p>
-
-                      <p className="mt-1 flex items-center gap-1 text-sm font-medium">
-
-                        <IndianRupee className="h-3.5 w-3.5" />
-
-                        {Math.min(
-                          ...(
-                            show.pricing ||
-                            []
-                          ).map(
-                            (
-                              item
-                            ) =>
-                              item.price
-                          ),
-                          show.price ||
-                            0
-                        )}
-
-                      </p>
-
-                    </div>
-
-                  </div>
-
-                  {/* ACTIONS */}
-
-                  <div className="flex gap-2">
-
-                    <button
-                      disabled={
-                        show.status ===
-                        "CANCELLED"
-                      }
-                      onClick={() =>
-                        openEdit(
-                          show
-                        )
-                      }
-                      className="flex items-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-sm transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-30"
-                    >
-                      <Pencil className="h-4 w-4" />
-
-                      Edit
-                    </button>
-
-                    <button
-                      disabled={
-                        show.status ===
-                        "CANCELLED"
-                      }
-                      onClick={() =>
-                        cancelShow(
-                          show
-                        )
-                      }
-                      className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-red-400 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-30"
-                    >
-                      <Trash2 className="h-4 w-4" />
-
-                      Cancel
-                    </button>
-
-                  </div>
-
-                </div>
-
-              </motion.div>
-            )
-          )}
-
+                  </motion.article>
+                ))}
+              </div>
+            </section>
+          ))}
         </div>
       )}
 
-      {/* ===============================================
-          MODAL
-      ================================================ */}
-
       <AnimatePresence>
-
-        {modalOpen && (
-          <motion.div
-            initial={{
-              opacity: 0,
-            }}
-            animate={{
-              opacity: 1,
-            }}
-            exit={{
-              opacity: 0,
-            }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
-          >
-
-            <motion.div
-              initial={{
-                opacity: 0,
-                scale: 0.96,
-                y: 20,
-              }}
-              animate={{
-                opacity: 1,
-                scale: 1,
-                y: 0,
-              }}
-              exit={{
-                opacity: 0,
-                scale: 0.96,
-              }}
-              className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-3xl border border-white/10 bg-[#111113]"
-            >
-
-              {/* MODAL HEADER */}
-
-              <div className="sticky top-0 z-20 flex items-center justify-between border-b border-white/10 bg-[#111113]/95 px-6 py-5 backdrop-blur-xl">
-
-                <div>
-
-                  <p className="text-xs uppercase tracking-[0.25em] text-red-500">
-                    Show Management
-                  </p>
-
-                  <h2 className="mt-1 text-xl font-bold">
-                    {editingShow
-                      ? "Edit Show"
-                      : "Schedule New Show"}
-                  </h2>
-
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setModalOpen(
-                      false
-                    )
-                  }
-                  className="rounded-xl border border-white/10 p-2 text-zinc-500 hover:bg-white/5 hover:text-white"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-
-              </div>
-
-              <form
-                onSubmit={
-                  handleSubmit
-                }
-                className="space-y-8 p-6"
-              >
-
-                {/* MOVIE */}
-
-                <div>
-
-                  <label className="mb-2 block text-sm text-zinc-400">
-                    Movie
-                  </label>
-
-                  <select
-                    name="movie"
-                    value={
-                      form.movie
-                    }
-                    onChange={
-                      handleChange
-                    }
-                    required
-                    className="w-full rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 outline-none focus:border-red-500"
-                  >
-
-                    <option value="">
-                      Select movie
-                    </option>
-
-                    {movies.map(
-                      (movie) => (
-                        <option
-                          key={
-                            movie._id
-                          }
-                          value={
-                            movie._id
-                          }
-                        >
-                          {
-                            movie.title
-                          }
-                        </option>
-                      )
-                    )}
-
-                  </select>
-
-                </div>
-
-                {/* THEATRE + SCREEN */}
-
-                <div className="grid gap-5 md:grid-cols-2">
-
-                  <div>
-
-                    <label className="mb-2 block text-sm text-zinc-400">
-                      Theatre
-                    </label>
-
-                    <select
-                      name="theatre"
-                      value={
-                        form.theatre
-                      }
-                      onChange={
-                        handleChange
-                      }
-                      required
-                      className="w-full rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 outline-none focus:border-red-500"
-                    >
-
-                      <option value="">
-                        Select theatre
-                      </option>
-
-                      {theatres
-                        .filter(
-                          (
-                            theatre
-                          ) =>
-                            theatre.isActive !==
-                            false
-                        )
-                        .map(
-                          (
-                            theatre
-                          ) => (
-                            <option
-                              key={
-                                theatre._id
-                              }
-                              value={
-                                theatre._id
-                              }
-                            >
-                              {
-                                theatre.name
-                              }{" "}
-                              —{" "}
-                              {
-                                theatre.city
-                              }
-                            </option>
-                          )
-                        )}
-
-                    </select>
-
-                  </div>
-
-                  <div>
-
-                    <label className="mb-2 block text-sm text-zinc-400">
-                      Screen
-                    </label>
-
-                    <select
-                      name="screen"
-                      value={
-                        form.screen
-                      }
-                      onChange={
-                        handleChange
-                      }
-                      disabled={
-                        !form.theatre
-                      }
-                      required
-                      className="w-full rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 outline-none focus:border-red-500 disabled:opacity-40"
-                    >
-
-                      <option value="">
-                        Select screen
-                      </option>
-
-                      {availableScreens.map(
-                        (
-                          screen
-                        ) => (
-                          <option
-                            key={
-                              screen._id
-                            }
-                            value={
-                              screen._id
-                            }
-                          >
-                            {
-                              screen.name
-                            }{" "}
-                            —{" "}
-                            {
-                              screen.format
-                            }{" "}
-                            —{" "}
-                            {
-                              screen.totalSeats
-                            } seats
-                          </option>
-                        )
-                      )}
-
-                    </select>
-
-                  </div>
-
-                </div>
-
-                {/* LANGUAGE + FORMAT */}
-
-                <div className="grid gap-5 md:grid-cols-2">
-
-                  <div>
-
-                    <label className="mb-2 block text-sm text-zinc-400">
-                      Language
-                    </label>
-
-                    <input
-                      name="language"
-                      value={
-                        form.language
-                      }
-                      onChange={
-                        handleChange
-                      }
-                      required
-                      placeholder="Hindi"
-                      className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 outline-none focus:border-red-500"
-                    />
-
-                  </div>
-
-                  <div>
-
-                    <label className="mb-2 block text-sm text-zinc-400">
-                      Format
-                    </label>
-
-                    <select
-                      name="format"
-                      value={
-                        form.format
-                      }
-                      onChange={
-                        handleChange
-                      }
-                      className="w-full rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 outline-none focus:border-red-500"
-                    >
-
-                      {FORMATS.map(
-                        (
-                          format
-                        ) => (
-                          <option
-                            key={
-                              format
-                            }
-                            value={
-                              format
-                            }
-                          >
-                            {
-                              format
-                            }
-                          </option>
-                        )
-                      )}
-
-                    </select>
-
-                  </div>
-
-                </div>
-
-                {/* SHOW TIME */}
-
-                <div>
-
-                  <div className="mb-4">
-
-                    <h3 className="font-semibold">
-                      Show Timing
-                    </h3>
-
-                    <p className="mt-1 text-xs text-zinc-600">
-                      Overlapping shows on the same screen are automatically rejected.
-                    </p>
-
-                  </div>
-
-                  <div className="grid gap-5 md:grid-cols-2">
-
-                    <div>
-
-                      <label className="mb-2 block text-sm text-zinc-400">
-                        Start Time
-                      </label>
-
-                      <input
-                        type="datetime-local"
-                        name="startTime"
-                        value={
-                          form.startTime
-                        }
-                        onChange={
-                          handleChange
-                        }
-                        required
-                        className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 outline-none focus:border-red-500"
-                      />
-
-                    </div>
-
-                    <div>
-
-                      <label className="mb-2 block text-sm text-zinc-400">
-                        End Time
-                      </label>
-
-                      <input
-                        type="datetime-local"
-                        name="endTime"
-                        value={
-                          form.endTime
-                        }
-                        onChange={
-                          handleChange
-                        }
-                        required
-                        className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 outline-none focus:border-red-500"
-                      />
-
-                    </div>
-
-                  </div>
-
-                </div>
-
-                {/* PRICING */}
-
-                <div className="border-t border-white/10 pt-7">
-
-                  <h3 className="font-semibold">
-                    Seat Pricing
-                  </h3>
-
-                  <p className="mt-1 text-sm text-zinc-600">
-                    Prices are generated from the physical seat types in the selected screen.
-                  </p>
-
-                  {!form.screen ? (
-                    <div className="mt-5 rounded-xl border border-dashed border-white/10 p-8 text-center text-sm text-zinc-600">
-                      Select a screen first.
-                    </div>
-                  ) : (
-                    <div className="mt-5 grid gap-4 sm:grid-cols-2">
-
-                      {form.pricing.map(
-                        (
-                          price
-                        ) => (
-                          <div
-                            key={
-                              price.seatType
-                            }
-                            className="rounded-xl border border-white/10 bg-black/20 p-4"
-                          >
-
-                            <label className="text-xs font-medium text-zinc-500">
-                              {
-                                price.seatType
-                              }
-                            </label>
-
-                            <div className="relative mt-2">
-
-                              <IndianRupee className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-600" />
-
-                              <input
-                                type="number"
-                                min="0"
-                                value={
-                                  price.price
-                                }
-                                onChange={(
-                                  event
-                                ) =>
-                                  updatePrice(
-                                    price.seatType,
-                                    event
-                                      .target
-                                      .value
-                                  )
-                                }
-                                required
-                                placeholder="250"
-                                className="w-full rounded-lg border border-white/10 bg-zinc-900 py-3 pl-9 pr-3 outline-none focus:border-red-500"
-                              />
-
-                            </div>
-
-                          </div>
-                        )
-                      )}
-
-                    </div>
-                  )}
-
-                </div>
-
-                {/* BOOKING WINDOW */}
-
-                <div className="border-t border-white/10 pt-7">
-
-                  <div className="mb-4">
-
-                    <h3 className="font-semibold">
-                      Booking Window
-                    </h3>
-
-                    <p className="mt-1 text-xs text-zinc-600">
-                      Optional. Leave empty to use the normal booking availability.
-                    </p>
-
-                  </div>
-
-                  <div className="grid gap-5 md:grid-cols-2">
-
-                    <div>
-
-                      <label className="mb-2 block text-sm text-zinc-400">
-                        Booking Opens
-                      </label>
-
-                      <input
-                        type="datetime-local"
-                        name="bookingOpensAt"
-                        value={
-                          form.bookingOpensAt
-                        }
-                        onChange={
-                          handleChange
-                        }
-                        className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 outline-none focus:border-red-500"
-                      />
-
-                    </div>
-
-                    <div>
-
-                      <label className="mb-2 block text-sm text-zinc-400">
-                        Booking Closes
-                      </label>
-
-                      <input
-                        type="datetime-local"
-                        name="bookingClosesAt"
-                        value={
-                          form.bookingClosesAt
-                        }
-                        onChange={
-                          handleChange
-                        }
-                        className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 outline-none focus:border-red-500"
-                      />
-
-                    </div>
-
-                  </div>
-
-                </div>
-
-                {/* SAVE */}
-
-                <div className="flex justify-end gap-3 border-t border-white/10 pt-6">
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setModalOpen(
-                        false
-                      )
-                    }
-                    className="rounded-xl border border-white/10 px-6 py-3 text-sm text-zinc-400 hover:bg-white/5"
-                  >
-                    Cancel
-                  </button>
-
-                  <motion.button
-                    whileTap={{
-                      scale: 0.97,
-                    }}
-                    disabled={
-                      saving
-                    }
-                    type="submit"
-                    className="flex items-center gap-2 rounded-xl bg-red-600 px-6 py-3 text-sm font-semibold hover:bg-red-500 disabled:opacity-50"
-                  >
-
-                    <Save className="h-4 w-4" />
-
-                    {saving
-                      ? "Saving..."
-                      : editingShow
-                      ? "Save Changes"
-                      : "Create Show"}
-
-                  </motion.button>
-
-                </div>
-
-              </form>
-
-            </motion.div>
-
-          </motion.div>
+        {editor !== null && (
+          <ShowEditor
+            show={editor}
+            token={token}
+            movies={movies}
+            theatres={theatres}
+            screens={screens}
+            onClose={() => setEditor(null)}
+            onSaved={load}
+          />
         )}
-
       </AnimatePresence>
-
     </div>
   );
-};
-
-export default AdminShows;
+}

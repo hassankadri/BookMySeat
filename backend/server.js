@@ -13,6 +13,11 @@ const {
   initSocketServer,
 } = require("./config/socket");
 
+const {
+  metricsMiddleware,
+  metricsHandler,
+} = require("./config/metrics");
+
 // =====================================================
 // ROUTES
 // =====================================================
@@ -240,6 +245,12 @@ app.use(
 );
 
 // =====================================================
+// OBSERVABILITY / PROMETHEUS METRICS
+// =====================================================
+
+app.use(metricsMiddleware);
+
+// =====================================================
 // SECURITY HEADERS
 // =====================================================
 
@@ -321,10 +332,10 @@ app.use(
     ],
 
     allowedHeaders: [
-    "Content-Type",
-    "Authorization",
-    "X-Request-Id",
-    "Cache-Control",
+      "Content-Type",
+      "Authorization",
+      "X-Request-Id",
+      "Cache-Control",
     ],
 
     optionsSuccessStatus:
@@ -467,6 +478,15 @@ app.get(
           : "unavailable",
     });
   }
+);
+
+// =====================================================
+// PROMETHEUS METRICS
+// =====================================================
+
+app.get(
+  "/api/metrics",
+  metricsHandler
 );
 
 // =====================================================
@@ -709,6 +729,7 @@ const startServer =
           );
         }
       );
+
     } catch (error) {
       console.error(
         "❌ Server startup failed:",
@@ -764,6 +785,7 @@ const shutdown =
           );
 
           process.exit(0);
+
         } catch (error) {
           console.error(
             "Shutdown error:",

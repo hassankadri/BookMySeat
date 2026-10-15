@@ -1,29 +1,25 @@
-import React, {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
 
-import {
-  useLocation,
-  useNavigate,
-} from "react-router-dom";
-
-import {
-  AnimatePresence,
-  motion,
-} from "framer-motion";
-
-import {
-  ArrowLeft,
-  CreditCard,
-  Lock,
-} from "lucide-react";
-
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import toast from "react-hot-toast";
-
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Armchair,
+  CheckCircle2,
+  ChevronRight,
+  Clock3,
+  CreditCard,
+  Film,
+  Info,
+  LockKeyhole,
+  MapPin,
+  ShieldCheck,
+  Ticket,
+  Timer,
+} from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Elements,
   CardNumberElement,
@@ -32,1332 +28,446 @@ import {
   useElements,
   useStripe,
 } from "@stripe/react-stripe-js";
+import { loadStripe } from "@stripe/stripe-js";
+import { useAuth } from "../context/AuthContext";
+import "./CheckoutCinema.css";
 
-import {
-  loadStripe,
-} from "@stripe/stripe-js";
+// Same API and storage contract as the existing checkout.
+const API_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:5000";
+const CHECKOUT_KEY = "bookmyseat_checkout";
+const PUBLISHABLE_KEY = process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY;
+const stripePromise = PUBLISHABLE_KEY ? loadStripe(PUBLISHABLE_KEY) : null;
 
-import {
-  useAuth,
-} from "../context/AuthContext";
+const money = (value) => `₹${Number(value || 0).toLocaleString("en-IN")}`;
+const clock = (seconds) => {
+  const n = Math.max(0, Math.floor(seconds || 0));
+  return `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
+};
+const validImage = (value) =>
+  typeof value === "string" && /^(https?:\/\/|\/)/i.test(value.trim())
+    ? value.trim()
+    : "";
+const showDate = (value) => {
+  if (!value || Number.isNaN(new Date(value).getTime())) return "Date unavailable";
+  return new Intl.DateTimeFormat("en-IN", {
+    weekday: "short", day: "numeric", month: "short", year: "numeric",
+    timeZone: "Asia/Kolkata",
+  }).format(new Date(value));
+};
+const showTime = (value) => {
+  if (!value || Number.isNaN(new Date(value).getTime())) return "Time unavailable";
+  return new Intl.DateTimeFormat("en-IN", {
+    hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata",
+  }).format(new Date(value));
+};
 
-const API_URL =
-  process.env.REACT_APP_BACKEND_URL;
-
-const CHECKOUT_STORAGE_KEY =
-  "bookmyseat_checkout";
-
-const stripePromise =
-  loadStripe(
-    process.env
-      .REACT_APP_STRIPE_PUBLISHABLE_KEY
-  );
-
-// =====================================================
-// STRIPE FIELD STYLE
-// =====================================================
-
-const stripeFieldStyle = {
+const elementStyle = {
   style: {
     base: {
-      color:
-        "#ffffff",
-
-      fontSize:
-        "16px",
-
-      fontFamily:
-        "Inter, system-ui, sans-serif",
-
-      "::placeholder": {
-        color:
-          "#71717a",
-      },
+      color: "#f7f7f9",
+      fontFamily: "Inter, system-ui, sans-serif",
+      fontSize: "15px",
+      fontSmoothing: "antialiased",
+      "::placeholder": { color: "#696b78" },
     },
-
-    invalid: {
-      color:
-        "#ef4444",
-    },
+    invalid: { color: "#ff637a" },
   },
 };
 
-// =====================================================
-// PAYMENT FORM
-// =====================================================
+// ============================================================
+// STRIPE PAYMENT FORM. Card numbers, CVC, and expiry are handled
+// only by Stripe Elements, never by our own inputs or state.
+// ============================================================
+function PaymentForm({
+  clientSecret, amount, bookingId, showId, seatIds, show, remainingSeconds,
+  onProcessingChange,
+}) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const navigate = useNavigate();
+  const reducedMotion = useReducedMotion();
+  const [name, setName] = useState("");
+  const [brand, setBrand] = useState("");
+  const [focused, setFocused] = useState("");
+  const [processing, setProcessing] = useState(false);
+  const [completed, setCompleted] = useState({ number: false, expiry: false, cvc: false });
+  const paidRef = useRef(false);
 
-const CheckoutForm = ({
-  clientSecret,
-  amount,
-  bookingId,
-  showId,
-  seatIds,
-  show,
-  remainingSeconds,
-}) => {
-  const stripe =
-    useStripe();
+  const cardLabel = brand && !["unknown", "card"].includes(brand)
+    ? brand.replace(/\b\w/g, (x) => x.toUpperCase()) : "SECURE CARD";
 
-  const elements =
-    useElements();
+  const onFieldChange = (field, event) => {
+    setCompleted((prev) => ({ ...prev, [field]: Boolean(event.complete) }));
+    if (field === "number") setBrand(event.brand || "");
+    if (event.error?.message) {
+      // The field already shows its invalid state within Stripe Elements.
+    }
+  };
 
-  const navigate =
-    useNavigate();
+  const finish = useCallback((processingAtWebhook = false) => {
+    sessionStorage.removeItem(CHECKOUT_KEY);
+    navigate(`/booking-success?bookingId=${encodeURIComponent(bookingId)}`, {
+      replace: true,
+      state: { bookingId, showId, seatIds, ...(processingAtWebhook ? { processing: true } : {}) },
+    });
+  }, [bookingId, showId, seatIds, navigate]);
 
-  const [
-    name,
-    setName,
-  ] = useState("");
+  const handlePayment = async (event) => {
+    event.preventDefault();
+    if (!stripe || !elements || processing || paidRef.current) return;
+    if (remainingSeconds <= 0) {
+      toast.error("Seat hold expired. Return to your seats to start again.");
+      return;
+    }
+    if (!name.trim()) {
+      toast.error("Enter the cardholder name.");
+      return;
+    }
+    const card = elements.getElement(CardNumberElement);
+    if (!card) {
+      toast.error("Card details are not ready.");
+      return;
+    }
 
-  const [
-    brand,
-    setBrand,
-  ] = useState("card");
-
-  const [
-    focusedField,
-    setFocusedField,
-  ] = useState(null);
-
-  const [
-    processing,
-    setProcessing,
-  ] = useState(false);
-
-  // ===================================================
-  // PAYMENT
-  // ===================================================
-
-  const handlePayment =
-    async (
-      event
-    ) => {
-      event.preventDefault();
-
-      if (
-        !stripe ||
-        !elements ||
-        processing
-      ) {
+    setProcessing(true);
+    onProcessingChange(true);
+    try {
+      const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+        payment_method: {
+          card,
+          billing_details: { name: name.trim() },
+        },
+      });
+      if (error) {
+        toast.error(error.message || "Payment failed.");
+        setProcessing(false);
+        onProcessingChange(false);
+        return;
+      }
+      if (paymentIntent?.status !== "succeeded") {
+        toast("Payment is still processing. Please check its status before trying again.");
+        setProcessing(false);
+        onProcessingChange(false);
         return;
       }
 
-      if (
-        remainingSeconds <=
-        0
-      ) {
-        toast.error(
-          "Your seat reservation expired."
-        );
-
-        return;
-      }
-
-      if (
-        !name.trim()
-      ) {
-        toast.error(
-          "Enter the cardholder name."
-        );
-
-        return;
-      }
-
-      const cardNumber =
-        elements.getElement(
-          CardNumberElement
-        );
-
-      if (!cardNumber) {
-        toast.error(
-          "Card details are not ready."
-        );
-
-        return;
-      }
-
-      setProcessing(
-        true
-      );
-
-      try {
-        const {
-          error,
-          paymentIntent,
-        } =
-          await stripe.confirmCardPayment(
-            clientSecret,
-            {
-              payment_method: {
-                card:
-                  cardNumber,
-
-                billing_details: {
-                  name:
-                    name.trim(),
-                },
-              },
-            }
+      // A successful charge is never retried because confirmation is slow.
+      paidRef.current = true;
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 700));
+        try {
+          const response = await axios.get(`${API_URL}/api/shows/${showId}`);
+          const booked = new Set(
+            (response.data?.show?.bookedSeats || []).map((seat) =>
+              String(seat).toUpperCase()
+            )
           );
-
-        if (error) {
-          toast.error(
-            error.message ||
-              "Payment failed."
-          );
-
-          setProcessing(
-            false
-          );
-
-          return;
-        }
-
-        if (
-          paymentIntent
-            ?.status !==
-          "succeeded"
-        ) {
-          toast(
-            "Payment is still processing."
-          );
-
-          setProcessing(
-            false
-          );
-
-          return;
-        }
-
-        // =============================================
-        // WAIT FOR WEBHOOK
-        // =============================================
-
-        for (
-          let attempt = 0;
-          attempt < 12;
-          attempt += 1
-        ) {
-          await new Promise(
-            (resolve) =>
-              setTimeout(
-                resolve,
-                700
-              )
-          );
-
-          const response =
-            await axios.get(
-              `${API_URL}/api/shows/${showId}`
-            );
-
-          const booked =
-            new Set(
-              (
-                response.data
-                  ?.show
-                  ?.bookedSeats ||
-                []
-              ).map(
-                (seat) =>
-                  String(
-                    seat
-                  ).toUpperCase()
-              )
-            );
-
-          const confirmed =
-            seatIds.every(
-              (seat) =>
-                booked.has(
-                  String(
-                    seat
-                  ).toUpperCase()
-                )
-            );
-
-          if (
-            confirmed
-          ) {
-            sessionStorage.removeItem(
-              CHECKOUT_STORAGE_KEY
-            );
-
-            navigate(
-              `/booking-success?bookingId=${bookingId}`,
-              {
-                replace:
-                  true,
-
-                state: {
-                  bookingId,
-                  showId,
-                  seatIds,
-                },
-              }
-            );
-
+          if (seatIds.every((seat) => booked.has(String(seat).toUpperCase()))) {
+            finish(false);
             return;
           }
+        } catch (pollError) {
+          console.warn("Booking confirmation is pending:", pollError);
         }
-
-        /**
-         * Stripe was successful.
-         * Never ask user to pay twice just because webhook
-         * processing is slower than expected.
-         */
-        sessionStorage.removeItem(
-          CHECKOUT_STORAGE_KEY
-        );
-
-        navigate(
-          `/booking-success?bookingId=${bookingId}`,
-          {
-            replace:
-              true,
-
-            state: {
-              bookingId,
-              showId,
-              seatIds,
-
-              processing:
-                true,
-            },
-          }
-        );
-      } catch (error) {
-        console.error(
-          "Checkout payment error:",
-          error
-        );
-
-        toast.error(
-          "Unable to complete payment."
-        );
-
-        setProcessing(
-          false
-        );
       }
-    };
-
-  const timerText =
-    `${String(
-      Math.floor(
-        remainingSeconds /
-          60
-      )
-    ).padStart(
-      2,
-      "0"
-    )}:${String(
-      remainingSeconds %
-        60
-    ).padStart(
-      2,
-      "0"
-    )}`;
+      // Preserve the existing success page's pending-webhook state.
+      finish(true);
+    } catch (error) {
+      console.error("Checkout payment error:", error);
+      if (paidRef.current) {
+        // The charge succeeded, even if checking the booking later failed.
+        finish(true);
+      } else {
+        toast.error("Unable to complete payment. No new payment has been requested.");
+        setProcessing(false);
+        onProcessingChange(false);
+      }
+    }
+  };
 
   return (
     <>
-      <form
-        onSubmit={
-          handlePayment
-        }
-        className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start"
-      >
-
-        {/* LEFT */}
-
-        <div className="lg:sticky lg:top-28">
-
-          <p className="text-sm text-zinc-500 mb-4">
-            Your card
-          </p>
-
-          {/* CARD */}
-
-          <div className="relative mx-auto max-w-md aspect-[1.58/1] [perspective:1200px]">
-
-            <motion.div
-              animate={{
-                rotateY:
-                  focusedField ===
-                  "cvc"
-                    ? 180
-                    : 0,
-              }}
-              transition={{
-                duration:
-                  0.55,
-
-                ease: [
-                  0.22,
-                  1,
-                  0.36,
-                  1,
-                ],
-              }}
-              style={{
-                transformStyle:
-                  "preserve-3d",
-              }}
-              className="relative w-full h-full"
-            >
-
-              {/* FRONT */}
-
-              <div
-                style={{
-                  backfaceVisibility:
-                    "hidden",
-                }}
-                className="absolute inset-0 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-zinc-800 via-zinc-950 to-black p-7 shadow-2xl"
-              >
-
-                <motion.div
-                  animate={{
-                    x:
-                      focusedField ===
-                      "number"
-                        ? 6
-                        : 0,
-                  }}
-                  className="absolute -right-16 -top-20 h-64 w-64 rounded-full bg-red-600/20 blur-3xl"
-                />
-
-                <div className="relative z-10 flex h-full flex-col justify-between">
-
-                  <div className="flex items-center justify-between">
-
-                    <CreditCard className="h-8 w-8 text-red-500" />
-
-                    <span className="uppercase text-sm font-semibold tracking-widest text-zinc-300">
-                      {brand ===
-                      "unknown"
-                        ? "CARD"
-                        : brand}
-                    </span>
-
-                  </div>
-
-                  <div>
-
-                    <p className="mb-5 font-mono text-xl sm:text-2xl tracking-[0.18em]">
-                      •••• •••• •••• ••••
-                    </p>
-
-                    <div className="flex justify-between gap-6">
-
-                      <div>
-
-                        <p className="text-[10px] uppercase tracking-widest text-zinc-500">
-                          Cardholder
-                        </p>
-
-                        <p className="mt-1 truncate text-sm font-medium uppercase">
-                          {name ||
-                            "YOUR NAME"}
-                        </p>
-
-                      </div>
-
-                      <div className="text-right">
-
-                        <p className="text-[10px] uppercase tracking-widest text-zinc-500">
-                          Expires
-                        </p>
-
-                        <p className="mt-1 font-mono text-sm">
-                          MM/YY
-                        </p>
-
-                      </div>
-
-                    </div>
-
-                  </div>
-
-                </div>
-
-              </div>
-
-              {/* BACK */}
-
-              <div
-                style={{
-                  backfaceVisibility:
-                    "hidden",
-
-                  transform:
-                    "rotateY(180deg)",
-                }}
-                className="absolute inset-0 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-zinc-900 to-black shadow-2xl"
-              >
-
-                <div className="mt-10 h-14 bg-black" />
-
-                <div className="px-7 pt-8">
-
-                  <p className="mb-2 text-right text-[10px] uppercase tracking-widest text-zinc-500">
-                    Security code
-                  </p>
-
-                  <div className="flex h-11 items-center justify-end rounded bg-zinc-100 px-4">
-
-                    <span className="font-mono text-zinc-900">
-                      •••
-                    </span>
-
-                  </div>
-
-                </div>
-
-              </div>
-
-            </motion.div>
-
-          </div>
-
-          {/* ORDER SUMMARY */}
-
-          <div className="mt-8 rounded-2xl border border-white/10 bg-zinc-900/70 p-6">
-
-            <div className="flex justify-between gap-4">
-
-              <div>
-
-                <p className="text-sm text-zinc-500">
-                  Movie
-                </p>
-
-                <p className="mt-1 font-semibold">
-                  {show
-                    ?.movie
-                    ?.title ||
-                    "Movie"}
-                </p>
-
-              </div>
-
-              <div className="text-right">
-
-                <p className="text-sm text-zinc-500">
-                  Seats
-                </p>
-
-                <p className="mt-1 font-semibold">
-                  {seatIds.join(
-                    ", "
-                  )}
-                </p>
-
-              </div>
-
-            </div>
-
-            <div className="my-5 border-t border-white/10" />
-
-            <div className="flex items-center justify-between">
-
-              <span className="text-zinc-400">
-                Total
-              </span>
-
-              <span className="text-2xl font-bold text-red-500">
-                ₹
-                {
-                  amount
-                }
-              </span>
-
-            </div>
-
-            <div className="mt-5 flex items-center justify-between text-sm">
-
-              <span className="flex items-center gap-2 text-zinc-500">
-
-                <Lock className="h-4 w-4" />
-
-                Seat hold
-
-              </span>
-
-              <span
-                className={`font-mono ${
-                  remainingSeconds <
-                  60
-                    ? "text-red-500"
-                    : "text-zinc-300"
-                }`}
-              >
-                {
-                  timerText
-                }
-              </span>
-
-            </div>
-
-          </div>
-
-        </div>
-
-        {/* RIGHT */}
-
-        <div className="rounded-3xl border border-white/10 bg-zinc-900/70 p-6 sm:p-8">
-
-          <div className="mb-8">
-
-            <p className="text-sm uppercase tracking-[0.2em] text-red-500">
-              Payment
-            </p>
-
-            <h2 className="mt-2 text-3xl font-bold">
-              Complete your booking
-            </h2>
-
-            <p className="mt-2 text-sm text-zinc-500">
-              Your seats are temporarily reserved.
-            </p>
-
-          </div>
-
-          <div className="space-y-5">
-
-            {/* NAME */}
-
-            <div>
-
-              <label className="mb-2 block text-sm text-zinc-400">
-                Cardholder name
-              </label>
-
-              <input
-                value={
-                  name
-                }
-                onChange={(
-                  event
-                ) =>
-                  setName(
-                    event.target
-                      .value
-                  )
-                }
-                onFocus={() =>
-                  setFocusedField(
-                    "name"
-                  )
-                }
-                onBlur={() =>
-                  setFocusedField(
-                    null
-                  )
-                }
-                placeholder="Hassan Kadri"
-                autoComplete="cc-name"
-                className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-4 text-white outline-none transition focus:border-red-500"
-              />
-
-            </div>
-
-            {/* NUMBER */}
-
-            <div>
-
-              <label className="mb-2 block text-sm text-zinc-400">
-                Card number
-              </label>
-
-              <div className="rounded-xl border border-white/10 bg-black/30 px-4 py-4 transition focus-within:border-red-500">
-
-                <CardNumberElement
-                  options={
-                    stripeFieldStyle
-                  }
-                  onFocus={() =>
-                    setFocusedField(
-                      "number"
-                    )
-                  }
-                  onBlur={() =>
-                    setFocusedField(
-                      null
-                    )
-                  }
-                  onChange={(
-                    event
-                  ) =>
-                    setBrand(
-                      event.brand ||
-                        "card"
-                    )
-                  }
-                />
-
-              </div>
-
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-
-              {/* EXPIRY */}
-
-              <div>
-
-                <label className="mb-2 block text-sm text-zinc-400">
-                  Expiry
-                </label>
-
-                <div className="rounded-xl border border-white/10 bg-black/30 px-4 py-4 transition focus-within:border-red-500">
-
-                  <CardExpiryElement
-                    options={
-                      stripeFieldStyle
-                    }
-                    onFocus={() =>
-                      setFocusedField(
-                        "expiry"
-                      )
-                    }
-                    onBlur={() =>
-                      setFocusedField(
-                        null
-                      )
-                    }
-                  />
-
-                </div>
-
-              </div>
-
-              {/* CVC */}
-
-              <div>
-
-                <label className="mb-2 block text-sm text-zinc-400">
-                  CVC
-                </label>
-
-                <div className="rounded-xl border border-white/10 bg-black/30 px-4 py-4 transition focus-within:border-red-500">
-
-                  <CardCvcElement
-                    options={
-                      stripeFieldStyle
-                    }
-                    onFocus={() =>
-                      setFocusedField(
-                        "cvc"
-                      )
-                    }
-                    onBlur={() =>
-                      setFocusedField(
-                        null
-                      )
-                    }
-                  />
-
-                </div>
-
-              </div>
-
-            </div>
-
-          </div>
-
-          <motion.button
-            whileHover={{
-              scale:
-                1.01,
-            }}
-            whileTap={{
-              scale:
-                0.98,
-            }}
-            type="submit"
-            disabled={
-              processing ||
-              !stripe ||
-              remainingSeconds <=
-                0
-            }
-            className="mt-8 w-full rounded-full bg-red-600 px-8 py-4 text-base font-semibold text-white transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
+      <form className="bmsc-main-grid" onSubmit={handlePayment}>
+        {/* LEFT — TICKET / CARD / ORDER SUMMARY */}
+        <div className="bmsc-left-stack">
+          <div className="bmsc-section-kicker"><span /> YOUR CINEMA PASS <span /></div>
+          <motion.div
+            className="bmsc-ticket"
+            initial={reducedMotion ? false : { opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.65 }}
           >
-            Pay ₹
-            {
-              amount
-            }
-          </motion.button>
+            <div className="bmsc-ticket-top">
+              <div className="bmsc-ticket-poster">
+                {validImage(show?.movie?.poster) ? (
+                  <img src={validImage(show.movie.poster)} alt={`${show.movie.title} poster`} />
+                ) : <Film size={31} />}
+              </div>
+              <div className="bmsc-ticket-film">
+                <span>ADMIT ONE · BOOKMYSEAT</span>
+                <h2>{show?.movie?.title || "Your screening"}</h2>
+                <p><MapPin size={14} /> {show?.theatre?.name || "Selected cinema"}</p>
+                <p><Film size={14} /> {show?.screen?.name || "Auditorium"}</p>
+              </div>
+            </div>
+            <div className="bmsc-ticket-perf">
+              <div className="bmsc-ticket-cut bmsc-ticket-cut--left" />
+              <div className="bmsc-ticket-cut bmsc-ticket-cut--right" />
+            </div>
+            <div className="bmsc-ticket-bottom">
+              <div><span>DATE</span><strong>{showDate(show?.startTime)}</strong></div>
+              <div><span>TIME</span><strong>{showTime(show?.startTime)}</strong></div>
+              <div><span>SEATS</span><strong>{seatIds.join(", ")}</strong></div>
+            </div>
+            <div className="bmsc-ticket-end"><span>BOOKMYSEAT / CINEMA EXPERIENCE</span><span>01 — {String(seatIds.length).padStart(2,"0")}</span></div>
+          </motion.div>
 
-          <div className="mt-5 flex items-center justify-center gap-2 text-xs text-zinc-500">
-
-            <Lock className="h-3.5 w-3.5" />
-
-            Payment secured by Stripe
-
+          <div className="bmsc-receipt">
+            <div className="bmsc-receipt-heading"><Ticket size={18} /><h3>Order overview</h3><span>{seatIds.length} {seatIds.length === 1 ? "ticket" : "tickets"}</span></div>
+            <div className="bmsc-receipt-row"><span>Tickets & applicable charges</span><strong>{money(amount)}</strong></div>
+            <p className="bmsc-receipt-note"><Info size={14} /> Final payable amount is provided by the payment server.</p>
+            <div className="bmsc-receipt-divider" />
+            <div className="bmsc-receipt-total"><span>PAYABLE NOW</span><strong>{money(amount)}</strong></div>
+            <div className={`bmsc-receipt-timer ${remainingSeconds < 60 ? "bmsc-receipt-timer--urgent" : ""}`}>
+              <span><Timer size={16} /> Seats reserved for</span>
+              <strong>{clock(remainingSeconds)}</strong>
+            </div>
           </div>
-
         </div>
 
-      </form>
+        {/* RIGHT — SECURE STRIPE FORM */}
+        <motion.section
+          className="bmsc-payment-panel"
+          initial={reducedMotion ? false : { opacity: 0, x: 22 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.65, delay: 0.1 }}
+        >
+          <div className="bmsc-panel-topline"><span className="bmsc-live-dot" /> ENCRYPTED CHECKOUT <span className="bmsc-panel-topline-right">02 / 02</span></div>
+          <div className="bmsc-panel-title"><div><p>ONE LAST STEP</p><h2>Complete your booking.</h2><span>Enter your card details securely to confirm these seats.</span></div><ShieldCheck size={29} /></div>
 
-      {/* AUTHORISING */}
+          {/* This card is a visual preview only. No sensitive number is stored. */}
+          <div className="bmsc-card-stage">
+            <motion.div
+              className="bmsc-card-rotator"
+              animate={{ rotateY: focused === "cvc" ? 180 : 0 }}
+              transition={{ duration: reducedMotion ? 0 : 0.55, ease: [0.22, 1, 0.36, 1] }}
+              style={{ transformStyle: "preserve-3d" }}
+            >
+              <div className="bmsc-card-face bmsc-card-front">
+                <div className="bmsc-card-glow" />
+                <div className="bmsc-card-head"><span className="bmsc-card-chip"><i /><i /></span><span>{cardLabel}</span></div>
+                <div className="bmsc-card-dots">••••&nbsp; ••••&nbsp; ••••&nbsp; ••••</div>
+                <div className="bmsc-card-foot"><span><small>CARDHOLDER</small><strong>{name.trim() || "YOUR NAME"}</strong></span><span><small>EXPIRY</small><strong>MM/YY</strong></span></div>
+              </div>
+              <div className="bmsc-card-face bmsc-card-back">
+                <div className="bmsc-card-stripe" />
+                <div className="bmsc-card-back-cvc"><small>SECURITY CODE</small><strong>•••</strong></div>
+              </div>
+            </motion.div>
+          </div>
+
+          <div className="bmsc-form-title"><span><CreditCard size={17} /> Card details</span><span>POWERED BY STRIPE</span></div>
+          <div className="bmsc-fields">
+            <label className="bmsc-field">
+              <span>Cardholder name</span>
+              <input
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                onFocus={() => setFocused("name")}
+                onBlur={() => setFocused("")}
+                autoComplete="cc-name"
+                placeholder="Name on card"
+                maxLength={100}
+                disabled={processing}
+              />
+            </label>
+            <label className="bmsc-field">
+              <span>Card number {completed.number && <CheckCircle2 size={14} />}</span>
+              <div className="bmsc-stripe-field">
+                <CardNumberElement
+                  options={elementStyle}
+                  onFocus={() => setFocused("number")}
+                  onBlur={() => setFocused("")}
+                  onChange={(event) => onFieldChange("number", event)}
+                />
+              </div>
+            </label>
+            <div className="bmsc-field-grid">
+              <label className="bmsc-field">
+                <span>Expiry date {completed.expiry && <CheckCircle2 size={14} />}</span>
+                <div className="bmsc-stripe-field">
+                  <CardExpiryElement
+                    options={elementStyle}
+                    onFocus={() => setFocused("expiry")}
+                    onBlur={() => setFocused("")}
+                    onChange={(event) => onFieldChange("expiry", event)}
+                  />
+                </div>
+              </label>
+              <label className="bmsc-field">
+                <span>Security code {completed.cvc && <CheckCircle2 size={14} />}</span>
+                <div className="bmsc-stripe-field">
+                  <CardCvcElement
+                    options={elementStyle}
+                    onFocus={() => setFocused("cvc")}
+                    onBlur={() => setFocused("")}
+                    onChange={(event) => onFieldChange("cvc", event)}
+                  />
+                </div>
+              </label>
+            </div>
+          </div>
+          <button type="submit" className="bmsc-pay-button" disabled={!stripe || processing || remainingSeconds <= 0 || paidRef.current}>
+            <LockKeyhole size={17} /><span>{processing ? "Confirming secure payment…" : `Pay ${money(amount)} securely`}</span><ArrowRight size={19} />
+          </button>
+          <div className="bmsc-security-note"><ShieldCheck size={16} /><span>Card details are processed by Stripe. BookMySeat does not store your card number or CVC.</span></div>
+        </motion.section>
+      </form>
 
       <AnimatePresence>
         {processing && (
-          <motion.div
-            initial={{
-              opacity: 0,
-            }}
-            animate={{
-              opacity: 1,
-            }}
-            exit={{
-              opacity: 0,
-            }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-xl"
-          >
-
-            <div className="text-center">
-
-              <motion.div
-                animate={{
-                  rotate: 360,
-                }}
-                transition={{
-                  duration:
-                    1.2,
-
-                  repeat:
-                    Infinity,
-
-                  ease:
-                    "linear",
-                }}
-                className="mx-auto mb-8 h-20 w-20 rounded-full border-2 border-zinc-800 border-t-red-500"
-              />
-
-              <motion.h2
-                initial={{
-                  y: 10,
-                  opacity: 0,
-                }}
-                animate={{
-                  y: 0,
-                  opacity: 1,
-                }}
-                className="text-3xl font-bold"
-              >
-                Authorising payment
-              </motion.h2>
-
-              <p className="mt-3 text-zinc-500">
-                Please don’t close this page.
-              </p>
-
-              <motion.div
-                initial={{
-                  width: 0,
-                }}
-                animate={{
-                  width:
-                    "220px",
-                }}
-                transition={{
-                  duration:
-                    4,
-
-                  ease:
-                    "easeInOut",
-                }}
-                className="mx-auto mt-8 h-1 rounded-full bg-red-600"
-              />
-
-            </div>
-
+          <motion.div className="bmsc-processing" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} role="status" aria-live="polite">
+            <div className="bmsc-processing-inner"><div className="bmsc-processing-ring"><ShieldCheck size={33}/></div><p>SECURE PAYMENT</p><h2>Confirming your booking</h2><span>Please keep this page open while we check your payment and reservation.</span></div>
           </motion.div>
         )}
       </AnimatePresence>
     </>
   );
-};
+}
 
-// =====================================================
-// PAGE
-// =====================================================
+// ============================================================
+// PAGE CONTROLLER — SAME CREATE-INTENT, HOLD & BACK CONTRACT
+// ============================================================
+export default function Checkout() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { token, isAuthenticated, loading: authLoading } = useAuth();
+  const [processing, setProcessing] = useState(false);
+  const [returning, setReturning] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [secret, setSecret] = useState(null);
+  const [payment, setPayment] = useState(null);
+  const [show, setShow] = useState(null);
+  const [seconds, setSeconds] = useState(0);
 
-const Checkout = () => {
-  const location =
-    useLocation();
-
-  const navigate =
-    useNavigate();
-
-  const {
-    token,
-    isAuthenticated,
-  } = useAuth();
-
-  const startedRef =
-    useRef(false);
-
-  const initialCheckout =
-    useMemo(() => {
-      if (
-        location.state
-          ?.showId
-      ) {
-        sessionStorage.setItem(
-          CHECKOUT_STORAGE_KEY,
-          JSON.stringify(
-            location.state
-          )
-        );
-
-        return location.state;
-      }
-
-      try {
-        const stored =
-          sessionStorage.getItem(
-            CHECKOUT_STORAGE_KEY
-          );
-
-        return stored
-          ? JSON.parse(
-              stored
-            )
-          : null;
-      } catch {
-        return null;
-      }
-    }, [location.state]);
-
-  const [
-    clientSecret,
-    setClientSecret,
-  ] = useState(null);
-
-  const [
-    paymentData,
-    setPaymentData,
-  ] = useState(null);
-
-  const [
-    show,
-    setShow,
-  ] = useState(null);
-
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
-
-  const [
-    remainingSeconds,
-    setRemainingSeconds,
-  ] = useState(0);
-
-  const [
-    returning,
-    setReturning,
-  ] = useState(false);
-
-  // ===================================================
-  // INITIALIZE
-  // ===================================================
+  const checkout = useMemo(() => {
+    if (location.state?.showId) {
+      sessionStorage.setItem(CHECKOUT_KEY, JSON.stringify(location.state));
+      return location.state;
+    }
+    try { return JSON.parse(sessionStorage.getItem(CHECKOUT_KEY) || "null"); }
+    catch { return null; }
+  }, [location.state]);
 
   useEffect(() => {
-    if (
-      !isAuthenticated ||
-      !token ||
-      !initialCheckout ||
-      startedRef.current
-    ) {
-      return;
-    }
-
-    startedRef.current =
-      true;
-
-    const startCheckout =
-      async () => {
-        try {
-          const [
-            paymentResponse,
-            showResponse,
-          ] =
-            await Promise.all([
-              axios.post(
-                `${API_URL}/api/payments/create-intent`,
-                {
-                  showId:
-                    initialCheckout
-                      .showId,
-
-                  seatIds:
-                    initialCheckout
-                      .seatIds,
-
-                  lockId:
-                    initialCheckout
-                      .lockId,
-                },
-                {
-                  headers: {
-                    Authorization:
-                      `Bearer ${token}`,
-                  },
-                }
-              ),
-
-              axios.get(
-                `${API_URL}/api/shows/${initialCheckout.showId}`
-              ),
-            ]);
-
-          setPaymentData(
-            paymentResponse.data
-          );
-
-          setClientSecret(
-            paymentResponse.data
-              .clientSecret
-          );
-
-          setShow(
-            showResponse.data
-              ?.show
-          );
-        } catch (error) {
-          console.error(
-            "Checkout initialization failed:",
-            error
-          );
-
-          toast.error(
-            error.response
-              ?.data
-              ?.message ||
-              "Unable to start checkout."
-          );
-
-          sessionStorage.removeItem(
-            CHECKOUT_STORAGE_KEY
-          );
-
-          navigate(
-            initialCheckout
-              ?.movieId
-              ? `/booking/${initialCheckout.movieId}`
-              : "/movies",
-            {
-              replace:
-                true,
-            }
-          );
-        } finally {
-          setLoading(
-            false
-          );
-        }
-      };
-
-    startCheckout();
-  }, [
-    initialCheckout,
-    isAuthenticated,
-    token,
-    navigate,
-  ]);
-
-  // ===================================================
-  // TIMER
-  // ===================================================
-
-  useEffect(() => {
-    const expiresAt =
-      paymentData
-        ?.lockExpiresAt ||
-      initialCheckout
-        ?.expiresAt;
-
-    if (!expiresAt) {
-      return undefined;
-    }
-
-    const update =
-      () => {
-        const seconds =
-          Math.max(
-            0,
-
-            Math.ceil(
-              (
-                new Date(
-                  expiresAt
-                ).getTime() -
-                Date.now()
-              ) /
-                1000
-            )
-          );
-
-        setRemainingSeconds(
-          seconds
-        );
-
-        if (
-          seconds === 0
-        ) {
-          sessionStorage.removeItem(
-            CHECKOUT_STORAGE_KEY
-          );
-        }
-      };
-
-    update();
-
-    const interval =
-      setInterval(
-        update,
-        1000
-      );
-
-    return () =>
-      clearInterval(
-        interval
-      );
-  }, [
-    paymentData,
-    initialCheckout,
-  ]);
-
-  // ===================================================
-  // BACK TO SEATS
-  // ===================================================
-
-  const handleBack =
-    async () => {
-      if (
-        !initialCheckout ||
-        returning
-      ) {
-        return;
-      }
-
-      setReturning(
-        true
-      );
-
+    if (authLoading) return;
+    if (!isAuthenticated || !token) { navigate("/auth", { replace: true }); return; }
+    if (!checkout?.showId || !checkout?.lockId || !checkout?.seatIds?.length) { setLoading(false); return; }
+    // Defer one tick so React StrictMode cleanup cannot create duplicate intents.
+    let active = true;
+    const start = async () => {
       try {
-        await axios.delete(
-          `${API_URL}/api/seat-locks/release`,
-          {
-            headers: {
-              Authorization:
-                `Bearer ${token}`,
-            },
-
-            data: {
-              showId:
-                initialCheckout
-                  .showId,
-
-              seatIds:
-                initialCheckout
-                  .seatIds,
-
-              lockId:
-                initialCheckout
-                  .lockId,
-            },
-          }
-        );
-      } catch (error) {
-        /**
-         * If it already expired there may be nothing left
-         * to release. We can still safely return.
-         */
-        console.error(
-          "Checkout hold release:",
-          error
-        );
+        const [paymentResponse, showResponse] = await Promise.all([
+          axios.post(`${API_URL}/api/payments/create-intent`, {
+            showId: checkout.showId,
+            seatIds: checkout.seatIds,
+            lockId: checkout.lockId,
+          }, { headers: { Authorization: `Bearer ${token}` } }),
+          axios.get(`${API_URL}/api/shows/${checkout.showId}`),
+        ]);
+        if (!active) return;
+        setPayment(paymentResponse.data);
+        setSecret(paymentResponse.data.clientSecret);
+        setShow(showResponse.data?.show);
+      } catch (problem) {
+        if (!active) return;
+        console.error("Checkout initialization:", problem);
+        setError(problem.response?.data?.message || "Unable to start checkout.");
+        toast.error(problem.response?.data?.message || "Unable to start checkout.");
+      } finally {
+        if (active) setLoading(false);
       }
-
-      sessionStorage.removeItem(
-        CHECKOUT_STORAGE_KEY
-      );
-
-      navigate(
-        initialCheckout
-          .movieId
-          ? `/booking/${initialCheckout.movieId}`
-          : "/movies",
-        {
-          replace:
-            true,
-        }
-      );
     };
+    const requestTimer = setTimeout(start, 0);
+    return () => { active = false; clearTimeout(requestTimer); };
+  }, [authLoading, isAuthenticated, token, checkout, navigate]);
 
-  // ===================================================
-  // GUARDS
-  // ===================================================
+  useEffect(() => {
+    const expiresAt = payment?.lockExpiresAt || checkout?.expiresAt;
+    if (!expiresAt) return;
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 1000));
+      setSeconds(remaining);
+      if (remaining === 0 && !processing) sessionStorage.removeItem(CHECKOUT_KEY);
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [payment, checkout, processing]);
 
-  if (
-    !initialCheckout
-  ) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-
-        <div className="text-center">
-
-          <p className="text-zinc-400">
-            No active checkout found.
-          </p>
-
-          <button
-            onClick={() =>
-              navigate(
-                "/movies"
-              )
-            }
-            className="mt-4 text-red-500"
-          >
-            Browse movies
-          </button>
-
-        </div>
-
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-
-        <motion.div
-          animate={{
-            rotate: 360,
-          }}
-          transition={{
-            repeat:
-              Infinity,
-
-            duration:
-              1,
-
-            ease:
-              "linear",
-          }}
-          className="h-10 w-10 rounded-full border-2 border-zinc-800 border-t-red-500"
-        />
-
-      </div>
-    );
-  }
-
-  // ===================================================
-  // UI
-  // ===================================================
+  const backToSeats = async () => {
+    if (returning || processing || !checkout) return;
+    setReturning(true);
+    try {
+      await axios.delete(`${API_URL}/api/seat-locks/release`, {
+        headers: { Authorization: `Bearer ${token}` },
+        data: { showId: checkout.showId, seatIds: checkout.seatIds, lockId: checkout.lockId },
+      });
+    } catch (problem) {
+      console.warn("Hold release during navigation:", problem);
+    }
+    sessionStorage.removeItem(CHECKOUT_KEY);
+    navigate(checkout.movieId ? `/booking/${checkout.movieId}?show=${encodeURIComponent(checkout.showId)}${show?.theatre?._id ? `&theatre=${encodeURIComponent(show.theatre._id)}` : ""}` : "/cinemas", { replace: true });
+  };
 
   return (
-    <div className="min-h-screen bg-[#08090b] pt-24 pb-16">
-
-      <div className="mx-auto max-w-6xl px-4 sm:px-6">
-
-        <button
-          onClick={
-            handleBack
-          }
-          disabled={
-            returning
-          }
-          className="mb-8 flex items-center gap-2 text-sm text-zinc-400 transition hover:text-white disabled:opacity-50"
-        >
-          <ArrowLeft className="h-4 w-4" />
-
-          {returning
-            ? "Releasing seats..."
-            : "Back to seats"}
-        </button>
-
-        <div className="mb-10">
-
-          <p className="text-sm uppercase tracking-[0.25em] text-red-500">
-            Secure checkout
-          </p>
-
-          <h1 className="mt-2 text-4xl font-bold">
-            Complete your payment
-          </h1>
-
+    <main className="bmsc-page" data-design-version="BMS_CHECKOUT_CINEMATIC_V3">
+      <div className="bmsc-ambient" aria-hidden="true" />
+      <div className="bmsc-container">
+        <div className="bmsc-breadcrumb"><span>01 &nbsp; SELECT SEATS</span><ChevronRight size={14}/><strong>02 &nbsp; SECURE CHECKOUT</strong><ChevronRight size={14}/><span>03 &nbsp; CONFIRMATION</span></div>
+        <div className="bmsc-page-heading">
+          <div>
+            <p>THE FINAL SCENE</p>
+            <h1>Make it <em>official.</em></h1>
+            <span>Your seats are almost yours. One secure payment to go.</span>
+          </div>
+          <div className="bmsc-heading-assurance"><ShieldCheck size={18}/><span>ENCRYPTED<br/>PAYMENT</span></div>
         </div>
 
-        {remainingSeconds <=
-        0 ? (
-          <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-10 text-center">
+        <div className="bmsc-top-actions">
+          <button type="button" onClick={backToSeats} disabled={returning || processing || !checkout}>
+            <ArrowLeft size={16}/>{returning ? "Releasing seats…" : "Back to seats"}
+          </button>
+          {!!checkout && <div><span className="bmsc-live-dot"/> SEATS HELD <span className="bmsc-time-badge"><Clock3 size={14}/>{clock(seconds)}</span></div>}
+        </div>
 
-            <h2 className="text-2xl font-bold">
-              Seat reservation expired
-            </h2>
-
-            <p className="mt-2 text-zinc-400">
-              Return to the seat map and choose your seats again.
-            </p>
-
-            <button
-              onClick={
-                handleBack
-              }
-              className="mt-6 rounded-full bg-red-600 px-8 py-3 font-semibold"
-            >
-              Select seats again
-            </button>
-
-          </div>
+        {loading || authLoading ? (
+          <div className="bmsc-state"><span className="bmsc-spinner"/><h2>Preparing your secure checkout</h2><p>Confirming your reservation and payment session.</p></div>
+        ) : !checkout ? (
+          <div className="bmsc-state"><Armchair size={36}/><h2>No active checkout</h2><p>Select a showtime and seats before checking out.</p><button onClick={() => navigate("/cinemas")}>Browse cinemas <ArrowRight size={16}/></button></div>
+        ) : error ? (
+          <div className="bmsc-state"><Info size={36}/><h2>Checkout unavailable</h2><p>{error}</p><button onClick={backToSeats}>Return to seats <ArrowRight size={16}/></button></div>
+        ) : seconds <= 0 && !processing ? (
+          <div className="bmsc-state"><Timer size={36}/><h2>Reservation expired</h2><p>Your seat hold has ended. Choose your seats again to continue.</p><button onClick={backToSeats}>Select seats again <ArrowRight size={16}/></button></div>
+        ) : !secret || !payment || !stripePromise ? (
+          <div className="bmsc-state"><Info size={36}/><h2>Secure payment unavailable</h2><p>Stripe has not initialized. Check the frontend's Stripe publishable key configuration.</p></div>
         ) : (
-          clientSecret &&
-          paymentData && (
-            <Elements
-              stripe={
-                stripePromise
-              }
-            >
-              <CheckoutForm
-                clientSecret={
-                  clientSecret
-                }
-                amount={
-                  paymentData.amount
-                }
-                bookingId={
-                  paymentData.bookingId
-                }
-                showId={
-                  initialCheckout.showId
-                }
-                seatIds={
-                  initialCheckout.seatIds
-                }
-                show={
-                  show
-                }
-                remainingSeconds={
-                  remainingSeconds
-                }
-              />
-            </Elements>
-          )
+          <Elements stripe={stripePromise}>
+            <PaymentForm
+              clientSecret={secret}
+              amount={payment.amount}
+              bookingId={payment.bookingId}
+              showId={checkout.showId}
+              seatIds={checkout.seatIds}
+              show={show}
+              remainingSeconds={seconds}
+              onProcessingChange={setProcessing}
+            />
+          </Elements>
         )}
-
+        <footer className="bmsc-footer"><span>© BookMySeat · Cinema, uninterrupted.</span><span><LockKeyhole size={13}/> Secure checkout by Stripe</span></footer>
       </div>
-
-    </div>
+    </main>
   );
-};
-
-export default Checkout;
+}

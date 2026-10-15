@@ -1,1214 +1,694 @@
-import React, {
-  useEffect,
-  useRef,
-  useState,
-} from "react";
 
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import {
-  Bot,
-  Building2,
-  Clock,
+  ArrowUpRight,
+  ChevronRight,
+  Film,
   MapPin,
+  Plus,
   Send,
-  Ticket,
-  User,
 } from "lucide-react";
-
 import axios from "axios";
 import toast from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
 
-import {
-  useNavigate,
-} from "react-router-dom";
+// BookMySeat — cinema-specific film assistant.
+// Existing API, chat persistence, multi-turn intent and booking navigation retained.
+const API_URL = (process.env.REACT_APP_BACKEND_URL || "").replace(/\/+$/, "");
+const CHAT_KEY_PREFIX = "bookmyseat_ai_chat";
+const ZONE = "Asia/Kolkata";
+const EASE = [0.22, 1, 0.36, 1];
 
-const API_URL =
-  process.env.REACT_APP_BACKEND_URL;
-
-const CHAT_KEY_PREFIX =
-  "bookmyseat_ai_chat";
-
-// =====================================================
-// HELPERS
-// =====================================================
-
-const formatTime = (
-  value
-) =>
-  new Intl.DateTimeFormat(
-    "en-IN",
-    {
-      hour: "numeric",
-      minute: "2-digit",
-
-      timeZone:
-        "Asia/Kolkata",
-    }
-  ).format(
-    new Date(value)
-  );
-
-const formatDate = (
-  value
-) =>
-  new Intl.DateTimeFormat(
-    "en-IN",
-    {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-
-      timeZone:
-        "Asia/Kolkata",
-    }
-  ).format(
-    new Date(value)
-  );
-
-const createInitialMessages = (
-  theatreName
-) => [
-  {
-    id:
-      `welcome-${Date.now()}`,
-
-    role:
-      "assistant",
-
-    text:
-      theatreName
-        ? `Hey! I can help you find something to watch at ${theatreName}. Try “show me movies”, “Hindi tomorrow”, or just tell me what you're in the mood for.`
-        : "Choose a cinema first and I'll help you find something to watch.",
-
-    results: [],
-    resultKind: null,
-  },
+const QUICK_PROMPTS = [
+  { title: "What's playing?", detail: "Browse current screenings", prompt: "Show me movies" },
+  { title: "Find a comedy", detail: "Something light to watch", prompt: "Suggest a comedy" },
+  { title: "Plan for tomorrow", detail: "Explore another day", prompt: "Hindi movies tomorrow" },
+  { title: "Stay within budget", detail: "Find tickets under ₹300", prompt: "Anything under ₹300" },
 ];
 
-// =====================================================
-// RESULT CARDS
-// =====================================================
+function formatDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Date unavailable";
+  return new Intl.DateTimeFormat("en-IN", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    timeZone: ZONE,
+  }).format(date);
+}
 
-const ResultCards = ({
-  results,
-  resultKind,
-  onSelect,
-}) => {
-  if (
-    !Array.isArray(results) ||
-    results.length === 0
-  ) {
-    return null;
+function formatTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Time unavailable";
+  return new Intl.DateTimeFormat("en-IN", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: ZONE,
+  }).format(date);
+}
+
+function readCinema() {
+  try {
+    return {
+      id: localStorage.getItem("bookmyseat_theatre") || "",
+      name: localStorage.getItem("bookmyseat_theatre_name") || "",
+      city: localStorage.getItem("bookmyseat_city") || "",
+    };
+  } catch {
+    return { id: "", name: "", city: "" };
   }
+}
+
+function initialMessages(name) {
+  return [
+    {
+      id: "assistant-welcome",
+      role: "assistant",
+      text: name
+        ? `I'm here to help you find something worth watching at ${name}. Tell me what you're in the mood for, or ask to see what's playing.`
+        : "Select a cinema to see real films and showtimes. I'll help you find the right one.",
+      results: [],
+      resultKind: null,
+    },
+  ];
+}
+
+function FilmPoster({ show }) {
+  const [broken, setBroken] = useState(false);
+  const poster = show.movie?.poster;
+
+  useEffect(() => setBroken(false), [poster]);
 
   return (
-    <div className="mt-4 w-full max-w-3xl">
-
-      <div className="mb-3 flex items-center justify-between">
-
-        <p className="text-xs font-semibold uppercase tracking-[0.15em] text-zinc-500">
-          {resultKind ===
-          "MOVIES"
-            ? "Movie choices"
-            : "Matching shows"}
-        </p>
-
-        <span className="text-xs text-zinc-600">
-          {results.length}{" "}
-          {results.length ===
-          1
-            ? "result"
-            : "results"}
-        </span>
-
-      </div>
-
-      <div className="space-y-3">
-
-        {results.map(
-          (
-            show,
-            index
-          ) => (
-            <button
-              type="button"
-              key={`${show.showId}-${index}`}
-              onClick={() =>
-                onSelect(show)
-              }
-              className="flex w-full items-center gap-4 rounded-xl border border-white/10 bg-zinc-900/80 p-4 text-left transition-colors hover:border-red-500/30"
-            >
-
-              {/* NUMBER */}
-
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-600 text-sm font-bold">
-                {index + 1}
-              </div>
-
-              {/* POSTER */}
-
-              {show.movie
-                ?.poster ? (
-                <img
-                  src={
-                    show.movie
-                      .poster
-                  }
-                  alt={
-                    show.movie
-                      .title
-                  }
-                  className="h-20 w-14 shrink-0 rounded-md object-cover"
-                />
-              ) : (
-                <div className="flex h-20 w-14 shrink-0 items-center justify-center rounded-md bg-black/40 text-[8px] text-zinc-600">
-                  No poster
-                </div>
-              )}
-
-              {/* INFO */}
-
-              <div className="min-w-0 flex-1">
-
-                <h3 className="truncate text-sm font-semibold text-white">
-                  {
-                    show.movie
-                      ?.title
-                  }
-                </h3>
-
-                {show.movie
-                  ?.genre && (
-                  <p className="mt-1 truncate text-xs text-zinc-600">
-                    {
-                      show.movie
-                        .genre
-                    }
-                  </p>
-                )}
-
-                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500">
-
-                  <span className="flex items-center gap-1">
-
-                    <Clock className="h-3 w-3" />
-
-                    {formatDate(
-                      show.startTime
-                    )}
-
-                    {" • "}
-
-                    {formatTime(
-                      show.startTime
-                    )}
-
-                  </span>
-
-                  <span>
-                    {show.language}
-                    {" • "}
-                    {show.format}
-                  </span>
-
-                  <span>
-                    From ₹
-                    {
-                      show.minPrice
-                    }
-                  </span>
-
-                </div>
-
-                {resultKind ===
-                  "MOVIES" &&
-                  show.showCount >
-                    1 && (
-                    <p className="mt-2 text-xs text-zinc-600">
-                      {
-                        show.showCount
-                      }{" "}
-                      upcoming showtimes
-                    </p>
-                  )}
-
-              </div>
-
-              {/* ACTION */}
-
-              <div className="hidden shrink-0 items-center gap-2 text-xs font-semibold text-red-400 sm:flex">
-
-                <Ticket className="h-4 w-4" />
-
-                Select
-
-              </div>
-
-            </button>
-          )
-        )}
-
-      </div>
-
+    <div className="relative aspect-[2/3] overflow-hidden bg-[#1c1b20]">
+      {poster && !broken ? (
+        <img
+          src={poster}
+          alt={`${show.movie?.title || "Film"} poster`}
+          loading="lazy"
+          onError={() => setBroken(true)}
+          className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
+        />
+      ) : (
+        <div className="flex h-full flex-col items-center justify-center gap-3 border-b border-white/10 px-3 text-center">
+          <Film size={22} strokeWidth={1.25} className="text-white/30" />
+          <span className="text-[12px] leading-5 text-white/50">
+            {show.movie?.title || "Artwork unavailable"}
+          </span>
+        </div>
+      )}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent" />
     </div>
   );
-};
+}
 
-// =====================================================
-// PAGE
-// =====================================================
+function ResultCards({ results, kind, onSelect }) {
+  if (!Array.isArray(results) || results.length === 0) return null;
 
-const AiSearch = () => {
-  const navigate =
-    useNavigate();
+  return (
+    <section className="mt-6 border-t border-white/10 pt-5" aria-label="Film results">
+      <div className="mb-4 flex items-baseline justify-between gap-4">
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#ed6980]">
+          {kind === "MOVIES" ? "Films found" : "Matching showtimes"}
+        </p>
+        <span className="text-[11px] text-[#86828a] tabular-nums">
+          {String(results.length).padStart(2, "0")} results
+        </span>
+      </div>
 
-  // This now points to the actual newest chat turn,
-  // not below a separate giant results section.
-  const latestMessageRef =
-    useRef(null);
+      <div className="flex snap-x gap-3 overflow-x-auto pb-3 [scrollbar-color:#444047_transparent] [scrollbar-width:thin]">
+        {results.map((show, index) => (
+          <button
+            key={`${show.showId || "show"}-${index}`}
+            type="button"
+            onClick={() => onSelect(show)}
+            className="group w-[156px] shrink-0 snap-start overflow-hidden rounded-[13px] border border-white/[0.09] bg-[#17171b] text-left transition-[border-color,transform,background] duration-300 hover:-translate-y-1 hover:border-[#c9455f]/55 hover:bg-[#1d1c21] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#d71935] sm:w-[174px]"
+          >
+            <FilmPoster show={show} />
+            <span className="block px-3 pb-3 pt-3">
+              <span className="block truncate text-[12px] font-semibold tracking-[-0.015em] text-white">
+                {show.movie?.title || "Film"}
+              </span>
+              <span className="mt-2 block truncate text-[11px] leading-5 text-white/50">
+                {formatDate(show.startTime)}
+              </span>
+              <span className="block truncate text-[11px] leading-5 text-white/50">
+                {formatTime(show.startTime)}
+                {show.minPrice != null ? ` · ₹${show.minPrice}+` : ""}
+              </span>
+              <span className="mt-3 flex items-center justify-between gap-2 border-t border-white/10 pt-2.5 text-[10px] font-semibold text-[#f18a9a]">
+                <span>{kind === "MOVIES" && Number(show.showCount) > 1 ? `${show.showCount} shows` : "View booking"}</span>
+                <ArrowUpRight size={13} />
+              </span>
+            </span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
 
-  const selectedTheatre =
-    localStorage.getItem(
-      "bookmyseat_theatre"
-    );
+function ConversationMessage({ message, onSelect, reduceMotion }) {
+  const isUser = message.role === "user";
 
-  const selectedTheatreName =
-    localStorage.getItem(
-      "bookmyseat_theatre_name"
-    ) ||
-    "";
+  return (
+    <motion.article
+      initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.32, ease: EASE }}
+      className={`flex min-w-0 ${isUser ? "justify-end" : "justify-start"}`}
+    >
+      <div className={`min-w-0 ${isUser ? "max-w-[88%] sm:max-w-[77%]" : "w-full max-w-[680px]"}`}>
+        <p className={`mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] ${isUser ? "text-right text-white/35" : "text-[#e37589]"}`}>
+          {isUser ? "You" : "Concierge"}
+        </p>
+        {isUser ? (
+          <div className="whitespace-pre-wrap break-words rounded-[14px] rounded-tr-[3px] border border-[#813444]/35 bg-[#29191e] px-4 py-3.5 text-[13px] leading-6 text-[#f5e9ec]">
+            {message.text}
+          </div>
+        ) : (
+          <div className="border-l-2 border-[#d71935] py-0.5 pl-4">
+            <p className="whitespace-pre-wrap break-words text-[14px] leading-[1.85] text-[#e2dee1]">
+              {message.text}
+            </p>
+            <ResultCards results={message.results} kind={message.resultKind} onSelect={onSelect} />
+          </div>
+        )}
+      </div>
+    </motion.article>
+  );
+}
 
-  const selectedCity =
-    localStorage.getItem(
-      "bookmyseat_city"
-    ) ||
-    "";
+export default function AiSearch() {
+  const navigate = useNavigate();
+  const reduceMotion = useReducedMotion();
+  const scrollRef = useRef(null);
+  const inputRef = useRef(null);
+  const requestId = useRef(0);
+  const messageId = useRef(0);
 
-  const chatKey =
-    `${CHAT_KEY_PREFIX}:${selectedTheatre || "none"}`;
+  const [cinema, setCinema] = useState(readCinema);
+  const [availableCinemas, setAvailableCinemas] = useState([]);
+  const [cinemasLoading, setCinemasLoading] = useState(true);
+  const [cinemasError, setCinemasError] = useState(false);
+  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState(() => initialMessages(readCinema().name));
+  const [intent, setIntent] = useState({});
+  const [currentResults, setCurrentResults] = useState([]);
+  const [currentResultKind, setCurrentResultKind] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [readyChatKey, setReadyChatKey] = useState("");
 
-  // ===================================================
-  // STATE
-  // ===================================================
+  const selectedId = cinema.id;
+  const chatKey = `${CHAT_KEY_PREFIX}:${selectedId || "none"}`;
+  const hasConversation = messages.some((message) => message.role === "user");
 
-  const [
-    input,
-    setInput,
-  ] =
-    useState("");
-
-  const [
-    messages,
-    setMessages,
-  ] =
-    useState(
-      createInitialMessages(
-        selectedTheatreName
-      )
-    );
-
-  // Current intent/results are still stored separately
-  // internally because the backend needs them for:
-  //
-  // "cheaper"
-  // "only Hindi"
-  // "book the second one"
-  //
-  // But they are NOT rendered as a separate page section.
-  const [
-    intent,
-    setIntent,
-  ] =
-    useState({});
-
-  const [
-    currentResults,
-    setCurrentResults,
-  ] =
-    useState([]);
-
-  const [
-    currentResultKind,
-    setCurrentResultKind,
-  ] =
-    useState(null);
-
-  const [
-    loading,
-    setLoading,
-  ] =
-    useState(false);
-
-  const [
-    hydrated,
-    setHydrated,
-  ] =
-    useState(false);
-
-  // ===================================================
-  // REQUIRE CINEMA
-  // ===================================================
-
+  // Keep discovery, context and booking endpoints identical to the existing page.
   useEffect(() => {
-    if (
-      !selectedTheatre
-    ) {
-      navigate(
-        "/cinemas",
-        {
-          replace:
-            true,
-        }
-      );
+    const controller = new AbortController();
+    let active = true;
+    setCinemasLoading(true);
+    setCinemasError(false);
+
+    axios.get(`${API_URL}/api/theatres`, { signal: controller.signal })
+      .then(({ data }) => {
+        if (!active) return;
+        const venues = Array.isArray(data) ? data : data?.theatres;
+        setAvailableCinemas(
+          Array.isArray(venues)
+            ? venues.filter((venue) => venue._id && venue.isActive !== false)
+            : []
+        );
+      })
+      .catch((error) => {
+        if (!active) return;
+        console.error("Cinema discovery failed:", error);
+        setCinemasError(true);
+      })
+      .finally(() => {
+        if (active) setCinemasLoading(false);
+      });
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, []);
+
+  // Conversations are isolated per cinema and persist for this browser tab.
+  useEffect(() => {
+    let restored = null;
+    try {
+      const saved = sessionStorage.getItem(chatKey);
+      if (saved) restored = JSON.parse(saved);
+    } catch {
+      // Storage may be unavailable.
     }
-  }, [
-    selectedTheatre,
-    navigate,
-  ]);
 
-  // ===================================================
-  // RESTORE CHAT
-  // ===================================================
+    if (restored && Array.isArray(restored.messages) && restored.messages.length) {
+      setMessages(
+        restored.messages
+          .filter((message) => message && (message.role === "user" || message.role === "assistant"))
+          .map((message, index) => ({
+            id: message.id || `restored-${index}`,
+            role: message.role,
+            text: typeof message.text === "string" ? message.text : "",
+            results: Array.isArray(message.results) ? message.results : [],
+            resultKind: message.resultKind || null,
+          }))
+      );
+      setIntent(restored.intent && typeof restored.intent === "object" ? restored.intent : {});
+      setCurrentResults(
+        Array.isArray(restored.currentResults)
+          ? restored.currentResults
+          : Array.isArray(restored.results) ? restored.results : []
+      );
+      setCurrentResultKind(restored.currentResultKind || restored.resultKind || null);
+    } else {
+      setMessages(initialMessages(cinema.name));
+      setIntent({});
+      setCurrentResults([]);
+      setCurrentResultKind(null);
+    }
+    setReadyChatKey(chatKey);
+  }, [chatKey, cinema.name]);
 
   useEffect(() => {
-    setHydrated(false);
+    if (!selectedId || readyChatKey !== chatKey) return;
+    try {
+      sessionStorage.setItem(chatKey, JSON.stringify({
+        messages, intent, currentResults, currentResultKind,
+      }));
+    } catch {
+      // The assistant remains usable without storage.
+    }
+  }, [selectedId, readyChatKey, chatKey, messages, intent, currentResults, currentResultKind]);
+
+  useEffect(() => {
+    if (!hasConversation || !scrollRef.current) return;
+    scrollRef.current.scrollTo({
+      top: scrollRef.current.scrollHeight,
+      behavior: reduceMotion ? "auto" : "smooth",
+    });
+  }, [messages, busy, hasConversation, reduceMotion]);
+
+  function selectCinema(venue) {
+    if (!venue?._id) return;
+    requestId.current += 1;
+    setBusy(false);
+    setInput("");
+    const next = {
+      id: String(venue._id),
+      name: venue.name || "",
+      city: venue.city || "",
+    };
+    try {
+      localStorage.setItem("bookmyseat_theatre", next.id);
+      localStorage.setItem("bookmyseat_theatre_name", next.name);
+      localStorage.setItem("bookmyseat_city", next.city);
+    } catch {
+      // Local state is sufficient.
+    }
+    setCinema(next);
+  }
+
+  function changeCinema() {
+    requestId.current += 1;
+    setBusy(false);
+    setInput("");
+    try {
+      localStorage.removeItem("bookmyseat_theatre");
+      localStorage.removeItem("bookmyseat_theatre_name");
+      localStorage.removeItem("bookmyseat_city");
+    } catch {
+      // Local state is sufficient.
+    }
+    setCinema({ id: "", name: "", city: "" });
+  }
+
+  const openShow = useCallback((show) => {
+    if (!show?.showId || !show?.movie?.id || !show?.theatre?.id) {
+      toast.error("This show's booking details are incomplete.");
+      return;
+    }
+    if (String(show.theatre.id) !== String(selectedId)) {
+      toast.error("That screening is not at your selected cinema.");
+      return;
+    }
+    try {
+      localStorage.setItem("bookmyseat_show", show.showId);
+      localStorage.setItem("bookmyseat_theatre", show.theatre.id);
+      localStorage.setItem("bookmyseat_theatre_name", show.theatre.name || "");
+      if (show.theatre.city) localStorage.setItem("bookmyseat_city", show.theatre.city);
+    } catch {
+      // Complete selection is also encoded in the route.
+    }
+    navigate(`/booking/${show.movie.id}?show=${encodeURIComponent(show.showId)}&theatre=${encodeURIComponent(show.theatre.id)}`);
+  }, [navigate, selectedId]);
+
+  async function sendText(rawText) {
+    const text = String(rawText || "").trim();
+    if (!text || busy) return;
+    if (!selectedId) {
+      toast.error("Choose your cinema first.");
+      return;
+    }
+
+    const currentRequest = ++requestId.current;
+    const createId = (kind) => `${kind}-${Date.now()}-${++messageId.current}`;
+    setInput("");
+    setMessages((history) => [...history, {
+      id: createId("user"), role: "user", text, results: [], resultKind: null,
+    }]);
+    setBusy(true);
 
     try {
-      const raw =
-        sessionStorage.getItem(
-          chatKey
-        );
-
-      if (!raw) {
-        setMessages(
-          createInitialMessages(
-            selectedTheatreName
-          )
-        );
-
-        setIntent({});
-        setCurrentResults([]);
-        setCurrentResultKind(
-          null
-        );
-
-        return;
-      }
-
-      const saved =
-        JSON.parse(raw);
-
-      // -----------------------------------------------
-      // Restore existing messages.
-      //
-      // Older saved chats don't have embedded results,
-      // which is fine.
-      // -----------------------------------------------
-
-      if (
-        Array.isArray(
-          saved.messages
-        )
-      ) {
-        setMessages(
-          saved.messages.map(
-            (
-              message,
-              index
-            ) => ({
-              id:
-                message.id ||
-                `restored-${index}`,
-
-              role:
-                message.role,
-
-              text:
-                message.text,
-
-              results:
-                Array.isArray(
-                  message.results
-                )
-                  ? message.results
-                  : [],
-
-              resultKind:
-                message.resultKind ||
-                null,
-            })
-          )
-        );
-      } else {
-        setMessages(
-          createInitialMessages(
-            selectedTheatreName
-          )
-        );
-      }
-
-      setIntent(
-        saved.intent &&
-        typeof saved.intent ===
-          "object"
-          ? saved.intent
-          : {}
-      );
-
-      // Support both the new names and older saved data.
-      setCurrentResults(
-        Array.isArray(
-          saved.currentResults
-        )
-          ? saved.currentResults
-          : Array.isArray(
-              saved.results
-            )
-          ? saved.results
-          : []
-      );
-
-      setCurrentResultKind(
-        saved.currentResultKind ||
-          saved.resultKind ||
-          null
-      );
-    } catch {
-      sessionStorage.removeItem(
-        chatKey
-      );
-
-      setMessages(
-        createInitialMessages(
-          selectedTheatreName
-        )
-      );
-
-      setIntent({});
-      setCurrentResults([]);
-      setCurrentResultKind(
-        null
-      );
-    } finally {
-      setHydrated(true);
-    }
-  }, [
-    chatKey,
-    selectedTheatreName,
-  ]);
-
-  // ===================================================
-  // SAVE CHAT
-  // ===================================================
-
-  useEffect(() => {
-    if (
-      !hydrated ||
-      !selectedTheatre
-    ) {
-      return;
-    }
-
-    sessionStorage.setItem(
-      chatKey,
-
-      JSON.stringify({
-        messages,
+      const response = await axios.post(`${API_URL}/api/ai/assistant`, {
+        message: text,
         intent,
-
-        currentResults,
-        currentResultKind,
-      })
-    );
-  }, [
-    hydrated,
-    selectedTheatre,
-    chatKey,
-    messages,
-    intent,
-    currentResults,
-    currentResultKind,
-  ]);
-
-  // ===================================================
-  // SCROLL TO NEWEST CHAT TURN
-  //
-  // Important:
-  //
-  // We intentionally do NOT scroll every time results
-  // change anymore.
-  // ===================================================
-
-  useEffect(() => {
-    if (
-      !latestMessageRef.current
-    ) {
-      return;
-    }
-
-    latestMessageRef.current.scrollIntoView({
-      behavior:
-        "smooth",
-
-      block:
-        "start",
-    });
-  }, [
-    messages.length,
-  ]);
-
-  // ===================================================
-  // OPEN SHOW
-  // ===================================================
-
-  const openShow = (
-    show
-  ) => {
-    if (
-      !show?.showId ||
-      !show?.movie?.id ||
-      !show?.theatre?.id
-    ) {
-      toast.error(
-        "Show information is incomplete."
-      );
-
-      return;
-    }
-
-    if (
-      String(
-        show.theatre.id
-      ) !==
-      String(
-        selectedTheatre
-      )
-    ) {
-      toast.error(
-        "This show does not belong to your selected cinema."
-      );
-
-      return;
-    }
-
-    localStorage.setItem(
-      "bookmyseat_show",
-      show.showId
-    );
-
-    localStorage.setItem(
-      "bookmyseat_theatre",
-      show.theatre.id
-    );
-
-    localStorage.setItem(
-      "bookmyseat_theatre_name",
-      show.theatre.name ||
-        ""
-    );
-
-    if (
-      show.theatre.city
-    ) {
-      localStorage.setItem(
-        "bookmyseat_city",
-        show.theatre.city
-      );
-    }
-
-    navigate(
-      `/booking/${show.movie.id}?show=${show.showId}&theatre=${show.theatre.id}`
-    );
-  };
-
-  // ===================================================
-  // SEND
-  // ===================================================
-
-  const sendText =
-    async (
-      rawText
-    ) => {
-      const message =
-        rawText.trim();
-
-      if (
-        !message ||
-        loading
-      ) {
-        return;
+        results: currentResults,
+        theatreId: selectedId,
+      });
+      if (requestId.current !== currentRequest) return;
+      const data = response.data || {};
+      if (data.intent) setIntent(data.intent);
+      if (Array.isArray(data.results)) setCurrentResults(data.results);
+      if (data.resultKind) setCurrentResultKind(data.resultKind);
+      setMessages((history) => [...history, {
+        id: createId("assistant"),
+        role: "assistant",
+        text: data.message || "Here is what I found.",
+        results: data.action === "SEARCH" && Array.isArray(data.results) ? data.results : [],
+        resultKind: data.resultKind || null,
+      }]);
+      if (data.action === "SELECT_SHOW" && data.selectedShow) {
+        const selection = data.selectedShow;
+        window.setTimeout(() => {
+          if (requestId.current === currentRequest) openShow(selection);
+        }, 450);
       }
-
-      if (
-        !selectedTheatre
-      ) {
-        navigate(
-          "/cinemas"
-        );
-
-        return;
-      }
-
-      setInput("");
-
-      // -----------------------------------------------
-      // USER MESSAGE
-      // -----------------------------------------------
-
-      setMessages(
-        (current) => [
-          ...current,
-
-          {
-            id:
-              `user-${Date.now()}`,
-
-            role:
-              "user",
-
-            text:
-              message,
-
-            results: [],
-            resultKind:
-              null,
-          },
-        ]
-      );
-
-      setLoading(true);
-
-      try {
-        const response =
-          await axios.post(
-            `${API_URL}/api/ai/assistant`,
-
-            {
-              message,
-
-              intent,
-
-              // Backend still receives the latest
-              // result set for multi-turn references.
-              results:
-                currentResults,
-
-              theatreId:
-                selectedTheatre,
-            }
-          );
-
-        const data =
-          response.data;
-
-        // -----------------------------------------------
-        // UPDATE INTERNAL CONVERSATION STATE
-        // -----------------------------------------------
-
-        if (
-          data.intent
-        ) {
-          setIntent(
-            data.intent
-          );
-        }
-
-        if (
-          Array.isArray(
-            data.results
-          )
-        ) {
-          setCurrentResults(
-            data.results
-          );
-        }
-
-        if (
-          data.resultKind
-        ) {
-          setCurrentResultKind(
-            data.resultKind
-          );
-        }
-
-        // -----------------------------------------------
-        // ATTACH RESULTS TO THE AI MESSAGE
-        //
-        // This is the important UX fix.
-        //
-        // CHAT:
-        // text only
-        //
-        // SEARCH:
-        // text + its own result cards
-        // -----------------------------------------------
-
-        const messageResults =
-          data.action ===
-            "SEARCH" &&
-          Array.isArray(
-            data.results
-          )
-            ? data.results
-            : [];
-
-        setMessages(
-          (current) => [
-            ...current,
-
-            {
-              id:
-                `assistant-${Date.now()}`,
-
-              role:
-                "assistant",
-
-              text:
-                data.message ||
-                "Done.",
-
-              results:
-                messageResults,
-
-              resultKind:
-                data.resultKind ||
-                null,
-            },
-          ]
-        );
-
-        // -----------------------------------------------
-        // AI selected an exact real show.
-        // -----------------------------------------------
-
-        if (
-          data.action ===
-            "SELECT_SHOW" &&
-          data.selectedShow
-        ) {
-          setTimeout(
-            () => {
-              openShow(
-                data.selectedShow
-              );
-            },
-            500
-          );
-        }
-      } catch (error) {
-        console.error(
-          "AI assistant:",
-          error
-        );
-
-        const errorMessage =
-          error.response
-            ?.data
-            ?.message ||
-          "The assistant could not process that request.";
-
-        setMessages(
-          (current) => [
-            ...current,
-
-            {
-              id:
-                `error-${Date.now()}`,
-
-              role:
-                "assistant",
-
-              text:
-                errorMessage,
-
-              results: [],
-              resultKind:
-                null,
-            },
-          ]
-        );
-
-        toast.error(
-          errorMessage
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-  const sendMessage = (
-    event
-  ) => {
-    event.preventDefault();
-
-    sendText(input);
-  };
-
-  // ===================================================
-  // RESET
-  // ===================================================
-
-  const resetChat =
-    () => {
-      setMessages(
-        createInitialMessages(
-          selectedTheatreName
-        )
-      );
-
-      setIntent({});
-
-      setCurrentResults([]);
-
-      setCurrentResultKind(
-        null
-      );
-
-      setInput("");
-
-      sessionStorage.removeItem(
-        chatKey
-      );
-    };
-
-  // ===================================================
-  // REDIRECT
-  // ===================================================
-
-  if (
-    !selectedTheatre
-  ) {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-zinc-500">
-        Opening cinema selection...
-      </div>
-    );
+    } catch (error) {
+      if (requestId.current !== currentRequest) return;
+      console.error("AI assistant:", error);
+      const errorMessage = error.response?.data?.message || "Couldn't reach the assistant. Please try again.";
+      setMessages((history) => [...history, {
+        id: createId("error"), role: "assistant", text: errorMessage, results: [], resultKind: null,
+      }]);
+      toast.error(errorMessage);
+    } finally {
+      if (requestId.current === currentRequest) setBusy(false);
+    }
   }
 
-  // ===================================================
-  // UI
-  // ===================================================
+  function startNewChat() {
+    requestId.current += 1;
+    setBusy(false);
+    setInput("");
+    setIntent({});
+    setCurrentResults([]);
+    setCurrentResultKind(null);
+    setMessages(initialMessages(cinema.name));
+    try {
+      sessionStorage.removeItem(chatKey);
+    } catch {
+      // Chat still resets in local state.
+    }
+    inputRef.current?.focus();
+  }
+
+  function submit(event) {
+    event.preventDefault();
+    void sendText(input);
+  }
+
+  const entering = reduceMotion ? {} : {
+    initial: { opacity: 0, y: 12 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0.5, ease: EASE },
+  };
 
   return (
-    <div className="min-h-screen pb-32 pt-24">
-
-      <div className="mx-auto max-w-5xl px-4">
-
-        {/* =============================================
-            HEADER
-        ============================================== */}
-
-        <div className="border-b border-white/10 pb-6">
-
-          <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
-
-            <div>
-
-              <div className="flex items-center gap-3">
-
-                <Bot className="h-6 w-6 text-red-500" />
-
-                <h1 className="text-3xl font-bold">
-                  Booking Assistant
-                </h1>
-
-              </div>
-
-              <p className="mt-2 text-sm text-zinc-500">
-                Ask naturally. Movie suggestions stay attached to the conversation.
-              </p>
-
-            </div>
-
-            <button
-              type="button"
-              onClick={
-                resetChat
-              }
-              className="rounded-lg border border-white/10 px-4 py-2 text-sm"
-            >
-              New Chat
-            </button>
-
-          </div>
-
-          {/* CINEMA */}
-
-          <div className="mt-5 flex flex-col justify-between gap-4 rounded-xl border border-white/10 bg-zinc-900/60 p-4 sm:flex-row sm:items-center">
-
-            <div className="flex items-center gap-3">
-
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-600/10">
-
-                <Building2 className="h-5 w-5 text-red-500" />
-
-              </div>
-
-              <div>
-
-                <p className="text-xs uppercase tracking-[0.2em] text-zinc-600">
-                  Searching this cinema
-                </p>
-
-                <p className="mt-1 font-semibold">
-                  {selectedTheatreName ||
-                    "Selected Cinema"}
-                </p>
-
-                {selectedCity && (
-                  <p className="mt-1 flex items-center gap-1 text-xs text-zinc-500">
-
-                    <MapPin className="h-3 w-3" />
-
-                    {
-                      selectedCity
-                    }
-
-                  </p>
-                )}
-
-              </div>
-
-            </div>
-
-            <button
-              type="button"
-              onClick={() =>
-                navigate(
-                  "/cinemas"
-                )
-              }
-              className="rounded-lg border border-white/10 px-4 py-2 text-sm text-zinc-400"
-            >
-              Change Cinema
-            </button>
-
-          </div>
-
-        </div>
-
-        {/* =============================================
-            QUICK PROMPTS
-        ============================================== */}
-
-        {messages.length <=
-          1 && (
-          <div className="mt-6 flex flex-wrap gap-2">
-
-            {[
-              "Show me movies",
-              "Suggest a comedy",
-              "Hindi movies tomorrow",
-              "Anything under ₹300",
-            ].map(
-              (prompt) => (
-                <button
-                  type="button"
-                  key={
-                    prompt
-                  }
-                  onClick={() =>
-                    sendText(
-                      prompt
-                    )
-                  }
-                  className="rounded-full border border-white/10 bg-zinc-900 px-4 py-2 text-xs text-zinc-400"
-                >
-                  {prompt}
-                </button>
-              )
-            )}
-
-          </div>
-        )}
-
-        {/* =============================================
-            COMPLETE CHAT TIMELINE
-
-            Results are now rendered INSIDE the
-            assistant turn that generated them.
-        ============================================== */}
-
-        <div className="mt-8 space-y-7">
-
-          {messages.map(
-            (
-              message,
-              index
-            ) => {
-              const isLatest =
-                index ===
-                messages.length -
-                  1;
-
-              return (
-                <div
-                  key={
-                    message.id ||
-                    index
-                  }
-                  ref={
-                    isLatest
-                      ? latestMessageRef
-                      : null
-                  }
-                  className={`flex gap-3 ${
-                    message.role ===
-                    "user"
-                      ? "justify-end"
-                      : "justify-start"
-                  }`}
-                >
-
-                  {/* ASSISTANT ICON */}
-
-                  {message.role ===
-                    "assistant" && (
-                    <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-600/20">
-
-                      <Bot className="h-4 w-4 text-red-400" />
-
-                    </div>
-                  )}
-
-                  {/* MESSAGE + ITS RESULTS */}
-
-                  <div
-                    className={
-                      message.role ===
-                      "assistant"
-                        ? "min-w-0 flex-1"
-                        : ""
-                    }
-                  >
-
-                    <div
-                      className={`w-fit max-w-2xl rounded-xl px-4 py-3 text-sm leading-relaxed ${
-                        message.role ===
-                        "user"
-                          ? "ml-auto bg-red-600 text-white"
-                          : "border border-white/10 bg-zinc-900 text-zinc-300"
-                      }`}
-                    >
-                      {
-                        message.text
-                      }
-                    </div>
-
-                    {/* RESULTS BELONG TO THIS MESSAGE */}
-
-                    {message.role ===
-                      "assistant" && (
-                      <ResultCards
-                        results={
-                          message.results
-                        }
-                        resultKind={
-                          message.resultKind
-                        }
-                        onSelect={
-                          openShow
-                        }
-                      />
-                    )}
-
-                  </div>
-
-                  {/* USER ICON */}
-
-                  {message.role ===
-                    "user" && (
-                    <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-800">
-
-                      <User className="h-4 w-4" />
-
-                    </div>
-                  )}
-
-                </div>
-              );
-            }
-          )}
-
-          {/* LOADING */}
-
-          {loading && (
-            <div
-              ref={
-                latestMessageRef
-              }
-              className="flex gap-3"
-            >
-
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-600/20">
-
-                <Bot className="h-4 w-4 text-red-400" />
-
-              </div>
-
-              <div className="rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm text-zinc-500">
-                Thinking...
-              </div>
-
-            </div>
-          )}
-
-        </div>
-
-      </div>
-
-      {/* ===============================================
-          INPUT
-      ================================================ */}
-
-      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-black/95 p-4 backdrop-blur-xl">
-
-        <form
-          onSubmit={
-            sendMessage
-          }
-          className="mx-auto flex max-w-4xl gap-3"
+    <main className="min-h-screen overflow-x-hidden bg-[#09090b] px-4 pb-14 pt-[105px] text-[#f5f2f1] sm:px-7 lg:pt-[112px]">
+      <div className="mx-auto max-w-[1390px]">
+        {/* Hero: matching BookMySeat's admin editorial typography and spacing. */}
+        <motion.header
+          {...entering}
+          className="mb-8 flex flex-col justify-between gap-6 border-b border-white/[0.10] pb-7 md:flex-row md:items-end lg:mb-9"
         >
+          <div className="min-w-0">
+            <p className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.23em] text-[#e66a80]">
+              <span className="h-px w-8 bg-[#d71935]" /> Discover / 01
+            </p>
+            <h1 className="mt-4 text-[clamp(2.45rem,3.85vw,4rem)] font-bold leading-[1.01] tracking-[-0.068em] text-[#f7f5f3]">
+              The cinema <span className="text-[#db3654]">concierge.</span>
+            </h1>
+            <p className="mt-4 max-w-[640px] text-[13px] leading-[1.7] text-[#a6a2a9] sm:text-[14px]">
+              Less searching, more watching. Find a film, a showtime, and the right seat at your cinema.
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-3 self-start border-l border-white/[0.13] pl-4 md:self-end">
+            <span className="h-2 w-2 shrink-0 rounded-full bg-[#d71935]" aria-hidden="true" />
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#9d96a0]">Currently browsing</p>
+              <p className="mt-1 max-w-[230px] truncate text-[12px] font-semibold text-white/85">
+                {selectedId ? cinema.name || "Selected cinema" : "Choose a cinema to begin"}
+              </p>
+            </div>
+          </div>
+        </motion.header>
 
-          <input
-            value={
-              input
-            }
-            onChange={(
-              event
-            ) =>
-              setInput(
-                event.target
-                  .value
-              )
-            }
-            maxLength={
-              300
-            }
-            placeholder={
-              currentResults.length
-                ? "Ask about these results or refine your search..."
-                : "What do you want to watch?"
-            }
-            className="flex-1 rounded-xl border border-white/10 bg-zinc-900 px-5 py-4 outline-none focus:border-red-500"
-          />
+        <div className="grid items-start gap-5 lg:grid-cols-[302px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)]">
+          {/* Cinema context stays separate from the conversation. */}
+          <motion.aside {...entering} className="space-y-4 lg:sticky lg:top-[84px]">
+            <section className="overflow-hidden rounded-[18px] border border-white/[0.095] bg-[#131216]" aria-label="Cinema selection">
+              <div className="flex items-center justify-between gap-4 border-b border-white/[0.085] px-5 py-4 sm:px-6">
+                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#ec7083]">01 / Your cinema</span>
+                <span className="text-[10px] text-white/35">Location</span>
+              </div>
+              <div className="px-5 pb-6 pt-6 sm:px-6">
+                {selectedId ? (
+                  <>
+                    <p className="text-[11px] text-white/45">Selected venue</p>
+                    <h2 className="mt-2 break-words text-[clamp(1.4rem,2vw,1.75rem)] font-bold leading-[1.16] tracking-[-0.045em] text-white">
+                      {cinema.name || "Your cinema"}
+                    </h2>
+                    <p className="mt-3 flex items-center gap-2 text-[12px] text-white/55">
+                      <MapPin size={14} strokeWidth={1.6} className="text-[#db536c]" />
+                      {cinema.city || "Location not specified"}
+                    </p>
+                    <div className="mt-6 h-px bg-white/[0.08]" />
+                    <button
+                      type="button"
+                      onClick={changeCinema}
+                      className="group mt-4 flex w-full items-center justify-between rounded-lg border border-white/[0.12] bg-[#1e1d22] px-4 py-3 text-[12px] font-semibold text-white/85 transition-[border-color,background] hover:border-white/30 hover:bg-[#28262d] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#d71935]"
+                    >
+                      Change cinema <ArrowUpRight size={15} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <h2 className="text-[23px] font-bold leading-tight tracking-[-0.045em] text-white">Where are we watching?</h2>
+                    <p className="mt-2 text-[12px] leading-6 text-white/50">Choose a venue to see its actual films and showtimes.</p>
+                    <div className="mt-5 max-h-[300px] space-y-1.5 overflow-y-auto pr-1 [scrollbar-width:thin]">
+                      {cinemasLoading && <p role="status" className="py-4 text-[12px] text-white/50">Loading cinemas…</p>}
+                      {!cinemasLoading && cinemasError && (
+                        <p role="alert" className="py-4 text-[12px] text-amber-200/85">Cinema list unavailable. Please try again later.</p>
+                      )}
+                      {!cinemasLoading && !cinemasError && availableCinemas.length === 0 && (
+                        <p className="py-4 text-[12px] text-white/50">No cinemas are available right now.</p>
+                      )}
+                      {availableCinemas.map((venue) => (
+                        <button
+                          key={venue._id}
+                          type="button"
+                          onClick={() => selectCinema(venue)}
+                          className="group flex w-full items-center justify-between gap-3 rounded-lg border border-white/[0.07] bg-white/[0.025] px-3.5 py-3 text-left transition-colors hover:border-[#d71935]/45 hover:bg-[#d71935]/[0.075] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#d71935]"
+                        >
+                          <span className="min-w-0">
+                            <span className="block truncate text-[12px] font-semibold text-white/85">{venue.name}</span>
+                            <span className="mt-1 block text-[11px] text-white/40">{venue.city || "Cinema"}</span>
+                          </span>
+                          <ChevronRight size={15} className="shrink-0 text-white/40 transition-colors group-hover:text-[#ee7c8e]" />
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => navigate("/cinemas")}
+                      className="mt-5 inline-flex items-center gap-2 text-[12px] text-white/60 transition-colors hover:text-white"
+                    >
+                      Browse all cinemas <ArrowUpRight size={14} />
+                    </button>
+                  </>
+                )}
+              </div>
+            </section>
 
-          <button
-            type="submit"
-            disabled={
-              loading ||
-              !input.trim()
-            }
-            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-red-600 disabled:opacity-40"
+            <section className="rounded-[18px] border border-white/[0.095] bg-[#131216]" aria-label="Suggested searches">
+              <div className="flex items-center justify-between border-b border-white/[0.085] px-5 py-4 sm:px-6">
+                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#ec7083]">02 / Explore</span>
+                <span className="text-[10px] text-white/35">Suggestions</span>
+              </div>
+              <div className="divide-y divide-white/[0.075] px-5 sm:px-6">
+                {QUICK_PROMPTS.map(({ title, detail, prompt }, index) => (
+                  <button
+                    key={prompt}
+                    type="button"
+                    onClick={() => void sendText(prompt)}
+                    disabled={!selectedId || busy}
+                    className="group flex w-full items-center gap-3.5 py-[17px] text-left transition-opacity disabled:cursor-not-allowed disabled:opacity-35"
+                  >
+                    <span className="w-5 shrink-0 self-center text-[10px] font-semibold tabular-nums text-[#d3566d]">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[12px] font-semibold text-white/85 transition-colors group-hover:text-white">{title}</span>
+                      <span className="mt-1 block text-[11px] text-white/40">{detail}</span>
+                    </span>
+                    <ArrowUpRight size={15} className="shrink-0 text-white/30 transition-[transform,color] group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[#f08395]" />
+                  </button>
+                ))}
+              </div>
+            </section>
+            <p className="px-1 text-[11px] leading-[1.7] text-white/35">
+              Recommendations are limited to actual films and screenings at your chosen cinema.
+            </p>
+          </motion.aside>
+
+          {/* Clean editorial conversation, without bot artwork or decorative illustrations. */}
+          <motion.section
+            {...entering}
+            aria-label="BookMySeat assistant conversation"
+            className="flex h-[670px] min-w-0 flex-col overflow-hidden rounded-[18px] border border-white/[0.11] bg-[#111014] sm:h-[745px]"
           >
-            <Send className="h-5 w-5" />
-          </button>
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/[0.09] px-5 py-4 sm:px-7 sm:py-5">
+              <div className="flex min-w-0 items-center gap-3.5">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[#d71935] text-[18px] font-bold tracking-[-0.09em] text-white" aria-hidden="true">B.</span>
+                <span className="min-w-0">
+                  <span className="block text-[14px] font-bold tracking-[-0.025em] text-white">Film concierge</span>
+                  <span className="mt-0.5 block truncate text-[11px] text-white/45">
+                    {selectedId ? `For ${cinema.name || "your cinema"}` : "Choose a cinema to start"}
+                  </span>
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={startNewChat}
+                className="group inline-flex shrink-0 items-center gap-2 rounded-full border border-white/[0.14] bg-white/[0.035] px-3.5 py-2.5 text-[11px] font-semibold text-white/75 transition-colors hover:border-white/30 hover:bg-white/[0.07] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#d71935] sm:px-4"
+              >
+                <Plus size={14} strokeWidth={1.75} /> New chat
+              </button>
+            </div>
 
-        </form>
+            <div
+              ref={scrollRef}
+              role="log"
+              aria-live="polite"
+              aria-relevant="additions"
+              className="min-h-0 flex-1 space-y-7 overflow-y-auto overscroll-contain px-5 py-7 [scrollbar-color:#403841_transparent] [scrollbar-width:thin] sm:px-9 sm:py-9"
+            >
+              {!hasConversation ? (
+                <div className="flex min-h-full flex-col justify-center pb-10">
+                  <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.19em] text-[#df7285]">
+                    <span className="h-px w-7 bg-[#d71935]" /> Your next screening
+                  </div>
+                  <h2 className="mt-6 max-w-[590px] text-[clamp(2.25rem,4.1vw,4.4rem)] font-bold leading-[1.04] tracking-[-0.065em] text-white">
+                    Good film.<br />Great night<span className="text-[#db3654]">.</span>
+                  </h2>
+                  <p className="mt-5 max-w-[480px] text-[13px] leading-[1.85] text-[#b0abb3] sm:text-[14px]">
+                    Tell me what you're in the mood for. I'll help you find a real screening at {selectedId ? cinema.name || "your cinema" : "a cinema you choose"}.
+                  </p>
+                  <div className="mt-9 border-t border-white/[0.11] pt-5">
+                    <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">Start a conversation</p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {[
+                        { label: "What's playing tonight?", prompt: "What's playing tonight?" },
+                        { label: "I want something funny", prompt: "Suggest a comedy" },
+                        { label: "Find seats under ₹300", prompt: "Anything under ₹300" },
+                        { label: "Help me plan tomorrow", prompt: "Hindi movies tomorrow" },
+                      ].map(({ label, prompt }) => (
+                        <button
+                          key={label}
+                          type="button"
+                          onClick={() => void sendText(prompt)}
+                          disabled={!selectedId || busy}
+                          className="group flex min-h-[50px] items-center justify-between gap-3 rounded-lg border border-white/[0.10] bg-[#1a191e] px-4 py-3 text-left text-[12px] font-medium text-white/75 transition-[background,border-color] hover:border-[#d71935]/45 hover:bg-[#25191f] hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+                        >
+                          <span>{label}</span>
+                          <ArrowUpRight size={14} className="shrink-0 text-white/40 transition-colors group-hover:text-[#ef7286]" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {!selectedId && <p className="mt-5 text-[12px] text-[#f18899]">Select a cinema to unlock recommendations.</p>}
+                </div>
+              ) : (
+                messages.map((message, index) => (
+                  <ConversationMessage
+                    key={message.id || index}
+                    message={message}
+                    onSelect={openShow}
+                    reduceMotion={reduceMotion}
+                  />
+                ))
+              )}
 
+              {busy && (
+                <div role="status" aria-label="Assistant is responding" className="flex items-center gap-3 border-l-2 border-[#d71935] py-1 pl-4">
+                  <span className="text-[12px] text-white/65">Looking through the programme</span>
+                  <span className="flex gap-1" aria-hidden="true">
+                    {[0, 1, 2].map((index) => (
+                      <motion.span
+                        key={index}
+                        className="h-1 w-1 rounded-full bg-[#e96a81]"
+                        animate={reduceMotion ? undefined : { opacity: [0.3, 1, 0.3] }}
+                        transition={{ duration: 0.9, repeat: Infinity, delay: index * 0.15 }}
+                      />
+                    ))}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="shrink-0 border-t border-white/[0.10] bg-[#161419] px-4 pb-4 pt-4 sm:px-7 sm:pb-5">
+              <form
+                onSubmit={submit}
+                className="flex items-center gap-2 rounded-[12px] border border-white/[0.15] bg-[#211f25] p-1.5 pl-4 transition-[border-color,background] focus-within:border-[#cf5570] focus-within:bg-[#28222b]"
+              >
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  disabled={!selectedId || busy}
+                  maxLength={300}
+                  autoComplete="off"
+                  aria-label="Ask the cinema concierge"
+                  placeholder={
+                    !selectedId ? "Choose a cinema first…"
+                      : currentResults.length ? "Ask a follow-up or refine your results…"
+                        : "Ask about films, timings or ticket prices…"
+                  }
+                  className="min-w-0 flex-1 border-0 bg-transparent py-2.5 text-[13px] text-white outline-none placeholder:text-[#8a818d] focus:border-0 focus:outline-none focus:ring-0 disabled:cursor-not-allowed sm:text-[14px]"
+                />
+                <button
+                  type="submit"
+                  aria-label="Send message"
+                  disabled={!selectedId || busy || !input.trim()}
+                  className="group flex h-10 w-11 shrink-0 items-center justify-center rounded-[8px] bg-[#d71935] text-white transition-colors hover:bg-[#f02749] disabled:cursor-not-allowed disabled:opacity-35 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                >
+                  <Send size={17} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                </button>
+              </form>
+              <div className="mt-3 flex items-center justify-between gap-3 text-[10px] text-[#827d87]">
+                <span>Real cinema schedules. No invented showtimes.</span>
+                <span className="hidden shrink-0 sm:inline">Enter to send</span>
+              </div>
+            </div>
+          </motion.section>
+        </div>
       </div>
-
-    </div>
+    </main>
   );
-};
-
-export default AiSearch;
+}
