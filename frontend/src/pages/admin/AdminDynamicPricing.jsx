@@ -1,32 +1,19 @@
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import toast from "react-hot-toast";
-import { motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
-  Activity,
-  ArrowLeft,
-  ArrowRight,
-  CalendarClock,
-  Check,
-  CircleAlert,
-  IndianRupee,
-  RefreshCw,
-  Save,
-  Search,
-  SlidersHorizontal,
+  Activity, ArrowLeft, ArrowRight, CalendarClock, CheckCircle2,
+  CircleAlert, IndianRupee, RefreshCw, Save, Search, SlidersHorizontal,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 
-const API = (
-  process.env.REACT_APP_BACKEND_URL ||
-  "http://localhost:5000"
-).replace(/\/+$/, "");
-
-const ROOT = `${API}/api/admin/pricing`;
-
-const INPUT =
-  "w-full rounded-xl border border-white/10 bg-[#202024] px-3 py-2.5 text-sm text-white outline-none transition focus:border-[#D71935] disabled:opacity-50";
+const API = (process.env.REACT_APP_BACKEND_URL || "").replace(/\/+$/, "");
+const ENDPOINT = `${API}/api/admin/pricing`;
+const EASE = [0.22, 1, 0.36, 1];
+const PANEL = "rounded-[22px] border border-white/10 bg-[#111114]/90";
+const INPUT = "w-full rounded-xl border border-white/10 bg-[#1a191e] px-4 py-3 text-sm text-white outline-none transition-colors focus:border-[#D71935]/70 disabled:opacity-50";
 
 const DEFAULT_POLICY = {
   enabled: false,
@@ -45,7 +32,7 @@ const DEFAULT_POLICY = {
 const SECTIONS = [
   {
     title: "Price boundaries",
-    description: "Hard limits on the final ticket-price multiplier.",
+    subtitle: "The final multiplier never leaves these limits.",
     fields: [
       ["minMultiplier", "Minimum multiplier", 0.8, 1, 0.01],
       ["maxMultiplier", "Maximum multiplier", 1, 1.5, 0.01],
@@ -53,17 +40,17 @@ const SECTIONS = [
   },
   {
     title: "Occupancy rules",
-    description: "Only permanently booked seats count toward demand.",
+    subtitle: "Demand is based on permanently booked seats.",
     fields: [
-      ["lowOccupancyThreshold", "Low occupancy (fraction)", 0, 1, 0.01],
-      ["highOccupancyThreshold", "High occupancy (fraction)", 0, 1, 0.01],
+      ["lowOccupancyThreshold", "Low occupancy", 0, 1, 0.01],
+      ["highOccupancyThreshold", "High occupancy", 0, 1, 0.01],
       ["lowDemandDiscount", "Low-demand discount", 0, 0.2, 0.01],
       ["highDemandSurcharge", "High-demand surcharge", 0, 0.3, 0.01],
     ],
   },
   {
     title: "Showtime adjustments",
-    description: "Additional modifiers, capped by your price boundaries.",
+    subtitle: "Additional modifiers, still subject to the price boundaries.",
     fields: [
       ["last48HoursSurcharge", "Within 48 hours", 0, 0.15, 0.01],
       ["last12HoursSurcharge", "Within 12 hours", 0, 0.15, 0.01],
@@ -73,237 +60,288 @@ const SECTIONS = [
   },
 ];
 
-const fields = SECTIONS.flatMap((section) => section.fields);
+const FIELDS = SECTIONS.flatMap((section) => section.fields);
+const identifier = (show) => String(show?._id || "");
+const formatNumber = (n) => Number(n || 0).toLocaleString("en-IN");
 
-const idOf = (record) => String(record?._id || "");
-
-const showDate = (value) => {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "Date unavailable";
-  }
+const formatDate = (value) => {
+  if (!value || Number.isNaN(new Date(value).getTime())) return "Time unavailable";
 
   return new Intl.DateTimeFormat("en-IN", {
     timeZone: "Asia/Kolkata",
-    day: "2-digit",
+    day: "numeric",
     month: "short",
     year: "numeric",
-    hour: "2-digit",
+    hour: "numeric",
     minute: "2-digit",
-    hour12: true,
-  }).format(date);
+  }).format(new Date(value));
 };
 
-const formatPercent = (value) =>
-  `${Math.round(Number(value) * 100)}%`;
-
-const requestError = (error) =>
+const errorText = (error) =>
   error.response?.data?.message ||
   error.response?.data?.error ||
-  "Unable to reach the pricing service.";
+  "Pricing service unavailable.";
 
-function validate(draft) {
-  if (!draft) return "Choose a show first.";
+const normalize = (value) => ({
+  ...DEFAULT_POLICY,
+  ...Object.fromEntries(
+    Object.keys(DEFAULT_POLICY)
+      .filter((key) => value?.[key] !== undefined)
+      .map((key) => [key, value[key]])
+  ),
+});
 
-  for (const [key, label, minimum, maximum] of fields) {
-    const raw = draft[key];
-    const value = Number(raw);
+function validationError(policy) {
+  if (!policy) return "Choose a screening first.";
 
-    if (
-      raw === "" ||
-      raw === null ||
-      !Number.isFinite(value) ||
-      value < minimum ||
-      value > maximum
-    ) {
-      return `${label} must be between ${minimum} and ${maximum}.`;
+  for (const [key, label, low, high] of FIELDS) {
+    const raw = policy[key];
+    const n = Number(raw);
+
+    if (raw === "" || raw == null || !Number.isFinite(n) || n < low || n > high) {
+      return `${label} must be between ${low} and ${high}.`;
     }
   }
 
-  if (
-    Number(draft.minMultiplier) >
-    Number(draft.maxMultiplier)
-  ) {
-    return "Minimum multiplier must not exceed maximum multiplier.";
+  if (Number(policy.minMultiplier) > Number(policy.maxMultiplier)) {
+    return "Minimum multiplier cannot exceed maximum.";
   }
 
-  if (
-    Number(draft.lowOccupancyThreshold) >=
-    Number(draft.highOccupancyThreshold)
-  ) {
-    return "Low occupancy threshold must be lower than high occupancy threshold.";
+  if (Number(policy.lowOccupancyThreshold) >= Number(policy.highOccupancyThreshold)) {
+    return "Low occupancy must be below high occupancy.";
   }
 
-  return null;
+  return "";
+}
+
+function Eyebrow({ children, index }) {
+  return (
+    <p className="flex items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#ff526e]">
+      <span className="h-px w-7 bg-[#D71935]" />
+      {children}
+      <span className="text-zinc-600">/ {index}</span>
+    </p>
+  );
+}
+
+function Metric({ label, value, icon: Icon, note }) {
+  return (
+    <div className={`${PANEL} p-5 transition-colors hover:border-[#D71935]/35 sm:p-6`}>
+      <div className="flex items-center justify-between gap-2 text-xs text-zinc-400">
+        <span>{label}</span>
+        <Icon size={17} className="text-[#ff526e]" />
+      </div>
+      <p className="cine-head mt-4 text-3xl tabular-nums text-white">
+        {formatNumber(value)}
+      </p>
+      <p className="mt-2 text-[11px] text-zinc-500">{note}</p>
+    </div>
+  );
 }
 
 export default function AdminDynamicPricing() {
   const { token } = useAuth();
-  const reducedMotion = useReducedMotion();
+  const reduced = useReducedMotion();
 
   const [page, setPage] = useState(1);
-  const [refreshKey, setRefreshKey] = useState(0);
   const [shows, setShows] = useState([]);
-  const [pagination, setPagination] = useState({
-    pages: 0,
-    total: 0,
-  });
-
+  const [pagination, setPagination] = useState({ pages: 0, total: 0 });
+  const [selectedId, setSelectedId] = useState("");
+  const [query, setQuery] = useState("");
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState("");
-  const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState("");
-
   const [draft, setDraft] = useState(null);
   const [original, setOriginal] = useState(null);
   const [editorLoading, setEditorLoading] = useState(false);
   const [editorError, setEditorError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [notice, setNotice] = useState(false);
+  const refreshController = useRef(null);
 
-  // Load upcoming shows.
-  useEffect(() => {
+  const loadShows = useCallback(async (signal) => {
     if (!token) {
-      setListLoading(false);
-      return undefined;
+      setListError("Administrator authentication is required.");
+      return false;
     }
 
-    const controller = new AbortController();
-
-    setListLoading(true);
     setListError("");
 
-    axios
-      .get(ROOT, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+    try {
+      const { data } = await axios.get(ENDPOINT, {
+        headers: { Authorization: `Bearer ${token}` },
         params: { page },
-        signal: controller.signal,
+        signal,
         timeout: 12000,
-      })
-      .then(({ data }) => {
-        const records = Array.isArray(data?.shows)
-          ? data.shows
-          : [];
-
-        setShows(records);
-        setPagination(
-          data.pagination || {
-            pages: 0,
-            total: 0,
-          }
-        );
-
-        setSelectedId((previous) =>
-          records.some((show) => idOf(show) === previous)
-            ? previous
-            : idOf(records[0])
-        );
-      })
-      .catch((error) => {
-        if (!controller.signal.aborted) {
-          setListError(requestError(error));
-        }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setListLoading(false);
-        }
       });
 
-    return () => controller.abort();
-  }, [token, page, refreshKey]);
+      if (signal?.aborted) return false;
 
-  // Load the selected show's saved policy.
-  useEffect(() => {
-    if (!token || !selectedId) {
-      setDraft(null);
-      setOriginal(null);
-      return undefined;
+      const records = Array.isArray(data?.shows) ? data.shows : [];
+
+      setShows(records);
+      setPagination(data?.pagination || { pages: 0, total: 0 });
+
+      setSelectedId((previous) =>
+        records.some((show) => identifier(show) === previous)
+          ? previous
+          : identifier(records[0])
+      );
+
+      return true;
+    } catch (error) {
+      if (signal?.aborted || axios.isCancel(error)) return false;
+      setListError(errorText(error));
+      return false;
     }
+  }, [token, page]);
 
+  const loadPolicy = useCallback(async (showId, signal) => {
+    if (!token || !showId) return false;
+
+    setEditorError("");
+
+    try {
+      const { data } = await axios.get(
+        `${ENDPOINT}/${encodeURIComponent(showId)}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          signal,
+          timeout: 12000,
+        }
+      );
+
+      if (signal?.aborted) return false;
+
+      const policy = normalize(data?.policy);
+      setDraft(policy);
+      setOriginal(policy);
+      return true;
+    } catch (error) {
+      if (signal?.aborted || axios.isCancel(error)) return false;
+      setEditorError(errorText(error));
+      return false;
+    }
+  }, [token]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setListLoading(true);
+
+    loadShows(controller.signal).finally(() => {
+      if (!controller.signal.aborted) setListLoading(false);
+    });
+
+    return () => controller.abort();
+  }, [loadShows]);
+
+  useEffect(() => {
     const controller = new AbortController();
 
     setDraft(null);
     setOriginal(null);
-    setEditorError("");
+
+    if (!selectedId) return () => controller.abort();
+
     setEditorLoading(true);
 
-    axios
-      .get(`${ROOT}/${encodeURIComponent(selectedId)}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        signal: controller.signal,
-        timeout: 12000,
-      })
-      .then(({ data }) => {
-        const policy = {
-          ...DEFAULT_POLICY,
-          ...(data.policy || {}),
-        };
-
-        setDraft(policy);
-        setOriginal(policy);
-      })
-      .catch((error) => {
-        if (!controller.signal.aborted) {
-          setEditorError(requestError(error));
-        }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setEditorLoading(false);
-        }
-      });
+    loadPolicy(selectedId, controller.signal).finally(() => {
+      if (!controller.signal.aborted) setEditorLoading(false);
+    });
 
     return () => controller.abort();
-  }, [token, selectedId, refreshKey]);
+  }, [loadPolicy, selectedId]);
 
-  const selectedShow = shows.find(
-    (show) => idOf(show) === selectedId
+  useEffect(() => () => refreshController.current?.abort(), []);
+
+  useEffect(() => {
+    if (!notice) return undefined;
+
+    const timer = window.setTimeout(() => setNotice(false), 5000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+
+  const changed = Boolean(
+    draft && original && JSON.stringify(draft) !== JSON.stringify(original)
   );
+
+  const selected = shows.find((show) => identifier(show) === selectedId);
 
   const visibleShows = useMemo(() => {
     const term = query.toLowerCase().trim();
 
-    if (!term) return shows;
-
-    return shows.filter((show) =>
-      [
-        show.movie?.title,
-        show.theatre?.name,
-        show.theatre?.city,
-        show.screen?.name,
-        show.screen?.screenNumber,
-      ].some((part) =>
-        String(part ?? "")
-          .toLowerCase()
-          .includes(term)
-      )
-    );
+    return !term
+      ? shows
+      : shows.filter((show) =>
+          [
+            show.movie?.title,
+            show.theatre?.name,
+            show.theatre?.city,
+            show.screen?.name,
+            show.screen?.screenNumber,
+          ].some((part) => String(part ?? "").toLowerCase().includes(term))
+        );
   }, [query, shows]);
 
-  const enabledCount = shows.filter(
-    (show) => show.dynamicPricing?.enabled
-  ).length;
+  const activeCount = shows.filter((show) => show.dynamicPricing?.enabled).length;
 
-  const changed = Boolean(
-    draft &&
-      original &&
-      JSON.stringify(draft) !== JSON.stringify(original)
-  );
+  const confirmDiscard = () =>
+    !changed || window.confirm("Discard the unsaved pricing changes?");
 
-  const savePolicy = async (event) => {
+  function selectShow(id) {
+    if (!saving && !refreshing && confirmDiscard()) setSelectedId(id);
+  }
+
+  function changePage(next) {
+    if (saving || refreshing || listLoading || !confirmDiscard()) return;
+    setPage(next);
+  }
+
+  async function refresh() {
+    if (
+      saving ||
+      refreshing ||
+      listLoading ||
+      editorLoading ||
+      !confirmDiscard()
+    ) return;
+
+    const controller = new AbortController();
+    refreshController.current = controller;
+
+    setNotice(false);
+    setRefreshing(true);
+
+    try {
+      const [listOk, policyOk] = await Promise.all([
+        loadShows(controller.signal),
+        selectedId
+          ? loadPolicy(selectedId, controller.signal)
+          : Promise.resolve(true),
+        new Promise((resolve) => window.setTimeout(resolve, 650)),
+      ]);
+
+      if (!controller.signal.aborted && listOk && policyOk) {
+        setNotice(true);
+      }
+    } finally {
+      if (!controller.signal.aborted) setRefreshing(false);
+
+      if (refreshController.current === controller) {
+        refreshController.current = null;
+      }
+    }
+  }
+
+  async function save(event) {
     event.preventDefault();
 
-    if (!selectedId || !draft || saving) return;
+    if (saving || refreshing || editorLoading || !selectedId || !draft) return;
 
-    const error = validate(draft);
+    const invalid = validationError(draft);
 
-    if (error) {
-      toast.error(error);
+    if (invalid) {
+      toast.error(invalid);
       return;
     }
 
@@ -311,17 +349,13 @@ export default function AdminDynamicPricing() {
       draft.enabled &&
       !original?.enabled &&
       !window.confirm(
-        "Enable dynamic pricing for this show? New payment requests may be charged adjusted prices."
+        "Enable dynamic pricing for this show? New payment requests may use adjusted ticket prices."
       )
-    ) {
-      return;
-    }
+    ) return;
 
-    const payload = {
-      enabled: Boolean(draft.enabled),
-    };
+    const payload = { enabled: Boolean(draft.enabled) };
 
-    for (const [key] of fields) {
+    for (const [key] of FIELDS) {
       payload[key] = Number(draft[key]);
     }
 
@@ -329,443 +363,353 @@ export default function AdminDynamicPricing() {
 
     try {
       const { data } = await axios.put(
-        `${ROOT}/${encodeURIComponent(selectedId)}`,
+        `${ENDPOINT}/${encodeURIComponent(selectedId)}`,
         payload,
         {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
           timeout: 12000,
         }
       );
 
-      const saved = {
-        ...DEFAULT_POLICY,
-        ...(data.policy || payload),
-      };
+      const saved = normalize(data?.policy || payload);
 
       setDraft(saved);
       setOriginal(saved);
 
-      setShows((old) =>
-        old.map((show) =>
-          idOf(show) === selectedId
-            ? {
-                ...show,
-                dynamicPricing: saved,
-              }
+      setShows((previous) =>
+        previous.map((show) =>
+          identifier(show) === selectedId
+            ? { ...show, dynamicPricing: saved }
             : show
         )
       );
 
-      toast.success(
-        data.message || "Pricing policy saved."
-      );
+      toast.success(data?.message || "Pricing policy saved.");
     } catch (error) {
-      toast.error(requestError(error));
+      toast.error(errorText(error));
     } finally {
       setSaving(false);
     }
-  };
+  }
 
   return (
-    <div className="mx-auto max-w-[1440px] pb-20 text-white">
-      <header className="mb-7 flex flex-wrap items-end justify-between gap-4 border-b border-white/10 pb-7">
-        <div>
-          <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#f07588]">
-            <SlidersHorizontal size={14} />
-            Revenue management
-          </div>
+    <div className="mx-auto max-w-[1460px] pb-16 text-white">
+      <header className="flex flex-wrap items-end justify-between gap-6 border-b border-white/10 pb-7">
+        <div className="min-w-0">
+          <Eyebrow index="10">Revenue management</Eyebrow>
 
-          <h1 className="text-3xl font-semibold tracking-[-0.045em] sm:text-4xl">
-            Dynamic pricing
+          <h1 className="cine-display mt-5 text-[clamp(2.2rem,3.8vw,3.8rem)] leading-[1.14]">
+            Intelligent <span className="text-[#ff4562]">pricing.</span>
           </h1>
 
-          <p className="mt-2 max-w-xl text-sm leading-6 text-[#aaa9b3]">
-            Set pricing limits by show. Every policy
-            starts disabled and applies only when
-            you enable it.
+          <p className="mt-4 max-w-[590px] text-sm leading-7 text-zinc-400">
+            Fine-tune demand-based pricing per screening. Policies remain
+            inactive until explicitly enabled and saved.
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setRefreshKey((n) => n + 1)}
-          className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-4 py-2.5 text-sm text-white/80 transition hover:bg-white/5"
-        >
-          <RefreshCw size={15} />
-          Refresh
-        </button>
+        <div className="flex flex-col items-start gap-2 sm:items-end">
+          <button
+            type="button"
+            aria-busy={refreshing}
+            disabled={refreshing || saving || listLoading || editorLoading}
+            onClick={refresh}
+            className="inline-flex min-h-[44px] items-center gap-2.5 rounded-full border border-white/20 bg-white/[0.035] px-5 py-3 text-xs font-semibold text-zinc-200 transition-colors hover:border-[#D71935]/60 hover:bg-[#D71935]/10 disabled:opacity-50"
+          >
+            <motion.span
+              className="inline-flex text-[#ff526e]"
+              animate={refreshing && !reduced ? { rotate: 360 } : { rotate: 0 }}
+              transition={
+                refreshing && !reduced
+                  ? { repeat: Infinity, duration: 1.15, ease: "linear" }
+                  : { duration: 0.2 }
+              }
+            >
+              <RefreshCw size={16} />
+            </motion.span>
+            {refreshing ? "Refreshing..." : "Refresh pricing"}
+          </button>
+
+          <div className="min-h-[20px]" aria-live="polite">
+            <AnimatePresence>
+              {notice && (
+                <motion.p
+                  key="success"
+                  role="status"
+                  initial={reduced ? false : { opacity: 0, y: -5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="inline-flex items-center gap-2 text-xs text-emerald-300"
+                >
+                  <CheckCircle2 size={15} />
+                  Pricing data updated
+                </motion.p>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
       </header>
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-3">
-        {[
-          [
-            "Upcoming shows",
-            pagination.total ?? 0,
-            CalendarClock,
-          ],
-          [
-            "Loaded on this page",
-            shows.length,
-            Activity,
-          ],
-          [
-            "Dynamic pricing on",
-            enabledCount,
-            IndianRupee,
-          ],
-        ].map(([label, value, Icon]) => (
-          <div
-            key={label}
-            className="rounded-xl border border-white/10 bg-[#17171b] p-4"
-          >
-            <div className="flex items-center justify-between text-xs text-white/50">
-              {label}
-              <Icon size={16} />
+      <section aria-label="Pricing overview" className="mt-7 grid gap-4 sm:grid-cols-3">
+        <Metric
+          label="Upcoming screenings"
+          value={pagination.total}
+          note="Across all result pages"
+          icon={CalendarClock}
+        />
+        <Metric
+          label="On this page"
+          value={shows.length}
+          note="Up to 30 screenings"
+          icon={Activity}
+        />
+        <Metric
+          label="Dynamic pricing active"
+          value={activeCount}
+          note="Count on this page only"
+          icon={IndianRupee}
+        />
+      </section>
+
+      <div className="mt-7 grid items-start gap-5 xl:grid-cols-[minmax(270px,.85fr)_minmax(0,1.5fr)]">
+        <section className={`${PANEL} min-w-0 overflow-hidden`} aria-label="Upcoming shows">
+          <div className="border-b border-white/10 p-5 sm:p-6">
+            <Eyebrow index="01">Choose a screening</Eyebrow>
+            <h2 className="cine-head mt-4 text-2xl">Upcoming shows</h2>
+            <p className="mt-2 text-xs text-zinc-500">
+              Choose a screening to adjust its individual policy.
+            </p>
+
+            <div className="relative mt-5">
+              <Search
+                size={16}
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500"
+              />
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                aria-label="Filter shows on this page"
+                placeholder="Search within this page"
+                className={`${INPUT} pl-11`}
+              />
             </div>
 
-            <p className="mt-3 text-2xl font-semibold tabular-nums">
-              {value}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(250px,0.85fr)_minmax(0,1.5fr)]">
-        {/* SHOW SELECTION */}
-
-        <section
-          className="rounded-2xl border border-white/10 bg-[#17171b] p-4 sm:p-5"
-          aria-label="Upcoming shows"
-        >
-          <h2 className="font-semibold">
-            Upcoming shows
-          </h2>
-
-          <p className="mt-1 text-xs text-white/45">
-            Choose a show to edit its policy.
-          </p>
-
-          <div className="relative mt-4">
-            <Search
-              size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40"
-            />
-
-            <input
-              value={query}
-              onChange={(event) =>
-                setQuery(event.target.value)
-              }
-              placeholder="Filter shows on this page"
-              aria-label="Filter shows on this page"
-              className={`${INPUT} pl-10`}
-            />
+            {listError && (
+              <p role="alert" className="mt-4 text-xs leading-6 text-rose-300">
+                {listError}
+              </p>
+            )}
           </div>
 
-          {listError && (
-            <p
-              role="alert"
-              className="mt-4 text-sm text-red-300"
-            >
-              {listError}
-            </p>
-          )}
-
-          <div className="mt-4 max-h-[570px] space-y-2 overflow-y-auto pr-1">
+          <div className="max-h-[620px] space-y-2 overflow-y-auto p-3">
             {listLoading && (
-              <p className="p-4 text-sm text-white/50">
-                Loading shows…
+              <p role="status" className="p-5 text-sm text-zinc-400">
+                Loading upcoming shows...
               </p>
             )}
 
-            {!listLoading &&
-              !visibleShows.length && (
-                <p className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-white/50">
-                  No matching upcoming shows.
-                </p>
-              )}
+            {!listLoading && !visibleShows.length && (
+              <p className="p-5 text-sm text-zinc-500">
+                No matching upcoming screenings.
+              </p>
+            )}
 
-            {!listLoading &&
-              visibleShows.map((show) => {
-                const active =
-                  selectedId === idOf(show);
+            {!listLoading && visibleShows.map((show, index) => {
+              const active = identifier(show) === selectedId;
 
-                return (
-                  <button
-                    key={idOf(show)}
-                    type="button"
-                    onClick={() =>
-                      setSelectedId(idOf(show))
-                    }
-                    aria-pressed={active}
-                    className={`w-full rounded-xl border p-4 text-left transition ${
-                      active
-                        ? "border-[#D71935]/70 bg-[#D71935]/10"
-                        : "border-white/10 bg-[#202024] hover:border-white/25"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <span className="text-sm font-semibold leading-5">
-                        {show.movie?.title ||
-                          "Untitled film"}
-                      </span>
+              return (
+                <button
+                  key={identifier(show)}
+                  type="button"
+                  disabled={saving || refreshing}
+                  aria-pressed={active}
+                  onClick={() => selectShow(identifier(show))}
+                  className={`group flex w-full items-start gap-3 rounded-xl border p-4 text-left transition-colors disabled:opacity-60 ${
+                    active
+                      ? "border-[#D71935]/60 bg-[#D71935]/10"
+                      : "border-white/[0.07] bg-[#19191d] hover:border-white/25"
+                  }`}
+                >
+                  <span className="mt-0.5 text-[10px] tabular-nums text-[#ff526e]">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
 
-                      <span
-                        className={`shrink-0 text-[10px] font-semibold uppercase tracking-wide ${
-                          show.dynamicPricing?.enabled
-                            ? "text-[#f38b9a]"
-                            : "text-white/40"
-                        }`}
-                      >
-                        {show.dynamicPricing?.enabled
-                          ? "Active"
-                          : "Fixed"}
-                      </span>
-                    </div>
+                  <span className="min-w-0 flex-1">
+                    <span className="cine-head block break-words text-[15px] text-white">
+                      {show.movie?.title || "Untitled film"}
+                    </span>
+                    <span className="mt-2 block text-xs text-zinc-400">
+                      {formatDate(show.startTime)}
+                    </span>
+                    <span className="mt-1 block text-xs leading-5 text-zinc-500">
+                      {[show.theatre?.name, show.screen?.name]
+                        .filter(Boolean).join(" · ") || "Location unavailable"}
+                    </span>
+                  </span>
 
-                    <p className="mt-2 text-xs text-white/50">
-                      {showDate(show.startTime)}
-                    </p>
-
-                    <p className="mt-1 text-xs text-white/40">
-                      {[
-                        show.theatre?.name,
-                        show.screen?.name,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ") ||
-                        "Cinema details unavailable"}
-                    </p>
-                  </button>
-                );
-              })}
+                  <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-semibold ${
+                    show.dynamicPricing?.enabled
+                      ? "border-[#D71935]/50 bg-[#D71935]/15 text-[#ff8295]"
+                      : "border-white/10 text-zinc-400"
+                  }`}>
+                    {show.dynamicPricing?.enabled ? "Dynamic" : "Fixed"}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
-          <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-4 text-xs text-white/50">
+          <div className="flex items-center justify-between gap-3 border-t border-white/10 p-4 text-xs text-zinc-400 sm:px-6">
             <span>
-              Page {page} of{" "}
-              {Math.max(
-                1,
-                Number(pagination.pages) || 1
-              )}
+              Page {page} / {Math.max(1, Number(pagination.pages) || 1)}
             </span>
-
             <div className="flex gap-2">
               <button
                 type="button"
                 aria-label="Previous page"
-                disabled={page <= 1 || listLoading}
-                onClick={() =>
-                  setPage((n) => n - 1)
-                }
-                className="rounded-lg border border-white/10 p-2 disabled:opacity-30"
+                disabled={page <= 1 || listLoading || refreshing || saving}
+                onClick={() => changePage(page - 1)}
+                className="rounded-full border border-white/15 p-2.5 hover:bg-white/10 disabled:opacity-30"
               >
-                <ArrowLeft size={15} />
+                <ArrowLeft size={16} />
               </button>
 
               <button
                 type="button"
                 aria-label="Next page"
-                disabled={
-                  page >=
-                    (Number(pagination.pages) ||
-                      0) ||
-                  listLoading
-                }
-                onClick={() =>
-                  setPage((n) => n + 1)
-                }
-                className="rounded-lg border border-white/10 p-2 disabled:opacity-30"
+                disabled={page >= Number(pagination.pages || 0) || listLoading || refreshing || saving}
+                onClick={() => changePage(page + 1)}
+                className="rounded-full border border-white/15 p-2.5 hover:bg-white/10 disabled:opacity-30"
               >
-                <ArrowRight size={15} />
+                <ArrowRight size={16} />
               </button>
             </div>
           </div>
         </section>
 
-        {/* PRICING EDITOR */}
-
         <motion.section
-          key={selectedId || "none"}
-          initial={
-            reducedMotion
-              ? false
-              : { opacity: 0, y: 8 }
-          }
+          key={selectedId || "empty"}
+          initial={reduced ? false : { opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25 }}
-          className="min-w-0 rounded-2xl border border-white/10 bg-[#17171b] p-5 sm:p-7"
+          transition={{ duration: 0.35, ease: EASE }}
+          className={`${PANEL} min-w-0 overflow-hidden p-5 sm:p-7`}
           aria-label="Pricing policy editor"
         >
           {!selectedId ? (
-            <p className="py-20 text-center text-sm text-white/50">
-              Select an upcoming show to
-              configure pricing.
+            <p className="py-20 text-center text-sm text-zinc-400">
+              Select an upcoming show to configure its pricing.
             </p>
           ) : editorLoading || !draft ? (
-            <div className="py-20 text-center text-sm text-white/50">
+            <div className="py-20 text-center text-sm text-zinc-400" role="status">
               {editorError ? (
-                <p
-                  role="alert"
-                  className="text-red-300"
-                >
-                  {editorError}
-                </p>
-              ) : (
-                "Loading pricing policy…"
-              )}
+                <p role="alert" className="text-rose-300">{editorError}</p>
+              ) : "Loading pricing policy..."}
             </div>
           ) : (
-            <form onSubmit={savePolicy}>
-              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-white/10 pb-5">
-                <div>
-                  <p className="text-[11px] uppercase tracking-[0.15em] text-white/45">
-                    Selected show
-                  </p>
-
-                  <h2 className="mt-1 text-xl font-semibold tracking-tight">
-                    {selectedShow?.movie?.title ||
-                      "Upcoming show"}
+            <form onSubmit={save}>
+              <div className="flex flex-wrap items-start justify-between gap-5 border-b border-white/10 pb-6">
+                <div className="min-w-0">
+                  <Eyebrow index="02">Policy editor</Eyebrow>
+                  <h2 className="cine-head mt-4 break-words text-2xl">
+                    {selected?.movie?.title || "Selected screening"}
                   </h2>
-
-                  <p className="mt-1 text-xs text-white/50">
-                    {showDate(
-                      selectedShow?.startTime
-                    )}
+                  <p className="mt-2 text-xs text-zinc-400">
+                    {formatDate(selected?.startTime)}
                   </p>
                 </div>
 
-                <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 bg-[#222227] px-4 py-3">
-                  <span className="text-sm font-medium">
-                    Enable pricing
+                <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/15 bg-white/[0.04] px-4 py-3">
+                  <span className="text-xs font-semibold text-zinc-200">
+                    Enable policy
                   </span>
-
                   <input
                     type="checkbox"
-                    checked={Boolean(
-                      draft.enabled
-                    )}
-                    onChange={(event) =>
-                      setDraft((old) => ({
-                        ...old,
-                        enabled:
-                          event.target.checked,
-                      }))
-                    }
-                    className="h-4 w-4 accent-[#D71935]"
+                    checked={Boolean(draft.enabled)}
+                    onChange={(event) => setDraft((previous) => ({
+                      ...previous,
+                      enabled: event.target.checked,
+                    }))}
+                    className="h-5 w-5 accent-[#D71935]"
                   />
                 </label>
               </div>
 
-              <div className="mt-5 flex items-start gap-3 rounded-xl border border-[#D71935]/20 bg-[#D71935]/[0.06] p-4">
+              <div className="mt-6 flex items-start gap-3 rounded-xl border border-[#D71935]/25 bg-[#D71935]/[0.07] p-4">
                 <CircleAlert
                   size={18}
-                  className="mt-0.5 shrink-0 text-[#ec778a]"
+                  className="mt-0.5 shrink-0 text-[#ff8295]"
                 />
-
-                <p className="text-xs leading-6 text-[#d1bdc1]">
+                <p className="text-xs leading-6 text-zinc-300">
                   {draft.enabled
-                    ? "Dynamic pricing will apply to new payment requests after you save. Already-created PaymentIntents keep their existing price."
-                    : "Fixed ticket prices remain in use. You can save these settings without activating them."}
+                    ? "Saving this enabled policy affects new payment requests. PaymentIntents created earlier retain their existing price."
+                    : "Fixed prices remain active. You can save these parameters without enabling dynamic pricing."}
                 </p>
               </div>
 
-              {SECTIONS.map((section) => (
+              {SECTIONS.map((section, index) => (
                 <fieldset
                   key={section.title}
                   className="mt-7 border-t border-white/10 pt-6"
                 >
-                  <legend className="sr-only">
-                    {section.title}
-                  </legend>
-
-                  <h3 className="text-sm font-semibold">
+                  <legend className="sr-only">{section.title}</legend>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#ff526e]">
+                    {String(index + 1).padStart(2, "0")} / Rules
+                  </p>
+                  <h3 className="cine-head mt-3 text-xl text-white">
                     {section.title}
                   </h3>
-
-                  <p className="mt-1 text-xs leading-5 text-white/45">
-                    {section.description}
+                  <p className="mt-2 text-xs leading-6 text-zinc-500">
+                    {section.subtitle}
                   </p>
 
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    {section.fields.map(
-                      ([
-                        key,
-                        label,
-                        min,
-                        max,
-                        step,
-                      ]) => (
-                        <label
-                          key={key}
-                          className="block text-xs text-white/70"
-                        >
-                          <span>{label}</span>
-
-                          <input
-                            type="number"
-                            inputMode="decimal"
-                            min={min}
-                            max={max}
-                            step={step}
-                            value={draft[key]}
-                            required
-                            onChange={(event) =>
-                              setDraft((old) => ({
-                                ...old,
-                                [key]:
-                                  event.target.value,
-                              }))
-                            }
-                            className={`${INPUT} mt-1.5`}
-                          />
-
-                          <span className="mt-1 block text-[11px] text-white/35">
-                            {key.includes(
-                              "Multiplier"
-                            )
-                              ? `${min}×–${max}× base price`
-                              : `${formatPercent(
-                                  min
-                                )}–${formatPercent(
-                                  max
-                                )}`}
-                          </span>
-                        </label>
-                      )
-                    )}
+                  <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                    {section.fields.map(([key, label, low, high, step]) => (
+                      <label
+                        key={key}
+                        className="block rounded-xl border border-white/[0.07] bg-white/[0.025] p-4"
+                      >
+                        <span className="block text-xs text-zinc-300">
+                          {label}
+                        </span>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          required
+                          value={draft[key]}
+                          min={low}
+                          max={high}
+                          step={step}
+                          onChange={(event) => setDraft((previous) => ({
+                            ...previous,
+                            [key]: event.target.value,
+                          }))}
+                          className={`${INPUT} mt-3`}
+                        />
+                        <span className="mt-2 block text-[11px] text-zinc-500">
+                          {key.includes("Multiplier")
+                            ? `${low}×–${high}× base`
+                            : `${Math.round(low * 100)}%–${Math.round(high * 100)}%`}
+                        </span>
+                      </label>
+                    ))}
                   </div>
                 </fieldset>
               ))}
 
-              <div className="mt-7 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-6">
-                <p className="text-xs text-white/50">
-                  {changed
-                    ? "Unsaved policy changes"
-                    : "Policy up to date"}
+              <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-6">
+                <p className={`text-xs ${changed ? "text-amber-200" : "text-zinc-500"}`}>
+                  {changed ? "Unsaved changes" : "All changes saved"}
                 </p>
-
                 <button
                   type="submit"
-                  disabled={saving || !changed}
-                  className="inline-flex items-center gap-2 rounded-xl bg-[#D71935] px-6 py-3 text-sm font-semibold transition hover:bg-[#e72b47] disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={!changed || saving || refreshing}
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-[#D71935] px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#ed304d] disabled:cursor-not-allowed disabled:opacity-45"
                 >
-                  {saving ? (
-                    <RefreshCw
-                      size={16}
-                      className="animate-spin"
-                    />
-                  ) : changed ? (
-                    <Save size={16} />
-                  ) : (
-                    <Check size={16} />
-                  )}
-
                   {saving
-                    ? "Saving…"
-                    : "Save policy"}
+                    ? <RefreshCw size={16} className={reduced ? "" : "animate-spin"} />
+                    : <Save size={16} />}
+                  {saving ? "Saving..." : "Save policy"}
                 </button>
               </div>
             </form>

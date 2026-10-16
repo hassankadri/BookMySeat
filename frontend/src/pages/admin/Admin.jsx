@@ -6,23 +6,22 @@ import React, {
   useRef,
   useState,
 } from "react";
-
 import axios from "axios";
-import toast from "react-hot-toast";
-
 import {
   AnimatePresence,
   motion,
   useReducedMotion,
 } from "framer-motion";
-
 import {
   Activity,
+  ArrowRight,
   ArrowUpRight,
   Armchair,
   BarChart3,
   Building2,
   CalendarPlus,
+  CheckCircle2,
+  Clapperboard,
   Film,
   LayoutDashboard,
   Menu,
@@ -34,7 +33,6 @@ import {
   Users,
   X,
 } from "lucide-react";
-
 import {
   Link,
   Navigate,
@@ -42,222 +40,234 @@ import {
   Outlet,
   useLocation,
 } from "react-router-dom";
-
 import { useAuth } from "../../context/AuthContext";
+import PageShell from "../../components/ui/PageShell";
+import "./adminTheme.css";
 
 const API_URL = (
   process.env.REACT_APP_BACKEND_URL || ""
 ).replace(/\/+$/, "");
 
-const INR = (value) =>
-  `₹${Number(value || 0).toLocaleString("en-IN")}`;
+const EASE = [0.22, 1, 0.36, 1];
 
-const NUMBER = (value) =>
+const formatNumber = (value) =>
   Number(value || 0).toLocaleString("en-IN");
 
-// =====================================================
-// ADMIN NAVIGATION
-// =====================================================
+const formatMoney = (value) =>
+  `₹${Number(value || 0).toLocaleString("en-IN")}`;
 
-const GROUPS = [
+// These links correspond to the nested /admin routes in App.js.
+const NAV_GROUPS = [
   {
     title: "Overview",
     items: [
       {
-        name: "Dashboard",
+        label: "Dashboard",
         to: "/admin",
         icon: LayoutDashboard,
         end: true,
       },
       {
-        name: "Analytics",
+        label: "Analytics",
         to: "/admin/analytics",
         icon: BarChart3,
       },
     ],
   },
   {
-    title: "Your cinemas",
+    title: "Cinema network",
     items: [
       {
-        name: "Movies",
+        label: "Movies",
         to: "/admin/movies",
         icon: Film,
       },
       {
-        name: "Theatres",
+        label: "Theatres",
         to: "/admin/theatres",
         icon: Building2,
       },
       {
-        name: "Screens",
+        label: "Screens",
         to: "/admin/screens",
         icon: Armchair,
       },
     ],
   },
   {
-    title: "Operations",
+    title: "Bookings & shows",
     items: [
       {
-        name: "Add show",
+        label: "Add show",
         to: "/admin/add-show",
         icon: CalendarPlus,
       },
       {
-        name: "Showtimes",
+        label: "Showtimes",
         to: "/admin/shows",
         icon: Activity,
       },
       {
-        name: "Dynamic pricing",
-        to: "/admin/pricing",
-        icon: SlidersHorizontal,
-      },
-      {
-        name: "Fraud monitoring",
-        to: "/admin/risk",
-        icon: ShieldAlert,
-      },
-      {
-        name: "Bookings",
+        label: "Bookings",
         to: "/admin/bookings",
         icon: Ticket,
       },
       {
-        name: "Users",
-        to: "/admin/users",
-        icon: Users,
-      },
-      {
-        name: "Ticket scanner",
+        label: "Ticket scanner",
         to: "/admin/scanner",
         icon: QrCode,
       },
     ],
   },
+  {
+    title: "Platform controls",
+    items: [
+      {
+        label: "Dynamic pricing",
+        to: "/admin/pricing",
+        icon: SlidersHorizontal,
+      },
+      {
+        label: "Risk monitoring",
+        to: "/admin/risk",
+        icon: ShieldAlert,
+      },
+      {
+        label: "Users",
+        to: "/admin/users",
+        icon: Users,
+      },
+    ],
+  },
 ];
 
-const easing = [0.22, 1, 0.36, 1];
-
-const surface =
-  "border border-white/[0.09] bg-[#121215]";
-
-// =====================================================
-// ADMIN SIDEBAR
-// =====================================================
-
-function Sidebar({ onClose }) {
+function AdminSidebar({ onNavigate }) {
+  const reducedMotion = useReducedMotion();
   const [hovered, setHovered] = useState(null);
-  const hoverScope = useId();
+  const animationScope = useId();
 
   return (
-    <div className="flex h-full flex-col bg-[#0f0f12]">
-      <div className="flex items-start justify-between px-8 pb-9 pt-10">
+    <div className="bms-admin-sidebar flex h-full flex-col">
+      <div className="flex shrink-0 items-start justify-between gap-3 border-b border-white/[0.08] px-6 pb-7 pt-8 sm:px-7">
         <Link
           to="/admin"
-          onClick={onClose}
-          aria-label="BookMySeat administration home"
-          className="group block focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#D71935]"
+          onClick={onNavigate}
+          aria-label="BookMySeat admin dashboard"
+          className="group flex min-w-0 items-center gap-3"
         >
-          <span className="block text-[20px] font-bold leading-none tracking-[-0.055em] text-[#f5f3f1]">
-            BookMySeat
-            <span className="text-[#D71935]">.</span>
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] border border-[#D71935]/35 bg-[#D71935]/10 text-[#ff5772] transition-colors duration-300 group-hover:bg-[#D71935]/20">
+            <Clapperboard
+              size={21}
+              strokeWidth={1.65}
+            />
           </span>
 
-          <span className="mt-3 block text-[11px] font-medium tracking-[0.08em] text-[#81818c]">
-            Cinema administration
+          <span className="min-w-0">
+            <span className="cine-head block truncate text-[20px] leading-none text-white">
+              BookMySeat
+              <span className="text-[#ff4968]">.</span>
+            </span>
+            <span className="mt-2 block text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+              Administration
+            </span>
           </span>
         </Link>
 
         <button
           type="button"
-          onClick={onClose}
-          aria-label="Close menu"
-          className="rounded-md p-2 text-[#9999a3] transition hover:bg-white/5 hover:text-white lg:hidden"
+          aria-label="Close navigation"
+          onClick={onNavigate}
+          className="rounded-full border border-white/10 p-2 text-zinc-400 transition-colors hover:bg-white/10 hover:text-white lg:hidden"
         >
-          <X size={19} />
+          <X size={17} />
         </button>
       </div>
 
-      <div className="mx-8 h-px bg-white/[0.09]" />
-
       <div
-        className="min-h-0 flex-1 overflow-y-auto px-5 pb-12 pt-8"
+        className="bms-admin-nav min-h-0 flex-1 space-y-8 overflow-y-auto px-4 pb-10 pt-7 sm:px-5"
         onMouseLeave={() => setHovered(null)}
       >
-        {GROUPS.map((group, groupIndex) => (
+        {NAV_GROUPS.map((group) => (
           <nav
             key={group.title}
             aria-label={group.title}
-            className={groupIndex ? "mt-9" : ""}
           >
-            <p className="mb-3 px-4 text-[11px] font-semibold uppercase tracking-[0.13em] text-[#858590]">
+            <p className="mb-3 px-4 text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
               {group.title}
             </p>
 
             <div className="space-y-1">
               {group.items.map(
-                ({ name, to, end, icon: Icon }) => (
+                ({ label, to, icon: Icon, end }) => (
                   <NavLink
                     key={to}
                     to={to}
                     end={end}
-                    onClick={onClose}
-                    onMouseEnter={() => setHovered(to)}
+                    onClick={onNavigate}
                     onFocus={() => setHovered(to)}
+                    onMouseEnter={() => setHovered(to)}
                     className={({ isActive }) =>
-                      `group relative flex min-h-[49px] items-center gap-4 overflow-hidden rounded-lg px-4 py-3 text-[15px] tracking-[-0.02em] transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#D71935] ${
+                      `group relative flex min-h-[45px] items-center gap-3 overflow-hidden rounded-xl px-4 py-3 text-[13px] transition-colors duration-200 ${
                         isActive
-                          ? "font-semibold text-[#f7f5f3]"
-                          : "font-medium text-[#a6a6af] hover:text-white"
+                          ? "font-semibold text-white"
+                          : "font-medium text-zinc-400 hover:text-white"
                       }`
                     }
                   >
                     {({ isActive }) => (
                       <>
-                        {hovered === to && (
+                        {hovered === to && !reducedMotion && (
                           <motion.span
-                            layoutId={`bms-sidebar-hover-${hoverScope}`}
-                            className="pointer-events-none absolute inset-0 rounded-lg bg-white/[0.055]"
+                            layoutId={`admin-hover-${animationScope}`}
+                            className="pointer-events-none absolute inset-0 rounded-xl bg-white/[0.055]"
                             transition={{
                               type: "spring",
-                              stiffness: 390,
-                              damping: 33,
+                              stiffness: 430,
+                              damping: 38,
                             }}
                           />
                         )}
 
                         {isActive && (
                           <>
-                            <span className="pointer-events-none absolute inset-0 rounded-lg bg-[linear-gradient(90deg,rgba(215,25,53,0.11),rgba(215,25,53,0.02)_68%,transparent)]" />
-
+                            <span className="pointer-events-none absolute inset-0 rounded-xl border border-[#D71935]/20 bg-[linear-gradient(90deg,rgba(215,25,53,.16),rgba(215,25,53,.035)_70%)]" />
                             <motion.span
-                              layoutId={`bms-sidebar-active-${hoverScope}`}
-                              className="pointer-events-none absolute bottom-2 left-0 top-2 w-[3px] rounded-full bg-[#D71935]"
-                              transition={{
-                                type: "spring",
-                                stiffness: 360,
-                                damping: 32,
-                              }}
+                              layoutId={`admin-active-${animationScope}`}
+                              className="pointer-events-none absolute bottom-2 left-0 top-2 w-[3px] rounded-r-full bg-[#ff4968]"
+                              transition={
+                                reducedMotion
+                                  ? { duration: 0 }
+                                  : {
+                                      type: "spring",
+                                      stiffness: 420,
+                                      damping: 38,
+                                    }
+                              }
                             />
                           </>
                         )}
 
                         <Icon
-                          size={19}
-                          strokeWidth={1.65}
-                          className={`relative shrink-0 transition-colors duration-300 ${
-                            isActive
-                              ? "text-[#f25c76]"
-                              : "text-[#777782] group-hover:text-[#e4e2e3]"
-                          }`}
+                          size={17}
+                          strokeWidth={1.75}
                           aria-hidden="true"
+                          className={`relative shrink-0 transition-colors duration-200 ${
+                            isActive
+                              ? "text-[#ff5772]"
+                              : "text-zinc-500 group-hover:text-zinc-200"
+                          }`}
                         />
 
-                        <span className="relative truncate">
-                          {name}
+                        <span className="relative min-w-0 flex-1 truncate">
+                          {label}
                         </span>
+
+                        {isActive && (
+                          <span
+                            className="relative h-1 w-1 shrink-0 rounded-full bg-[#ff4968]"
+                            aria-hidden="true"
+                          />
+                        )}
                       </>
                     )}
                   </NavLink>
@@ -267,93 +277,97 @@ function Sidebar({ onClose }) {
           </nav>
         ))}
       </div>
+
+      <div className="shrink-0 border-t border-white/[0.08] px-7 py-5">
+        <p className="text-[10px] uppercase tracking-[0.16em] text-zinc-600">
+          BookMySeat / Operations
+        </p>
+      </div>
     </div>
   );
 }
 
-// =====================================================
-// DASHBOARD METRIC
-// =====================================================
-
-function Metric({
-  label,
-  value,
-  note,
-  icon: Icon,
-  delay = 0,
-}) {
-  const reduced = useReducedMotion();
-
+function Eyebrow({ children, index }) {
   return (
-    <motion.div
-      initial={
-        reduced
-          ? false
-          : { opacity: 0, y: 24 }
-      }
-      animate={{ opacity: 1, y: 0 }}
-      transition={{
-        duration: 0.55,
-        ease: easing,
-        delay,
-      }}
-      whileHover={
-        reduced ? undefined : { y: -4 }
-      }
-      className={`${surface} group relative overflow-hidden rounded-[22px] p-6 transition-colors hover:border-[#D71935]/45`}
-    >
-      <div className="absolute inset-x-0 top-0 h-[1px] origin-left scale-x-0 bg-[#D71935] transition-transform duration-500 group-hover:border-[#D71935]/45"
-      />
-
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-medium text-[#92929b]">
-          {label}
-        </p>
-
-        <Icon
-          size={18}
-          className="text-[#df3b54]"
-        />
-      </div>
-
-      <p className="mt-6 text-[clamp(2rem,3.3vw,3rem)] font-semibold tracking-[-0.065em] text-white tabular-nums">
-        {NUMBER(value)}
-      </p>
-
-      <p className="mt-2 text-xs text-[#777780]">
-        {note}
-      </p>
-    </motion.div>
+    <p className="flex items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.23em] text-[#ff526e] sm:text-[11px]">
+      <span className="h-px w-7 shrink-0 bg-[#D71935]" />
+      {children}
+      <span className="text-zinc-600">
+        / {index}
+      </span>
+    </p>
   );
 }
 
-// =====================================================
-// DASHBOARD
-// =====================================================
+function MetricCard({
+  label,
+  value,
+  caption,
+  icon: Icon,
+  delay = 0,
+}) {
+  const reducedMotion = useReducedMotion();
 
-function Dashboard() {
+  return (
+    <motion.article
+      initial={
+        reducedMotion
+          ? false
+          : { opacity: 0, y: 12 }
+      }
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        duration: 0.5,
+        delay: reducedMotion ? 0 : delay,
+        ease: EASE,
+      }}
+      whileHover={
+        reducedMotion
+          ? undefined
+          : { y: -3 }
+      }
+      className="group relative overflow-hidden rounded-[20px] border border-white/10 bg-[#111114]/90 p-5 transition-colors duration-300 hover:border-[#D71935]/35 sm:p-6"
+    >
+      <div
+        className="absolute inset-x-0 top-0 h-px origin-left scale-x-0 bg-[#D71935] transition-transform duration-500 group-hover:scale-x-100"
+        aria-hidden="true"
+      />
+
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs text-zinc-400">
+          {label}
+        </span>
+        <Icon
+          size={17}
+          strokeWidth={1.7}
+          className="text-[#ff526e]"
+          aria-hidden="true"
+        />
+      </div>
+
+      <p className="cine-head mt-5 text-[clamp(1.9rem,3vw,2.6rem)] leading-none text-white tabular-nums">
+        {formatNumber(value)}
+      </p>
+
+      <p className="mt-3 text-[11px] leading-5 text-zinc-500">
+        {caption}
+      </p>
+    </motion.article>
+  );
+}
+
+function AdminDashboard() {
   const { token } = useAuth();
-  const reduced = useReducedMotion();
+  const reducedMotion = useReducedMotion();
 
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
-  const [feedback, setFeedback] = useState("");
+  const [feedback, setFeedback] = useState(false);
   const [syncedAt, setSyncedAt] = useState(null);
 
   const refreshController = useRef(null);
-
-  useEffect(() => {
-    if (!feedback) return undefined;
-
-    const timeoutId = window.setTimeout(
-      () => setFeedback(""),
-      5000
-    );
-
-    return () => window.clearTimeout(timeoutId);
-  }, [feedback]);
 
   const loadStats = useCallback(
     async (signal) => {
@@ -362,7 +376,7 @@ function Dashboard() {
       setError("");
 
       try {
-        const { data } = await axios.get(
+        const response = await axios.get(
           `${API_URL}/api/admin/stats`,
           {
             headers: {
@@ -374,20 +388,19 @@ function Dashboard() {
 
         if (signal?.aborted) return false;
 
-        setStats(data.stats || null);
+        setStats(response.data?.stats ?? null);
         setSyncedAt(new Date());
-
         return true;
-      } catch (err) {
+      } catch (requestError) {
         if (
           signal?.aborted ||
-          axios.isCancel(err)
+          axios.isCancel(requestError)
         ) {
           return false;
         }
 
         setError(
-          err.response?.data?.error ||
+          requestError.response?.data?.error ||
             "Dashboard data could not be loaded."
         );
 
@@ -399,7 +412,6 @@ function Dashboard() {
 
   useEffect(() => {
     const controller = new AbortController();
-
     setLoading(true);
 
     loadStats(controller.signal).finally(() => {
@@ -412,405 +424,421 @@ function Dashboard() {
   }, [loadStats]);
 
   useEffect(
-    () => () =>
-      refreshController.current?.abort(),
+    () => () => refreshController.current?.abort(),
     []
   );
+
+  useEffect(() => {
+    if (!feedback) return undefined;
+
+    const timerId = window.setTimeout(
+      () => setFeedback(false),
+      5000
+    );
+
+    return () => window.clearTimeout(timerId);
+  }, [feedback]);
 
   const handleRefresh = async () => {
     if (loading || refreshing) return;
 
     const controller = new AbortController();
-
     refreshController.current = controller;
+
     setRefreshing(true);
-    setFeedback("");
+    setFeedback(false);
 
     try {
       const [success] = await Promise.all([
         loadStats(controller.signal),
         new Promise((resolve) =>
-          setTimeout(resolve, 1200)
+          window.setTimeout(resolve, 750)
         ),
       ]);
 
-      if (controller.signal.aborted) {
-        return;
-      }
-
-      if (success) {
-        setFeedback(
-          "Dashboard data refreshed successfully."
-        );
-
-        toast.success(
-          "Dashboard data refreshed successfully."
-        );
-      } else {
-        toast.error(
-          "Refresh failed. Please try again."
-        );
+      if (!controller.signal.aborted && success) {
+        setFeedback(true);
       }
     } finally {
       if (!controller.signal.aborted) {
         setRefreshing(false);
       }
 
-      if (
-        refreshController.current === controller
-      ) {
+      if (refreshController.current === controller) {
         refreshController.current = null;
       }
     }
   };
 
+  const total = Number(
+    stats?.totalBookings || 0
+  );
   const confirmed = Number(
     stats?.confirmedBookings || 0
   );
 
-  const total = Number(
-    stats?.totalBookings || 0
-  );
-
-  const confirmedPct =
+  const confirmedPercent =
     total > 0
-      ? Math.max(
-          0,
-          Math.min(
-            100,
-            (confirmed / total) * 100
-          )
+      ? Math.min(
+          100,
+          Math.max(0, (100 * confirmed) / total)
         )
       : 0;
 
-  const cardBase =
-    "rounded-[26px] border border-white/[0.09] bg-[#141417]";
+  const pipeline = [
+    {
+      label: "Confirmed",
+      value: confirmed,
+      color: "#D71935",
+    },
+    {
+      label: "Pending payment",
+      value: Number(stats?.pendingBookings || 0),
+      color: "#b69a9e",
+    },
+    {
+      label: "Refunded",
+      value: Number(stats?.refundedBookings || 0),
+      color: "#73737e",
+    },
+  ];
 
   return (
-    <div className="mx-auto max-w-[1500px]">
-      <header className="flex flex-wrap items-end justify-between gap-6">
+    <div className="mx-auto max-w-[1460px]">
+      <motion.header
+        initial={
+          reducedMotion
+            ? false
+            : { opacity: 0, y: 16 }
+        }
+        animate={{ opacity: 1, y: 0 }}
+        transition={{
+          duration: 0.6,
+          ease: EASE,
+        }}
+        className="flex flex-wrap items-end justify-between gap-6 border-b border-white/10 pb-7"
+      >
         <div>
-          <p className="flex items-center gap-3 text-[11px] font-bold uppercase tracking-[0.28em] text-[#ff627b]">
-            <span className="h-px w-9 bg-[#D71935]" />
-            Overview / 01
-          </p>
+          <Eyebrow index="01">
+            Operations overview
+          </Eyebrow>
 
-          <h1 className="mt-4 text-[clamp(2.25rem,3.8vw,4rem)] font-semibold leading-[0.95] tracking-[-0.075em] text-[#f2f0ec]">
-            The control
-            <span className="text-[#e13c57]">.</span>
-            <br />
-            room
+          <h1 className="cine-display mt-5 text-[clamp(2.6rem,4.7vw,4.6rem)]">
+            The control{" "}
+            <span className="text-[#ff4562]">
+              room.
+            </span>
           </h1>
 
-          <p className="mt-5 max-w-xl text-sm leading-7 text-[#a0a0aa]">
-            One view of the entire cinema network.
-            Built for decisions, not decoration.
+          <p className="mt-5 max-w-xl text-sm leading-7 text-zinc-400">
+            Your cinema network, bookings and
+            performance in one clear view.
           </p>
         </div>
 
-        <div className="flex flex-col items-start gap-2 sm:items-end">
+        <div className="flex min-w-[190px] flex-col items-start gap-2 sm:items-end">
           <button
             type="button"
-            disabled={loading || refreshing}
             onClick={handleRefresh}
+            disabled={loading || refreshing}
             aria-busy={refreshing}
-            className="inline-flex items-center gap-3 rounded-full border border-white/20 px-5 py-3 text-sm font-semibold text-[#ededed] transition-colors duration-300 hover:border-[#D71935] hover:bg-[#D71935]/10 disabled:cursor-wait disabled:opacity-70"
+            className="group inline-flex min-h-[44px] items-center gap-3 rounded-full border border-white/20 bg-white/[0.035] px-5 py-3 text-xs font-semibold text-zinc-200 transition-all duration-300 hover:border-[#D71935]/60 hover:bg-[#D71935]/10 hover:text-white disabled:cursor-wait disabled:opacity-60"
           >
             <motion.span
-              className="inline-flex h-4 w-4 items-center justify-center"
+              className="inline-flex text-[#ff526e]"
               animate={
-                refreshing
+                refreshing && !reducedMotion
                   ? { rotate: 360 }
                   : { rotate: 0 }
               }
               transition={
-                refreshing
+                refreshing && !reducedMotion
                   ? {
-                      duration: 2.4,
+                      duration: 1.2,
                       repeat: Infinity,
                       ease: "linear",
                     }
-                  : {
-                      duration: 0.25,
-                      ease: "easeOut",
-                    }
+                  : { duration: 0.2 }
               }
             >
-              <RefreshCw size={16} />
+              <RefreshCw
+                size={16}
+                strokeWidth={1.8}
+              />
             </motion.span>
 
             {refreshing
-              ? "Refreshing..."
+              ? "Refreshing data..."
               : "Refresh data"}
           </button>
 
-          <p
-            role="status"
+          <div
+            className="min-h-[20px]"
             aria-live="polite"
-            className="min-h-4 text-xs text-emerald-300"
           >
-            {feedback}
-          </p>
+            <AnimatePresence mode="wait">
+              {feedback && (
+                <motion.p
+                  key="success"
+                  role="status"
+                  initial={
+                    reducedMotion
+                      ? false
+                      : { opacity: 0, y: -5 }
+                  }
+                  animate={{
+                    opacity: 1,
+                    y: 0,
+                  }}
+                  exit={{ opacity: 0 }}
+                  className="inline-flex items-center gap-2 text-xs text-emerald-300"
+                >
+                  <CheckCircle2 size={15} />
+                  Data refreshed
+                </motion.p>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
-      </header>
+      </motion.header>
 
       {error && (
         <div
           role="alert"
-          className="mt-8 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200"
+          className="mt-6 rounded-2xl border border-[#D71935]/30 bg-[#D71935]/10 p-4 text-sm text-rose-200"
         >
           {error}
-
           <button
             type="button"
             onClick={handleRefresh}
-            disabled={refreshing || loading}
-            className="ml-3 underline disabled:opacity-40"
+            disabled={loading || refreshing}
+            className="ml-3 font-semibold underline disabled:opacity-50"
           >
             Retry
           </button>
         </div>
       )}
 
-      <section className="mt-10 grid gap-5 xl:grid-cols-[1.5fr_1fr]">
-        <motion.div
+      <section
+        aria-label="Revenue and conversion"
+        className="mt-8 grid gap-4 xl:grid-cols-[1.45fr_1fr]"
+      >
+        <motion.article
           initial={
-            reduced
+            reducedMotion
               ? false
-              : { opacity: 0, y: 30 }
+              : { opacity: 0, y: 18 }
           }
           animate={{ opacity: 1, y: 0 }}
           transition={{
-            duration: 0.7,
-            ease: easing,
+            duration: 0.65,
+            ease: EASE,
           }}
-          className="relative min-h-[350px] overflow-hidden rounded-[28px] border border-[#D71935]/20 bg-[#191318] p-7 sm:p-10"
+          className="relative flex min-h-[330px] flex-col justify-between overflow-hidden rounded-[24px] border border-[#D71935]/25 bg-[#171014] p-6 sm:p-9"
         >
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-0 opacity-75"
+            className="pointer-events-none absolute inset-0"
             style={{
               background:
-                "radial-gradient(circle at 85% 15%,rgba(215,25,53,.30),transparent 42%),repeating-linear-gradient(130deg,transparent 0px,transparent 43px,rgba(255,255,255,.025) 44px,transparent 45px)",
+                "radial-gradient(ellipse at 95% 0%,rgba(215,25,53,.25),transparent 60%)",
             }}
           />
 
-          <div className="relative flex h-full flex-col justify-between">
-            <div className="flex items-start justify-between gap-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.23em] text-[#f4adb9]">
-                01 — Revenue / confirmed bookings
-              </p>
+          <div className="relative flex flex-wrap items-center justify-between gap-4">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#ff8ca0]">
+              Revenue / Confirmed bookings
+            </p>
 
-              <span className="rounded-full border border-white/15 bg-white/[0.04] px-3 py-1.5 text-[10px] uppercase tracking-[0.16em] text-[#bbbbc3]">
-                All time
-              </span>
-            </div>
-
-            <div className="py-10">
-              {loading && !stats ? (
-                <div className="h-24 max-w-md animate-pulse rounded-xl bg-white/10" />
-              ) : (
-                <p className="break-words text-[clamp(3.1rem,7vw,6.6rem)] font-semibold leading-none tracking-[-0.08em] text-white tabular-nums">
-                  {INR(stats?.totalRevenue)}
-                </p>
-              )}
-
-              <p className="mt-6 text-sm text-[#bcb0b7]">
-                {NUMBER(confirmed)} confirmed of{" "}
-                {NUMBER(total)} total bookings
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-4 border-t border-white/15 pt-5">
-              <span className="text-xs text-[#958c94]">
-                {syncedAt
-                  ? `Last refreshed ${syncedAt.toLocaleTimeString(
-                      "en-IN",
-                      {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      }
-                    )}`
-                  : "Waiting for account data"}
-              </span>
-
-              <Link
-                to="/admin/analytics"
-                className="group inline-flex items-center gap-2 text-sm font-semibold text-white hover:text-[#ff657e]"
-              >
-                View detailed analytics
-
-                <ArrowUpRight
-                  size={17}
-                  className="transition-transform group-hover:translate-x-1 group-hover:-translate-y-1"
-                />
-              </Link>
-            </div>
+            <span className="rounded-full border border-white/15 bg-white/[0.035] px-3 py-1.5 text-[10px] uppercase tracking-[0.13em] text-zinc-400">
+              All time
+            </span>
           </div>
-        </motion.div>
 
-        <div
-          className={`${cardBase} flex flex-col justify-between p-7 sm:p-9`}
-        >
-          <div className="flex items-center justify-between">
+          <div className="relative py-10">
+            {loading && !stats ? (
+              <div className="cine-skeleton h-20 w-full max-w-[370px] rounded-xl" />
+            ) : (
+              <p className="cine-display break-words text-[clamp(2.7rem,6vw,5.7rem)] tabular-nums text-white">
+                {formatMoney(
+                  stats?.totalRevenue
+                )}
+              </p>
+            )}
+
+            <p className="mt-5 text-sm text-zinc-400">
+              {formatNumber(confirmed)} confirmed
+              of {formatNumber(total)} bookings
+            </p>
+          </div>
+
+          <div className="relative flex flex-wrap items-center justify-between gap-4 border-t border-white/15 pt-5">
+            <span className="text-[11px] text-zinc-500">
+              {syncedAt
+                ? `Updated ${syncedAt.toLocaleTimeString(
+                    "en-IN",
+                    {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    }
+                  )}`
+                : "Awaiting latest figures"}
+            </span>
+
+            <Link
+              to="/admin/analytics"
+              className="group inline-flex items-center gap-2 text-xs font-semibold text-white transition-colors hover:text-[#ff7189]"
+            >
+              Explore analytics
+              <ArrowUpRight
+                size={16}
+                className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+              />
+            </Link>
+          </div>
+        </motion.article>
+
+        <article className="flex flex-col justify-between rounded-[24px] border border-white/10 bg-[#111114]/90 p-6 sm:p-8">
+          <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#ff647d]">
-                Booking conversion
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#ff526e]">
+                Booking performance
               </p>
 
-              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+              <h2 className="cine-head mt-3 text-[22px] text-white">
                 Confirmed share
               </h2>
             </div>
 
             <Ticket
-              className="text-[#D71935]"
-              size={24}
+              size={19}
+              className="mt-1 text-[#ff526e]"
             />
           </div>
 
-          <div className="flex items-center justify-center py-6">
+          <div className="flex justify-center py-6">
             <div
+              className="relative flex h-[188px] w-[188px] items-center justify-center rounded-full"
               role="img"
-              aria-label={`${confirmedPct.toFixed(
+              aria-label={`${confirmedPercent.toFixed(
                 1
-              )} percent of bookings confirmed`}
-              className="relative flex h-52 w-52 items-center justify-center rounded-full"
+              )} percent confirmed bookings`}
               style={{
-                background: `conic-gradient(#D71935 0% ${confirmedPct}%, #303035 ${confirmedPct}% 100%)`,
+                background: `conic-gradient(#D71935 0% ${confirmedPercent}%,#303036 ${confirmedPercent}% 100%)`,
               }}
             >
-              <div className="flex h-[calc(100%-23px)] w-[calc(100%-23px)] flex-col items-center justify-center rounded-full bg-[#141417]">
-                <span className="text-5xl font-semibold tracking-[-0.07em] tabular-nums text-white">
-                  {confirmedPct.toFixed(0)}%
+              <div className="flex h-[166px] w-[166px] flex-col items-center justify-center rounded-full bg-[#111114]">
+                <span className="cine-head text-5xl tabular-nums text-white">
+                  {confirmedPercent.toFixed(0)}%
                 </span>
 
-                <span className="mt-2 text-[11px] uppercase tracking-[0.2em] text-[#898994]">
+                <span className="mt-2 text-[10px] uppercase tracking-[0.2em] text-zinc-500">
                   Confirmed
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center justify-between border-t border-white/10 pt-5 text-xs text-[#9999a3]">
+          <div className="flex flex-wrap justify-between gap-2 border-t border-white/10 pt-5 text-xs text-zinc-400">
             <span>
-              <i className="mr-2 inline-block h-2 w-2 rounded-full bg-[#D71935]" />
-              Confirmed {NUMBER(confirmed)}
+              <span className="mr-2 inline-block h-2 w-2 rounded-full bg-[#D71935]" />
+              {formatNumber(confirmed)} confirmed
             </span>
 
             <span>
-              Other{" "}
-              {NUMBER(
+              {formatNumber(
                 Math.max(0, total - confirmed)
-              )}
+              )}{" "}
+              other
             </span>
           </div>
-        </div>
+        </article>
       </section>
 
       <section
-        className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
         aria-label="Platform metrics"
+        className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
       >
-        <Metric
+        <MetricCard
           label="Active showtimes"
           value={stats?.activeShows}
+          caption="Upcoming screenings"
           icon={Activity}
-          note="Upcoming, scheduled screenings"
-          delay={0.05}
+          delay={0.04}
         />
-
-        <Metric
+        <MetricCard
           label="Registered users"
           value={stats?.totalUsers}
+          caption="Customer accounts"
           icon={Users}
-          note="Accounts created"
-          delay={0.1}
+          delay={0.08}
         />
-
-        <Metric
+        <MetricCard
           label="Available movies"
           value={stats?.totalMovies}
+          caption="Films in the catalogue"
           icon={Film}
-          note="Film catalogue entries"
-          delay={0.15}
+          delay={0.12}
         />
-
-        <Metric
+        <MetricCard
           label="Cinema locations"
           value={stats?.totalTheatres}
-          icon={Building2}
-          note={`${NUMBER(
+          caption={`${formatNumber(
             stats?.totalScreens
-          )} screens across your network`}
-          delay={0.2}
+          )} screens in the network`}
+          icon={Building2}
+          delay={0.16}
         />
       </section>
 
       <section
-        className="mt-12"
         aria-label="Booking pipeline"
+        className="mt-10"
       >
-        <div className="mb-5 flex items-center gap-3">
-          <span className="h-px w-8 bg-[#D71935]" />
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <Eyebrow index="02">
+              Network activity
+            </Eyebrow>
 
-          <h2 className="text-xl font-semibold text-white">
-            Operational snapshot
-          </h2>
+            <h2 className="cine-head mt-4 text-[clamp(1.5rem,2.6vw,2rem)] text-white">
+              Booking pipeline
+            </h2>
+          </div>
+
+          <Link
+            to="/admin/bookings"
+            className="group inline-flex items-center gap-2 text-xs font-semibold text-zinc-300 hover:text-white"
+          >
+            View all bookings
+            <ArrowRight
+              size={15}
+              className="text-[#ff526e] transition-transform group-hover:translate-x-1"
+            />
+          </Link>
         </div>
 
-        <div
-          className={`${surface} relative overflow-hidden rounded-[24px] p-7 sm:p-9`}
-        >
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute right-0 top-0 h-44 w-44 opacity-30"
-            style={{
-              background:
-                "radial-gradient(circle,#D71935,transparent 65%)",
-            }}
-          />
-
-          <p className="relative text-xs uppercase tracking-[0.19em] text-[#9999a4]">
-            Booking pipeline
-          </p>
-
-          <div className="relative mt-7 grid gap-7 md:grid-cols-3 md:gap-10">
-            {[
-              {
-                label: "Confirmed",
-                value: confirmed,
-                color: "#D71935",
-              },
-              {
-                label: "Pending payment",
-                value: Number(
-                  stats?.pendingBookings || 0
-                ),
-                color: "#b09aa2",
-              },
-              {
-                label: "Refunded",
-                value: Number(
-                  stats?.refundedBookings || 0
-                ),
-                color: "#797980",
-              },
-            ].map((item) => (
-              <div key={item.label}>
+        <div className="grid gap-5 rounded-[22px] border border-white/10 bg-[#111114]/90 p-6 md:grid-cols-3 sm:p-8">
+          {pipeline.map(
+            ({ label, value, color }) => (
+              <div key={label}>
                 <div className="flex items-baseline justify-between gap-3">
-                  <span className="text-sm text-[#bebec5]">
-                    {item.label}
+                  <span className="text-xs text-zinc-400">
+                    {label}
                   </span>
 
-                  <span className="text-lg font-semibold tabular-nums text-white">
-                    {NUMBER(item.value)}
+                  <span className="cine-head text-lg tabular-nums text-white">
+                    {formatNumber(value)}
                   </span>
                 </div>
 
-                <div className="mt-4 h-[5px] overflow-hidden rounded-full bg-white/[0.07]">
+                <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
                   <motion.div
-                    initial={{ width: 0 }}
+                    initial={
+                      reducedMotion
+                        ? false
+                        : { width: 0 }
+                    }
                     animate={{
                       width: `${
                         total > 0
@@ -818,38 +846,33 @@ function Dashboard() {
                               100,
                               Math.max(
                                 0,
-                                (item.value /
-                                  total) *
-                                  100
+                                (value * 100) /
+                                  total
                               )
                             )
                           : 0
                       }%`,
                     }}
                     transition={{
-                      duration: reduced
+                      duration: reducedMotion
                         ? 0
-                        : 0.9,
-                      ease: easing,
+                        : 0.8,
+                      ease: EASE,
                     }}
                     className="h-full rounded-full"
                     style={{
-                      background: item.color,
+                      backgroundColor: color,
                     }}
                   />
                 </div>
               </div>
-            ))}
-          </div>
+            )
+          )}
         </div>
       </section>
     </div>
   );
 }
-
-// =====================================================
-// ADMIN LAYOUT
-// =====================================================
 
 export default function Admin() {
   const {
@@ -858,11 +881,14 @@ export default function Admin() {
     user,
   } = useAuth();
 
+  const reducedMotion = useReducedMotion();
   const location = useLocation();
-  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const [mobileOpen, setMobileOpen] =
+    useState(false);
 
   const isDashboard =
-    location.pathname.replace(/\/+$/, "") ===
+    location.pathname.replace(/\/$/, "") ===
     "/admin";
 
   useEffect(() => {
@@ -872,25 +898,38 @@ export default function Admin() {
   useEffect(() => {
     if (!mobileOpen) return undefined;
 
-    const before =
+    const previous =
       document.body.style.overflow;
 
     document.body.style.overflow = "hidden";
 
     return () => {
-      document.body.style.overflow = before;
+      document.body.style.overflow =
+        previous;
     };
   }, [mobileOpen]);
 
   if (authLoading) {
     return (
-      <div
-        className="flex min-h-screen items-center justify-center bg-[#09090b] pt-16 text-[#aaaab2]"
-        role="status"
+      <PageShell
+        glow="left"
+        className="bms-admin-shell"
       >
-        <RefreshCw className="mr-3 animate-spin text-[#D71935]" />
-        Verifying admin access...
-      </div>
+        <div
+          className="flex min-h-[75vh] items-center justify-center gap-3 text-sm text-zinc-400"
+          role="status"
+        >
+          <RefreshCw
+            className={
+              reducedMotion
+                ? "text-[#D71935]"
+                : "animate-spin text-[#D71935]"
+            }
+            size={20}
+          />
+          Verifying administrator access…
+        </div>
+      </PageShell>
     );
   }
 
@@ -902,16 +941,15 @@ export default function Admin() {
   }
 
   return (
-    <div
-      className="relative min-h-screen bg-[#09090b] pt-16 text-white"
-      style={{
-        fontFamily:
-          "Manrope, system-ui, sans-serif",
-      }}
+    <PageShell
+      glow="left"
+      className="bms-admin-shell"
     >
       <div className="relative flex min-h-[calc(100vh-4rem)]">
-        <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-[296px] shrink-0 border-r border-white/[0.08] bg-[#101013] lg:block">
-          <Sidebar onClose={() => {}} />
+        <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-[304px] shrink-0 border-r border-white/[0.08] bg-[#0e0e11]/90 lg:block xl:w-[320px]">
+          <AdminSidebar
+            onNavigate={() => {}}
+          />
         </aside>
 
         <AnimatePresence>
@@ -919,28 +957,38 @@ export default function Admin() {
             <>
               <motion.button
                 type="button"
-                aria-label="Close navigation"
+                aria-label="Close navigation overlay"
+                onClick={() =>
+                  setMobileOpen(false)
+                }
                 className="fixed inset-0 z-[85] bg-black/75 lg:hidden"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                onClick={() =>
-                  setMobileOpen(false)
-                }
               />
 
               <motion.aside
-                initial={{ x: -300 }}
+                initial={
+                  reducedMotion
+                    ? false
+                    : { x: -320 }
+                }
                 animate={{ x: 0 }}
-                exit={{ x: -300 }}
+                exit={
+                  reducedMotion
+                    ? { opacity: 0 }
+                    : { x: -320 }
+                }
                 transition={{
-                  type: "tween",
-                  duration: 0.27,
+                  duration: reducedMotion
+                    ? 0
+                    : 0.3,
+                  ease: EASE,
                 }}
-                className="fixed bottom-0 left-0 top-16 z-[90] w-[min(300px,85vw)] border-r border-white/10 bg-[#101013] lg:hidden"
+                className="fixed bottom-0 left-0 top-16 z-[90] w-[min(320px,90vw)] border-r border-white/10 bg-[#0e0e11] lg:hidden"
               >
-                <Sidebar
-                  onClose={() =>
+                <AdminSidebar
+                  onNavigate={() =>
                     setMobileOpen(false)
                   }
                 />
@@ -950,27 +998,31 @@ export default function Admin() {
         </AnimatePresence>
 
         <div className="min-w-0 flex-1">
-          <div className="px-5 pt-6 sm:px-9 lg:hidden">
+          <div className="px-5 pt-5 sm:px-8 lg:hidden">
             <button
               type="button"
               onClick={() =>
                 setMobileOpen(true)
               }
               aria-label="Open admin navigation"
-              className="inline-flex items-center gap-2 rounded-full border border-white/15 px-4 py-2.5 text-sm font-medium text-white transition hover:border-[#D71935]/60 hover:bg-white/5"
+              aria-expanded={mobileOpen}
+              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.035] px-4 py-2.5 text-xs font-semibold text-white transition-colors hover:border-[#D71935]/60 hover:bg-[#D71935]/10"
             >
-              <Menu size={18} />
-              Menu
+              <Menu size={17} />
+              Admin menu
             </button>
           </div>
 
-          <main className="min-w-0 px-5 pb-20 pt-9 sm:px-9 sm:pt-12 lg:px-10">
+          <main
+            className="bms-admin-content min-w-0 px-5 pb-20 pt-9 sm:px-8 sm:pt-10 xl:px-12"
+            id="admin-main"
+          >
             {isDashboard
-              ? <Dashboard />
+              ? <AdminDashboard />
               : <Outlet />}
           </main>
         </div>
       </div>
-    </div>
+    </PageShell>
   );
 }

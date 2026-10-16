@@ -2,12 +2,10 @@
 import React, { useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
-  ArrowDownRight,
   ArrowRight,
   ArrowUpRight,
   Check,
   ChevronDown,
-  Headphones,
   Mail,
   MapPin,
   MessageCircle,
@@ -17,128 +15,73 @@ import {
 } from "lucide-react";
 import axios from "axios";
 import toast from "react-hot-toast";
-
-// ============================================================
-// BOOKMYSEAT — CONTACT / CINEMATIC SOFT GLASS
-// Single-page replacement; no extra CSS or dependencies.
-//
-// Preserves the existing POST /api/contact request shape,
-// honeypot field, configured WhatsApp number, and 5 venues.
-// ============================================================
+import PageShell from "../components/ui/PageShell";
 
 const API_URL = (process.env.REACT_APP_BACKEND_URL || "").replace(/\/+$/, "");
 const WHATSAPP_NUMBER = process.env.REACT_APP_WHATSAPP_NUMBER;
-
-const SUBJECTS = [
-  "Ticket Booking",
-  "Technical Issue",
-  "Refund Request",
-  "Group Booking",
-  "Payment Issue",
-  "Other",
-];
-
-const LOCATIONS = [
-  {
-    name: "Grand Galleria Mall",
-    area: "Senapati Bapat Marg, Lower Parel",
-    city: "Mumbai",
-  },
-  {
-    name: "Phoenix Marketcity",
-    area: "LBS Marg, Kurla West",
-    city: "Mumbai",
-  },
-  {
-    name: "Inorbit Mall",
-    area: "Link Road, Malad West",
-    city: "Mumbai",
-  },
-  {
-    name: "R City Mall",
-    area: "LBS Marg, Ghatkopar West",
-    city: "Mumbai",
-  },
-  {
-    name: "Viviana Mall",
-    area: "Eastern Express Highway",
-    city: "Thane",
-  },
-];
-
-const EMPTY_FORM = {
-  fullName: "",
-  email: "",
-  phone: "",
-  subject: "",
-  message: "",
-  website: "", // Existing hidden bot-trap field.
-};
-
 const EASE = [0.22, 1, 0.36, 1];
-
+const SUBJECTS = [
+  "Ticket Booking", "Technical Issue", "Refund Request",
+  "Group Booking", "Payment Issue", "Other",
+];
+const LOCATIONS = [
+  { name: "Grand Galleria Mall", area: "Senapati Bapat Marg, Lower Parel", city: "Mumbai" },
+  { name: "Phoenix Marketcity", area: "LBS Marg, Kurla West", city: "Mumbai" },
+  { name: "Inorbit Mall", area: "Link Road, Malad West", city: "Mumbai" },
+  { name: "R City Mall", area: "LBS Marg, Ghatkopar West", city: "Mumbai" },
+  { name: "Viviana Mall", area: "Eastern Express Highway", city: "Thane" },
+];
+const EMPTY_FORM = {
+  fullName: "", email: "", phone: "", subject: "", message: "", website: "",
+};
 const inputClass =
-  "w-full rounded-[15px] border border-white/[0.085] " +
-  "bg-[#0a0b0f]/80 px-4 py-[15px] text-[14px] text-white " +
-  "placeholder:text-white/25 outline-none transition-[border-color,background-color,box-shadow] duration-300 " +
-  "hover:border-white/[0.16] focus:border-[#d71935]/65 focus:bg-[#101015] " +
-  "focus:shadow-[0_0_0_3px_rgba(215,25,53,0.075)]";
+  "w-full rounded-xl border border-white/10 bg-[#101014] px-4 py-3.5 text-sm text-white " +
+  "outline-none placeholder:text-zinc-600 transition-all duration-300 " +
+  "hover:border-white/20 focus:border-[#D71935]/70 focus:bg-[#171317] " +
+  "focus:shadow-[0_0_0_3px_rgba(215,25,53,0.09)]";
+const labelClass = "mb-2.5 block text-xs font-medium text-zinc-400";
+const surface = "rounded-[22px] border border-white/10 bg-[#101013]/90";
 
-const labelClass =
-  "mb-2.5 block text-[11px] font-medium tracking-[0.055em] text-white/55";
-
-function SectionEyebrow({ number, children }) {
+function Eyebrow({ children, suffix }) {
   return (
-    <div className="flex items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.24em] text-white/45">
-      <span className="text-[#d71935]">{number}</span>
-      <span className="h-px w-7 bg-[#d71935]/55" />
+    <div className="flex flex-wrap items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.23em] text-[#ff526e] sm:text-[11px]">
+      <span className="h-px w-7 bg-[#D71935]" />
       <span>{children}</span>
+      {suffix && <span className="text-zinc-600">/ {suffix}</span>}
     </div>
   );
 }
 
-function Venue({ venue, index, open, onToggle, reducedMotion }) {
+function Venue({ venue, index, isOpen, onToggle, reducedMotion }) {
   const directionsUrl =
     "https://www.google.com/maps/search/?api=1&query=" +
     encodeURIComponent(`${venue.name}, ${venue.area}, ${venue.city}`);
 
   return (
-    <div
-      className={`overflow-hidden border-b transition-colors duration-300 ${
-        open ? "border-white/[0.12] bg-white/[0.035]" : "border-white/[0.07]"
-      }`}
-    >
+    <div className={`border-b border-white/[0.08] transition-colors duration-300 ${isOpen ? "bg-white/[0.04]" : "hover:bg-white/[0.025]"}`}>
       <button
         type="button"
         onClick={onToggle}
-        aria-expanded={open}
-        className="group flex w-full items-center gap-4 px-4 py-4 text-left sm:px-5"
+        aria-expanded={isOpen}
+        className="group flex w-full items-center gap-4 px-5 py-4 text-left"
       >
-        <span className="w-7 shrink-0 font-mono text-[11px] text-white/25">
+        <span className="w-6 shrink-0 text-[11px] tabular-nums text-[#ff526e]">
           {String(index + 1).padStart(2, "0")}
         </span>
-
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[14px] font-medium text-white/85 transition-colors group-hover:text-white">
-            {venue.name}
-          </p>
-          <p className="mt-1 truncate text-[12px] text-white/35">
-            {venue.city}
-          </p>
-        </div>
-
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.025] text-white/45 transition group-hover:border-[#d71935]/35 group-hover:text-[#ff6c81]">
-          <motion.span
-            animate={{ rotate: open ? 180 : 0 }}
-            transition={{ duration: reducedMotion ? 0 : 0.25 }}
-          >
-            <ChevronDown size={15} />
-          </motion.span>
+        <span className="min-w-0 flex-1">
+          <span className="cine-head block truncate text-sm text-white">{venue.name}</span>
+          <span className="mt-1 block text-xs text-zinc-500">{venue.city}</span>
         </span>
+        <motion.span
+          animate={{ rotate: isOpen ? 180 : 0 }}
+          transition={{ duration: reducedMotion ? 0 : 0.25 }}
+          className="text-zinc-500 group-hover:text-[#ff526e]"
+        >
+          <ChevronDown size={17} />
+        </motion.span>
       </button>
-
       <AnimatePresence initial={false}>
-        {open && (
+        {isOpen && (
           <motion.div
             initial={reducedMotion ? false : { height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
@@ -146,21 +89,19 @@ function Venue({ venue, index, open, onToggle, reducedMotion }) {
             transition={{ duration: reducedMotion ? 0 : 0.28, ease: EASE }}
             className="overflow-hidden"
           >
-            <div className="border-t border-white/[0.055] px-4 pb-5 pt-4 sm:pl-16 sm:pr-5">
-              <p className="flex items-start gap-2 text-[12px] leading-6 text-white/50">
-                <MapPin
-                  size={14}
-                  className="mt-[5px] shrink-0 text-[#df3953]"
-                />
+            <div className="border-t border-white/[0.06] px-5 pb-5 pt-4 sm:pl-[68px]">
+              <p className="flex items-start gap-2 text-xs leading-6 text-zinc-400">
+                <MapPin size={14} className="mt-1 shrink-0 text-[#ff526e]" />
                 {venue.area}, {venue.city}
               </p>
               <a
                 href={directionsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-3 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#ff7488] transition hover:gap-2.5 hover:text-white"
+                className="group mt-3 inline-flex items-center gap-2 text-xs font-semibold text-[#ff778d] hover:text-white"
               >
-                View on Maps <ArrowUpRight size={14} />
+                View on Maps
+                <ArrowUpRight size={14} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
               </a>
             </div>
           </motion.div>
@@ -174,7 +115,6 @@ export default function Contact() {
   const reducedMotion = useReducedMotion();
   const formRef = useRef(null);
   const nameRef = useRef(null);
-
   const [form, setForm] = useState(EMPTY_FORM);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
@@ -182,211 +122,131 @@ export default function Contact() {
 
   const handleChange = (event) => {
     const { name, value } = event.target;
-    setForm((current) => ({ ...current, [name]: value }));
-  };
-
-  const setSubject = (subject) => {
-    setForm((current) => ({ ...current, subject }));
+    setForm((previous) => ({ ...previous, [name]: value }));
   };
 
   const goToForm = () => {
     if (sent) setSent(false);
     formRef.current?.scrollIntoView({
       behavior: reducedMotion ? "auto" : "smooth",
-      block: "center",
+      block: "start",
     });
-    window.setTimeout(
-      () => nameRef.current?.focus({ preventScroll: true }),
-      reducedMotion ? 0 : 500
-    );
+    window.setTimeout(() => nameRef.current?.focus({ preventScroll: true }), reducedMotion ? 0 : 450);
   };
 
-  // Same contact endpoint and payload as the existing page.
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (sending) return;
-
     if (!form.subject) {
       toast.error("Choose what your message is about.");
       return;
     }
-
     setSending(true);
-
     try {
+      // Preserve existing endpoint, payload and honeypot field.
       await axios.post(`${API_URL}/api/contact`, form);
-      setSent(true);
       setForm({ ...EMPTY_FORM });
+      setSent(true);
       toast.success("Message sent.");
     } catch (error) {
       console.error("Contact request failed:", error);
-
       toast.error(
         error.response?.data?.error ||
-          error.response?.data?.message ||
-          "Could not send your message. Please try again."
+        error.response?.data?.message ||
+        "Could not send your message. Please try again."
       );
     } finally {
       setSending(false);
     }
   };
 
-  // Reuses the existing WhatsApp configuration and message shape.
   const handleWhatsApp = () => {
     const digits = String(WHATSAPP_NUMBER || "").replace(/\D/g, "");
-
     if (!digits) {
       toast.error("WhatsApp number is not configured.");
       return;
     }
-
     const message = [
-      "Hi BookMySeat!",
-      "",
+      "Hi BookMySeat!", "",
       `Name: ${form.fullName || "-"}`,
       `Email: ${form.email || "-"}`,
       `Phone: ${form.phone || "-"}`,
-      `Subject: ${form.subject || "-"}`,
-      "",
+      `Subject: ${form.subject || "-"}`, "",
       `Message: ${form.message || "-"}`,
     ].join("\n");
-
-    window.open(
-      `https://wa.me/${digits}?text=${encodeURIComponent(message)}`,
-      "_blank",
-      "noopener,noreferrer"
-    );
+    window.open(`https://wa.me/${digits}?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
   };
 
-  const entryMotion = reducedMotion
-    ? {}
-    : {
-        initial: { opacity: 0, y: 24 },
-        whileInView: { opacity: 1, y: 0 },
-        viewport: { once: true, amount: 0.15 },
-        transition: { duration: 0.65, ease: EASE },
-      };
+  const enter = reducedMotion ? {} : {
+    initial: { opacity: 0, y: 20 },
+    whileInView: { opacity: 1, y: 0 },
+    viewport: { once: true, amount: 0.1 },
+    transition: { duration: 0.7, ease: EASE },
+  };
 
   return (
-    <main className="relative isolate min-h-screen overflow-hidden bg-[#07080b] pb-24 pt-[94px] text-white sm:pt-[104px]">
-      {/* Ambient red light stays behind the interactive content. */}
-      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-        <div className="absolute -left-[340px] -top-[260px] h-[760px] w-[760px] rounded-full bg-[radial-gradient(circle,rgba(215,25,53,0.155),transparent_67%)]" />
-        <div className="absolute -right-[330px] top-[310px] h-[650px] w-[650px] rounded-full bg-[radial-gradient(circle,rgba(215,25,53,0.075),transparent_70%)]" />
-        <div className="absolute inset-0 opacity-[0.18] [background-image:linear-gradient(rgba(255,255,255,.045)_1px,transparent_1px)] [background-size:100%_90px] [mask-image:linear-gradient(to_bottom,black,transparent_70%)]" />
-      </div>
+    <PageShell glow="left">
+      <main className="relative mx-auto max-w-[1480px] px-5 pb-20 pt-10 text-white md:px-10 md:pt-14">
+        {/* Same editorial header system as Cinemas. */}
+        <motion.header
+          {...enter}
+          className="mb-9 flex flex-col justify-between gap-6 border-b border-white/10 pb-8 lg:mb-11 lg:flex-row lg:items-end"
+        >
+          <div className="min-w-0">
+            <Eyebrow suffix="05">Customer care</Eyebrow>
+            <h1 className="cine-display mt-5 text-[clamp(2.8rem,5.4vw,5.4rem)] leading-[.94] tracking-tight">
+              Support <span className="text-[#ff4562]">& enquiries.</span>
+            </h1>
+          </div>
+          <div className="max-w-[360px] lg:pb-1">
+            <p className="text-sm leading-relaxed text-zinc-400 md:text-base">
+              A question about your booking, payment or cinema visit? Tell us what happened. We'll help you find the next step.
+            </p>
+          </div>
+        </motion.header>
 
-      <div className="mx-auto max-w-[1300px] px-5 sm:px-7 lg:px-10">
-        {/* ====================================================
-            EDITORIAL HERO
-        ==================================================== */}
-        <section className="relative border-b border-white/[0.075] pb-7 sm:pb-9">
-          <motion.div
-            {...entryMotion}
-            className="grid items-center gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-12"
-          >
-            <div>
-              <SectionEyebrow number="BMS / 05">Customer care</SectionEyebrow>
-
-              <h1 className="mt-5 text-[clamp(2.45rem,4.5vw,4.3rem)] font-semibold leading-[1.05] tracking-[-0.065em] text-white">
-                Support <span className="text-white/65">& enquiries</span><span className="text-[#d71935]">.</span>
-              </h1>
-
-              <p className="mt-4 max-w-[540px] text-[14px] leading-[1.75] text-white/52 sm:text-[15px]">
-                A question about your booking, payment or cinema visit? Tell us what happened.
-                We'll help you find the next step.
-              </p>
-            </div>
-
-            <div className="hidden border-l border-white/10 pb-1 pl-7 lg:block">
-              <div className="flex items-center justify-between text-[10px] font-medium uppercase tracking-[0.2em] text-white/35">
-                <span>Customer care</span>
-                <Headphones size={17} className="text-[#d71935]" />
-              </div>
-
-              <p className="mt-4 text-[18px] font-medium leading-[1.45] tracking-[-0.035em] text-white/78">
-                Good cinema experiences deserve good support.
-              </p>
-
-              <button
-                type="button"
-                onClick={goToForm}
-                className="group mt-4 inline-flex items-center gap-3 text-[12px] font-semibold text-white/72 transition hover:text-white"
-              >
-                Write to us
-                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-white/[0.14] transition group-hover:border-[#d71935]/55 group-hover:bg-[#d71935]/15">
-                  <ArrowDownRight size={16} />
-                </span>
-              </button>
-            </div>
-          </motion.div>
-        </section>
-
-        {/* ====================================================
-            FORM + CONTACT CHANNELS
-        ==================================================== */}
-        <section className="mt-9 grid items-start gap-5 lg:grid-cols-[minmax(0,1.16fr)_minmax(330px,0.84fr)] lg:gap-6">
-          {/* FORM: no artificial full-height / empty space */}
-          <motion.div
-            {...entryMotion}
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.14fr)_minmax(320px,.86fr)] lg:gap-8">
+          <motion.section
+            {...enter}
             ref={formRef}
-            className="relative overflow-hidden rounded-[27px] border border-white/[0.085] bg-[linear-gradient(145deg,rgba(255,255,255,0.057),rgba(255,255,255,0.014)_48%,rgba(215,25,53,0.045))] p-5 shadow-[0_25px_100px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-8 lg:p-9"
+            aria-label="Send a support message"
+            className={`${surface} relative scroll-mt-28 overflow-hidden p-5 sm:p-8 lg:p-9`}
           >
-            <div className="pointer-events-none absolute right-0 top-0 h-44 w-44 bg-[radial-gradient(circle_at_top_right,rgba(215,25,53,0.15),transparent_70%)]" />
+            <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-56 bg-[radial-gradient(ellipse_at_top_right,rgba(215,25,53,.11),transparent_65%)]" />
             <div className="relative">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <SectionEyebrow number="01">Send a message</SectionEyebrow>
-                <Mail size={17} className="text-white/35" />
-              </div>
-
-              <h2 className="mt-5 text-[clamp(1.75rem,3.1vw,2.65rem)] font-semibold leading-tight tracking-[-0.052em]">
-                Tell us what's going on.
+              <Eyebrow suffix="01">Get in touch</Eyebrow>
+              <h2 className="cine-head mt-5 text-[clamp(1.7rem,3vw,2.7rem)] leading-tight">
+                Tell us what's <span className="text-[#ff526e]">going on.</span>
               </h2>
-
-              <p className="mt-2.5 text-[13px] leading-6 text-white/43">
-                Fill in the details below and send them directly to our support inbox.
+              <p className="mt-2 text-sm leading-6 text-zinc-400">
+                Send the details securely to our support team.
               </p>
-
-              <div className="mt-7 h-px bg-white/[0.085]" />
+              <div className="mt-7 border-t border-white/10" />
 
               <AnimatePresence mode="wait" initial={false}>
                 {sent ? (
                   <motion.div
                     key="sent"
-                    initial={reducedMotion ? false : { opacity: 0, y: 12 }}
+                    initial={reducedMotion ? false : { opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
-                    className="flex min-h-[420px] flex-col items-start justify-center py-10"
+                    className="flex min-h-[390px] flex-col items-start justify-center py-8"
                     role="status"
-                    aria-live="polite"
                   >
-                    <motion.div
-                      initial={reducedMotion ? false : { scale: 0.75 }}
-                      animate={{ scale: 1 }}
-                      transition={{ type: "spring", stiffness: 180, damping: 15 }}
-                      className="flex h-16 w-16 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.085] text-emerald-300"
-                    >
-                      <Check size={30} strokeWidth={1.8} />
-                    </motion.div>
-
-                    <h3 className="mt-6 text-3xl font-semibold tracking-[-0.05em]">
-                      Message sent.
-                    </h3>
-
-                    <p className="mt-3 max-w-sm text-sm leading-7 text-white/50">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-full border border-emerald-400/20 bg-emerald-400/10 text-emerald-300">
+                      <Check size={28} />
+                    </div>
+                    <h3 className="cine-head mt-6 text-3xl">Message sent.</h3>
+                    <p className="mt-3 max-w-sm text-sm leading-7 text-zinc-400">
                       Your enquiry was submitted successfully. You can send another message whenever you need to.
                     </p>
-
                     <button
                       type="button"
                       onClick={() => setSent(false)}
-                      className="group mt-8 inline-flex items-center gap-2 rounded-full bg-[#D71935] px-6 py-3.5 text-[13px] font-semibold transition hover:bg-[#ef2b48]"
+                      className="group mt-7 inline-flex items-center gap-2 rounded-full bg-[#D71935] px-6 py-3 text-sm font-semibold transition-colors hover:bg-[#ea304b]"
                     >
                       Send another message
-                      <ArrowRight
-                        size={15}
-                        className="transition-transform group-hover:translate-x-1"
-                      />
+                      <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
                     </button>
                   </motion.div>
                 ) : (
@@ -396,9 +256,8 @@ export default function Contact() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
                     onSubmit={handleSubmit}
-                    className="mt-7"
+                    className="mt-7 space-y-5"
                   >
-                    {/* Existing honeypot field for backend bot filtering. */}
                     <input
                       type="text"
                       name="website"
@@ -409,297 +268,120 @@ export default function Contact() {
                       aria-hidden="true"
                       className="pointer-events-none absolute -left-[9999px] h-px w-px opacity-0"
                     />
-
-                    <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="grid gap-5 sm:grid-cols-2">
                       <div>
-                        <label className={labelClass} htmlFor="bms-contact-name">
-                          Full name <span className="text-[#d71935]">*</span>
-                        </label>
-
-                        <input
-                          ref={nameRef}
-                          id="bms-contact-name"
-                          type="text"
-                          name="fullName"
-                          value={form.fullName}
-                          onChange={handleChange}
-                          required
-                          maxLength={100}
-                          autoComplete="name"
-                          placeholder="Your name"
-                          className={inputClass}
-                        />
+                        <label htmlFor="bms-contact-name" className={labelClass}>Full name <span className="text-[#ff526e]">*</span></label>
+                        <input ref={nameRef} id="bms-contact-name" name="fullName" type="text" required maxLength={100} autoComplete="name" placeholder="Your name" className={inputClass} value={form.fullName} onChange={handleChange} />
                       </div>
-
                       <div>
-                        <label className={labelClass} htmlFor="bms-contact-email">
-                          Email address <span className="text-[#d71935]">*</span>
-                        </label>
-
-                        <input
-                          id="bms-contact-email"
-                          type="email"
-                          name="email"
-                          value={form.email}
-                          onChange={handleChange}
-                          required
-                          maxLength={254}
-                          autoComplete="email"
-                          placeholder="you@example.com"
-                          className={inputClass}
-                        />
+                        <label htmlFor="bms-contact-email" className={labelClass}>Email address <span className="text-[#ff526e]">*</span></label>
+                        <input id="bms-contact-email" name="email" type="email" required maxLength={254} autoComplete="email" placeholder="you@example.com" className={inputClass} value={form.email} onChange={handleChange} />
                       </div>
                     </div>
-
-                    <div className="mt-4">
-                      <label className={labelClass} htmlFor="bms-contact-phone">
-                        Phone number{" "}
-                        <span className="font-normal text-white/25">— optional</span>
-                      </label>
-
-                      <input
-                        id="bms-contact-phone"
-                        type="tel"
-                        name="phone"
-                        value={form.phone}
-                        onChange={handleChange}
-                        maxLength={24}
-                        autoComplete="tel"
-                        placeholder="+91 98765 43210"
-                        className={inputClass}
-                      />
+                    <div>
+                      <label htmlFor="bms-contact-phone" className={labelClass}>Phone number <span className="font-normal text-zinc-600">— optional</span></label>
+                      <input id="bms-contact-phone" name="phone" type="tel" maxLength={24} autoComplete="tel" placeholder="+91 98765 43210" className={inputClass} value={form.phone} onChange={handleChange} />
                     </div>
-
-                    <fieldset className="mt-7">
-                      <legend className="mb-3 text-[11px] font-medium tracking-[0.055em] text-white/55">
-                        What's this about? <span className="text-[#d71935]">*</span>
-                      </legend>
-
+                    <fieldset>
+                      <legend className={`${labelClass} mb-3`}>What's this about? <span className="text-[#ff526e]">*</span></legend>
                       <div className="flex flex-wrap gap-2">
-                        {SUBJECTS.map((subject) => {
-                          const active = form.subject === subject;
-
-                          return (
-                            <motion.button
-                              key={subject}
-                              type="button"
-                              whileTap={reducedMotion ? undefined : { scale: 0.97 }}
-                              onClick={() => setSubject(subject)}
-                              aria-pressed={active}
-                              className={`relative overflow-hidden rounded-full border px-3.5 py-2.5 text-[11px] font-medium tracking-[0.015em] transition-colors duration-200 sm:px-4 ${
-                                active
-                                  ? "border-[#d71935]/80 bg-[#d71935]/[0.16] text-white"
-                                  : "border-white/[0.105] bg-white/[0.035] text-white/55 hover:border-white/25 hover:bg-white/[0.07] hover:text-white"
-                              }`}
-                            >
-                              <span className="relative z-10 inline-flex items-center gap-1.5">
-                                {active && (
-                                  <Check
-                                    size={12}
-                                    strokeWidth={2.5}
-                                    className="text-[#ff7589]"
-                                  />
-                                )}
-                                {subject}
-                              </span>
-                            </motion.button>
-                          );
-                        })}
+                        {SUBJECTS.map((subject) => (
+                          <button
+                            key={subject}
+                            type="button"
+                            aria-pressed={form.subject === subject}
+                            onClick={() => setForm((previous) => ({ ...previous, subject }))}
+                            className={`inline-flex items-center gap-1.5 rounded-full border px-4 py-2.5 text-xs font-medium transition-all duration-200 ${
+                              form.subject === subject
+                                ? "border-[#D71935] bg-[#D71935]/20 text-white"
+                                : "border-white/10 bg-white/[0.03] text-zinc-400 hover:border-white/25 hover:text-white"
+                            }`}
+                          >
+                            {form.subject === subject && <Check size={13} className="text-[#ff526e]" />}
+                            {subject}
+                          </button>
+                        ))}
                       </div>
                     </fieldset>
-
-                    <div className="mt-7">
-                      <div className="mb-2.5 flex items-center justify-between gap-3">
-                        <label
-                          className="text-[11px] font-medium tracking-[0.055em] text-white/55"
-                          htmlFor="bms-contact-message"
-                        >
-                          Your message <span className="text-[#d71935]">*</span>
-                        </label>
-
-                        <span className="font-mono text-[10px] text-white/30">
-                          {form.message.length} / 3000
-                        </span>
+                    <div>
+                      <div className="mb-2.5 flex justify-between gap-3">
+                        <label htmlFor="bms-contact-message" className={labelClass}>Your message <span className="text-[#ff526e]">*</span></label>
+                        <span className="text-[10px] tabular-nums text-zinc-600">{form.message.length} / 3000</span>
                       </div>
-
                       <textarea
-                        id="bms-contact-message"
-                        name="message"
-                        value={form.message}
-                        onChange={handleChange}
-                        required
-                        maxLength={3000}
-                        rows={6}
-                        placeholder="Tell us a little more about your issue. If it's about a booking, include your booking reference."
-                        className={`${inputClass} min-h-[162px] resize-y leading-6`}
+                        id="bms-contact-message" name="message" required rows={6} maxLength={3000}
+                        placeholder="Describe your issue. For booking questions, include your booking reference."
+                        value={form.message} onChange={handleChange}
+                        className={`${inputClass} min-h-[160px] resize-y leading-6`}
                       />
                     </div>
-
-                    <div className="mt-7 flex flex-col gap-3 border-t border-white/[0.075] pt-6 sm:flex-row sm:items-center sm:justify-between">
-                      <p className="max-w-[205px] text-[11px] leading-[1.7] text-white/33">
-                        Please don't include card details or passwords.
-                      </p>
-
-                      <motion.button
+                    <div className="flex flex-col gap-4 border-t border-white/10 pt-6 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="max-w-[230px] text-xs leading-5 text-zinc-500">Please don't include passwords or card details.</p>
+                      <button
                         type="submit"
                         disabled={sending}
-                        whileHover={reducedMotion ? undefined : { y: -2 }}
-                        whileTap={reducedMotion ? undefined : { scale: 0.98 }}
-                        className="group inline-flex shrink-0 items-center justify-center gap-3 rounded-full bg-[#D71935] px-7 py-3.5 text-[13px] font-semibold text-white shadow-[0_10px_35px_rgba(215,25,53,0.18)] transition-colors hover:bg-[#ef2b48] disabled:cursor-wait disabled:opacity-50"
+                        className="group inline-flex items-center justify-center gap-3 rounded-full bg-[#D71935] px-6 py-3.5 text-sm font-semibold transition-all duration-300 hover:bg-[#ed2a49] disabled:cursor-wait disabled:opacity-50"
                       >
                         <Send size={16} />
                         {sending ? "Sending message..." : "Send message"}
-                        {!sending && (
-                          <ArrowUpRight
-                            size={16}
-                            className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
-                          />
-                        )}
-                      </motion.button>
+                        {!sending && <ArrowUpRight size={16} className="transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />}
+                      </button>
                     </div>
                   </motion.form>
                 )}
               </AnimatePresence>
             </div>
-          </motion.div>
+          </motion.section>
 
-          {/* RIGHT: channels + interactive venues */}
-          <div className="space-y-5">
-            <motion.div
-              {...entryMotion}
-              className="overflow-hidden rounded-[27px] border border-white/[0.085] bg-[linear-gradient(135deg,rgba(255,255,255,0.05),rgba(255,255,255,0.015))] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] sm:p-7"
-            >
-              <SectionEyebrow number="02">Reach us your way</SectionEyebrow>
-
-              <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-                <motion.button
-                  type="button"
-                  whileHover={reducedMotion ? undefined : { y: -3 }}
-                  onClick={goToForm}
-                  className="group flex min-h-[170px] flex-col items-start rounded-[19px] border border-white/[0.085] bg-[#0c0c10]/75 p-5 text-left transition-colors hover:border-[#d71935]/35 hover:bg-[#151216]"
-                >
-                  <span className="flex w-full items-center justify-between">
-                    <Mail
-                      size={21}
-                      strokeWidth={1.8}
-                      className="text-[#f15a72]"
-                    />
-                    <ArrowUpRight
-                      size={17}
-                      className="text-white/25 transition-all group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-white"
-                    />
-                  </span>
-                  <span className="mt-auto block pt-5 text-[17px] font-semibold tracking-[-0.035em]">
-                    Email support
-                  </span>
-                  <span className="mt-2 text-[12px] leading-5 text-white/40">
-                    Send an enquiry through the form.
-                  </span>
-                </motion.button>
-
-                <motion.button
-                  type="button"
-                  whileHover={reducedMotion ? undefined : { y: -3 }}
-                  onClick={handleWhatsApp}
-                  className="group flex min-h-[170px] flex-col items-start rounded-[19px] border border-white/[0.085] bg-[#0c0c10]/75 p-5 text-left transition-colors hover:border-[#d71935]/35 hover:bg-[#151216]"
-                >
-                  <span className="flex w-full items-center justify-between">
-                    <MessageCircle
-                      size={21}
-                      strokeWidth={1.8}
-                      className="text-[#f15a72]"
-                    />
-                    <ArrowUpRight
-                      size={17}
-                      className="text-white/25 transition-all group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-white"
-                    />
-                  </span>
-                  <span className="mt-auto block pt-5 text-[17px] font-semibold tracking-[-0.035em]">
-                    WhatsApp
-                  </span>
-                  <span className="mt-2 text-[12px] leading-5 text-white/40">
-                    Continue with your filled-in details.
-                  </span>
-                </motion.button>
+          <aside className="space-y-5">
+            <motion.section {...enter} className={`${surface} p-5 sm:p-7`}>
+              <Eyebrow suffix="02">Contact channels</Eyebrow>
+              <h2 className="cine-head mt-5 text-2xl">Reach us your way.</h2>
+              <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                <button type="button" onClick={goToForm} className="group flex min-h-[155px] flex-col items-start rounded-2xl border border-white/10 bg-white/[0.025] p-5 text-left transition-all duration-300 hover:-translate-y-1 hover:border-[#D71935]/50 hover:bg-[#D71935]/[0.055]">
+                  <span className="flex w-full items-center justify-between text-[#ff526e]"><Mail size={21} /><ArrowUpRight size={16} className="text-zinc-600 group-hover:text-white" /></span>
+                  <span className="cine-head mt-auto pt-5 text-lg">Email support</span>
+                  <span className="mt-1.5 text-xs leading-5 text-zinc-500">Send an enquiry through the form.</span>
+                </button>
+                <button type="button" onClick={handleWhatsApp} className="group flex min-h-[155px] flex-col items-start rounded-2xl border border-white/10 bg-white/[0.025] p-5 text-left transition-all duration-300 hover:-translate-y-1 hover:border-[#D71935]/50 hover:bg-[#D71935]/[0.055]">
+                  <span className="flex w-full items-center justify-between text-[#ff526e]"><MessageCircle size={21} /><ArrowUpRight size={16} className="text-zinc-600 group-hover:text-white" /></span>
+                  <span className="cine-head mt-auto pt-5 text-lg">WhatsApp</span>
+                  <span className="mt-1.5 text-xs leading-5 text-zinc-500">Continue with your filled-in details.</span>
+                </button>
               </div>
-            </motion.div>
+            </motion.section>
 
-            <motion.div
-              {...entryMotion}
-              className="overflow-hidden rounded-[27px] border border-white/[0.085] bg-[linear-gradient(155deg,rgba(255,255,255,0.05),rgba(255,255,255,0.01))]"
-            >
-              <div className="flex items-end justify-between gap-4 border-b border-white/[0.075] px-5 pb-5 pt-6 sm:px-7 sm:pt-7">
+            <motion.section {...enter} className={`${surface} overflow-hidden`}>
+              <div className="flex items-end justify-between gap-4 border-b border-white/10 px-5 py-6 sm:px-7">
                 <div>
-                  <SectionEyebrow number="03">Find your cinema</SectionEyebrow>
-                  <h2 className="mt-4 text-[25px] font-semibold tracking-[-0.055em]">
-                    Our locations<span className="text-[#d71935]">.</span>
-                  </h2>
+                  <Eyebrow suffix="03">Find your cinema</Eyebrow>
+                  <h2 className="cine-head mt-4 text-[26px]">Our locations<span className="text-[#ff526e]">.</span></h2>
                 </div>
-                <span className="pb-1 font-mono text-[11px] text-white/30">
-                  05 VENUES
-                </span>
+                <span className="shrink-0 text-[10px] tracking-wider text-zinc-500">05 VENUES</span>
               </div>
-
-              <div className="pb-1">
-                {LOCATIONS.map((venue, index) => (
-                  <Venue
-                    key={venue.name}
-                    venue={venue}
-                    index={index}
-                    open={expandedVenue === index}
-                    onToggle={() =>
-                      setExpandedVenue((current) =>
-                        current === index ? null : index
-                      )
-                    }
-                    reducedMotion={reducedMotion}
-                  />
-                ))}
+              {LOCATIONS.map((venue, index) => (
+                <Venue key={venue.name} venue={venue} index={index} isOpen={expandedVenue === index} reducedMotion={reducedMotion} onToggle={() => setExpandedVenue((current) => current === index ? null : index)} />
+              ))}
+              <div className="flex items-center gap-2 px-5 py-5 text-xs leading-5 text-zinc-500 sm:px-7">
+                <MapPin size={15} className="shrink-0 text-[#ff526e]" />
+                Select a cinema for its address and directions.
               </div>
-
-              <div className="flex items-center gap-3 px-5 py-5 sm:px-7">
-                <MapPin
-                  size={15}
-                  strokeWidth={1.8}
-                  className="text-[#d71935]"
-                />
-                <p className="text-[11px] leading-5 text-white/35">
-                  Tap a cinema to see its address and map link.
-                </p>
-              </div>
-            </motion.div>
-
-            <motion.div
-              {...entryMotion}
-              className="flex items-start gap-3 rounded-[21px] border border-white/[0.07] bg-white/[0.025] p-5"
-            >
-              <Ticket
-                size={17}
-                className="mt-0.5 shrink-0 text-[#d94a63]"
-              />
+            </motion.section>
+            <motion.div {...enter} className="flex gap-3 rounded-2xl border border-white/10 bg-white/[0.025] p-5">
+              <Ticket size={18} className="mt-0.5 shrink-0 text-[#ff526e]" />
               <div>
-                <p className="text-[13px] font-medium text-white/80">
-                  Already have a booking?
-                </p>
-                <p className="mt-1.5 text-[12px] leading-5 text-white/38">
-                  Include your booking code in the message so support can identify your reservation.
-                </p>
+                <p className="cine-head text-sm">Already have a booking?</p>
+                <p className="mt-1.5 text-xs leading-5 text-zinc-500">Include your booking code so support can identify your reservation.</p>
               </div>
             </motion.div>
-          </div>
-        </section>
-
-        {/* PAGE FOOTER */}
-        <div className="mt-12 flex flex-wrap items-center justify-between gap-4 border-t border-white/[0.07] pt-6">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/25">
-            BookMySeat / Support
-          </span>
-          <span className="flex items-center gap-2 text-[11px] text-white/30">
-            <ShieldCheck size={14} />
-            Every enquiry matters.
-          </span>
+          </aside>
         </div>
-      </div>
-    </main>
+
+        <div className="mt-12 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-6">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">BookMySeat / Customer care</span>
+          <span className="flex items-center gap-2 text-xs text-zinc-500"><ShieldCheck size={15} /> Your experience matters.</span>
+        </div>
+      </main>
+    </PageShell>
   );
 }

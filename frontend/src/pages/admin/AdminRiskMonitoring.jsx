@@ -1,49 +1,40 @@
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
-  Activity,
-  AlertTriangle,
-  Armchair,
-  CreditCard,
-  RefreshCw,
-  Search,
-  ShieldAlert,
-  ShieldCheck,
-  Users,
+  Activity, AlertTriangle, Armchair, CheckCircle2, CreditCard,
+  RefreshCw, Search, ShieldAlert, ShieldCheck, Users,
 } from "lucide-react";
-
 import { useAuth } from "../../context/AuthContext";
 
-const API_URL = (
-  process.env.REACT_APP_BACKEND_URL || ""
-).replace(/\/+$/, "");
-
+const API_URL = (process.env.REACT_APP_BACKEND_URL || "").replace(/\/+$/, "");
 const ENDPOINT = `${API_URL}/api/admin/risk`;
+const EASE = [0.22, 1, 0.36, 1];
+const PANEL = "rounded-[22px] border border-white/10 bg-[#111114]/90";
+const INPUT = "w-full min-w-0 rounded-xl border border-white/10 bg-[#1a191e] px-4 py-3 text-sm text-white outline-none transition-colors focus:border-[#D71935]/70";
 
 const TYPE_LABELS = {
-  EXCESSIVE_SEAT_HOLD_REQUESTS:
-    "Excessive seat-hold requests",
-  REPEATED_SEAT_CONFLICTS:
-    "Repeated seat conflicts",
-  REPEATED_PAYMENT_REQUEST_REJECTIONS:
-    "Repeated payment rejections",
-  EXCESSIVE_PAYMENT_CREATION_REQUESTS:
-    "Excessive payment requests",
+  EXCESSIVE_SEAT_HOLD_REQUESTS: "Excessive seat-hold requests",
+  REPEATED_SEAT_CONFLICTS: "Repeated seat conflicts",
+  REPEATED_PAYMENT_REQUEST_REJECTIONS: "Repeated payment rejections",
+  EXCESSIVE_PAYMENT_CREATION_REQUESTS: "Excessive payment requests",
 };
 
-function isPaymentSignal(event) {
-  return String(event.type || "")
-    .toUpperCase()
-    .includes("PAYMENT");
-}
+const number = (value) => Number(value || 0).toLocaleString("en-IN");
 
-function formatDate(value) {
-  if (!value) return "Time unavailable";
+const isPayment = (event) =>
+  String(event?.type || "").toUpperCase().includes("PAYMENT");
 
-  const date = new Date(value);
+const displayType = (value) =>
+  TYPE_LABELS[value] ||
+  String(value || "Unclassified signal").replaceAll("_", " ").toLowerCase();
 
-  if (Number.isNaN(date.getTime())) {
+const maskHash = (value) =>
+  value ? `••••${String(value).slice(-12)}` : "Unavailable";
+
+const time = (value) => {
+  if (!value || Number.isNaN(new Date(value).getTime())) {
     return "Time unavailable";
   }
 
@@ -51,44 +42,31 @@ function formatDate(value) {
     timeZone: "Asia/Kolkata",
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(date);
-}
+  }).format(new Date(value));
+};
 
-function displayType(type) {
+function Eyebrow({ children, index }) {
   return (
-    TYPE_LABELS[type] ||
-    String(type || "Unclassified signal")
-      .replace(/_/g, " ")
-      .toLowerCase()
+    <p className="flex items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#ff526e]">
+      <span className="h-px w-7 bg-[#D71935]" />
+      {children}
+      <span className="text-zinc-600">/ {index}</span>
+    </p>
   );
 }
 
-function maskAccount(hash) {
-  if (!hash) return "Unavailable";
-  return `••••${String(hash).slice(-12)}`;
-}
-
-function MetricCard({ title, value, description, icon: Icon }) {
+function Metric({ icon: Icon, title, value, subtitle }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-[#17171b] p-5">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-xs text-white/55">
-          {title}
-        </span>
-
-        <Icon
-          size={17}
-          strokeWidth={1.7}
-          className="text-[#ec647d]"
-        />
+    <div className={`${PANEL} p-5 transition-colors hover:border-[#D71935]/35 sm:p-6`}>
+      <div className="flex items-center justify-between gap-3 text-xs text-zinc-400">
+        <span>{title}</span>
+        <Icon size={17} className="text-[#ff526e]" />
       </div>
-
-      <p className="mt-4 text-3xl font-semibold tracking-tight text-white tabular-nums">
-        {value.toLocaleString("en-IN")}
+      <p className="cine-head mt-5 text-3xl tabular-nums text-white">
+        {number(value)}
       </p>
-
-      <p className="mt-2 text-xs leading-5 text-white/40">
-        {description}
+      <p className="mt-2 text-[11px] leading-5 text-zinc-500">
+        {subtitle}
       </p>
     </div>
   );
@@ -96,101 +74,120 @@ function MetricCard({ title, value, description, icon: Icon }) {
 
 export default function AdminRiskMonitoring() {
   const { token } = useAuth();
+  const reduced = useReducedMotion();
 
   const [events, setEvents] = useState([]);
   const [retained, setRetained] = useState({});
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [notice, setNotice] = useState(false);
   const [error, setError] = useState("");
-
-  const [refreshKey, setRefreshKey] = useState(0);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("ALL");
   const [source, setSource] = useState("ALL");
   const [period, setPeriod] = useState("ALL");
+  const refreshController = useRef(null);
 
-  // =====================================================
-  // LOAD ADMIN RISK SIGNALS
-  // =====================================================
-
-  useEffect(() => {
+  const fetchSignals = useCallback(async (signal) => {
     if (!token) {
-      setLoading(false);
       setError("Administrator authentication is required.");
-      return undefined;
+      return false;
     }
 
-    const controller = new AbortController();
-
-    setLoading(true);
     setError("");
 
-    axios
-      .get(ENDPOINT, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+    try {
+      const { data } = await axios.get(ENDPOINT, {
+        headers: { Authorization: `Bearer ${token}` },
         params: { limit: 100 },
-        signal: controller.signal,
+        signal,
         timeout: 12000,
-      })
-      .then(({ data }) => {
-        if (!data?.success || !Array.isArray(data.events)) {
-          throw new Error("Invalid risk-monitoring response.");
-        }
-
-        setEvents(data.events);
-        setRetained(data.retained || {});
-      })
-      .catch((requestError) => {
-        if (controller.signal.aborted) return;
-
-        setError(
-          requestError.response?.data?.message ||
-            requestError.message ||
-            "Risk events could not be loaded."
-        );
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setLoading(false);
-        }
       });
 
-    return () => controller.abort();
-  }, [token, refreshKey]);
+      if (signal?.aborted) return false;
 
-  // =====================================================
-  // FILTERS
-  // =====================================================
+      if (data?.success !== true || !Array.isArray(data.events)) {
+        throw new Error("Invalid risk-monitoring response.");
+      }
+
+      setEvents(data.events);
+      setRetained(data.retained || {});
+      return true;
+    } catch (problem) {
+      if (signal?.aborted || axios.isCancel(problem)) return false;
+
+      setError(
+        problem.response?.data?.message ||
+        problem.message ||
+        "Unable to load risk signals."
+      );
+      return false;
+    }
+  }, [token]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+
+    fetchSignals(controller.signal).finally(() => {
+      if (!controller.signal.aborted) setLoading(false);
+    });
+
+    return () => controller.abort();
+  }, [fetchSignals]);
+
+  useEffect(() => () => refreshController.current?.abort(), []);
+
+  useEffect(() => {
+    if (!notice) return undefined;
+
+    const timer = window.setTimeout(() => setNotice(false), 5000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+
+  async function refresh() {
+    if (loading || refreshing) return;
+
+    const controller = new AbortController();
+    refreshController.current = controller;
+
+    setRefreshing(true);
+    setNotice(false);
+
+    try {
+      const [success] = await Promise.all([
+        fetchSignals(controller.signal),
+        new Promise((resolve) => window.setTimeout(resolve, 650)),
+      ]);
+
+      if (!controller.signal.aborted && success) {
+        setNotice(true);
+      }
+    } finally {
+      if (!controller.signal.aborted) setRefreshing(false);
+
+      if (refreshController.current === controller) {
+        refreshController.current = null;
+      }
+    }
+  }
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
     const now = Date.now();
 
     return events.filter((event) => {
-      const payment = isPaymentSignal(event);
+      const payment = isPayment(event);
 
       if (category === "PAYMENT" && !payment) return false;
       if (category === "SEAT" && payment) return false;
-
-      if (source !== "ALL" && event.source !== source) {
-        return false;
-      }
+      if (source !== "ALL" && event.source !== source) return false;
 
       if (period !== "ALL") {
-        const timestamp = new Date(
-          event.occurredAt
-        ).getTime();
+        const timestamp = new Date(event.occurredAt).getTime();
+        const windowMs = period === "24H" ? 86400000 : 7 * 86400000;
 
-        const windowMs =
-          period === "24H"
-            ? 24 * 60 * 60 * 1000
-            : 7 * 24 * 60 * 60 * 1000;
-
-        if (
-          !Number.isFinite(timestamp) ||
-          timestamp < now - windowMs
-        ) {
+        if (!Number.isFinite(timestamp) || timestamp < now - windowMs) {
           return false;
         }
       }
@@ -203,334 +200,294 @@ export default function AdminRiskMonitoring() {
         event.showId,
         event.accountHash,
         displayType(event.type),
-      ]
-        .some((value) =>
-          String(value || "")
-            .toLowerCase()
-            .includes(term)
-        );
+      ].some((value) =>
+        String(value ?? "").toLowerCase().includes(term)
+      );
     });
   }, [events, search, category, source, period]);
 
-  const paymentEvents = events.filter(
-    isPaymentSignal
-  ).length;
-
-  const seatEvents =
-    events.length - paymentEvents;
-
-  const uniqueAccounts = new Set(
-    events
-      .map((event) => event.accountHash)
-      .filter(Boolean)
+  const paymentCount = events.filter(isPayment).length;
+  const seatCount = events.length - paymentCount;
+  const distinctCount = new Set(
+    events.map((event) => event.accountHash).filter(Boolean)
   ).size;
 
-  const retainedTotal =
-    Object.values(retained).reduce(
-      (total, count) =>
-        total + (Number(count) || 0),
-      0
-    );
-
-  const selectClass =
-    "rounded-xl border border-white/10 bg-[#1e1e23] px-3 py-2.5 text-sm text-white outline-none focus:border-[#D71935]";
+  const retainedCount = Object.values(retained).reduce(
+    (sum, count) => sum + (Number(count) || 0),
+    0
+  );
 
   return (
-    <div className="mx-auto max-w-[1440px] pb-16 text-white">
-      {/* HEADING */}
+    <div className="mx-auto max-w-[1460px] pb-16 text-white">
+      <header className="flex flex-wrap items-end justify-between gap-6 border-b border-white/10 pb-7">
+        <div className="min-w-0">
+          <Eyebrow index="11">Security operations</Eyebrow>
 
-      <header className="flex flex-wrap items-end justify-between gap-5 border-b border-white/10 pb-7">
-        <div>
-          <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#ef7188]">
-            <ShieldAlert size={15} />
-            Security operations
-          </div>
-
-          <h1 className="mt-4 text-[clamp(2rem,4vw,3.5rem)] font-semibold leading-tight tracking-[-0.06em]">
-            Fraud monitoring
+          <h1 className="cine-display mt-5 text-[clamp(2.2rem,3.8vw,3.8rem)] leading-[1.14]">
+            Risk <span className="text-[#ff4562]">monitoring.</span>
           </h1>
 
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-[#a6a5ae]">
-            Review abnormal booking activity and payment
-            requests. Signals identify patterns that
-            may require investigation.
+          <p className="mt-4 max-w-[590px] text-sm leading-7 text-zinc-400">
+            Review recorded seat-hold conflicts and payment request patterns.
+            Signals indicate activity worth examining, not confirmed fraud.
           </p>
         </div>
 
-        <button
-          type="button"
-          disabled={loading}
-          onClick={() =>
-            setRefreshKey((value) => value + 1)
-          }
-          className="inline-flex items-center gap-2 rounded-full border border-white/20 px-5 py-3 text-sm font-medium transition hover:border-[#D71935]/60 hover:bg-white/5 disabled:opacity-50"
-        >
-          <RefreshCw
-            size={16}
-            className={loading ? "animate-spin" : ""}
-          />
-          Refresh events
-        </button>
+        <div className="flex flex-col items-start gap-2 sm:items-end">
+          <button
+            type="button"
+            onClick={refresh}
+            disabled={loading || refreshing}
+            aria-busy={refreshing}
+            className="inline-flex min-h-[44px] items-center gap-2.5 rounded-full border border-white/20 bg-white/[0.035] px-5 py-3 text-xs font-semibold text-zinc-200 transition-colors hover:border-[#D71935]/60 hover:bg-[#D71935]/10 disabled:opacity-50"
+          >
+            <motion.span
+              className="inline-flex text-[#ff526e]"
+              animate={refreshing && !reduced ? { rotate: 360 } : { rotate: 0 }}
+              transition={
+                refreshing && !reduced
+                  ? { repeat: Infinity, duration: 1.15, ease: "linear" }
+                  : { duration: 0.2 }
+              }
+            >
+              <RefreshCw size={16} />
+            </motion.span>
+            {refreshing ? "Refreshing..." : "Refresh signals"}
+          </button>
+
+          <div className="min-h-[20px]" aria-live="polite">
+            <AnimatePresence>
+              {notice && (
+                <motion.p
+                  key="refreshed"
+                  role="status"
+                  initial={reduced ? false : { opacity: 0, y: -5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="inline-flex items-center gap-2 text-xs text-emerald-300"
+                >
+                  <CheckCircle2 size={15} />
+                  Risk signals updated
+                </motion.p>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
       </header>
 
-      {/* SUMMARY */}
-
-      <div className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
+      <section aria-label="Risk signal summary" className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Metric
+          icon={Activity}
           title="Signals loaded"
           value={events.length}
-          description="Latest events returned by Redis"
-          icon={Activity}
+          subtitle="Up to 100 latest records"
         />
-
-        <MetricCard
-          title="Seat-related"
-          value={seatEvents}
-          description="Hold limits and seat conflicts"
+        <Metric
           icon={Armchair}
+          title="Seat activity"
+          value={seatCount}
+          subtitle="Rate limits and seat conflicts"
         />
-
-        <MetricCard
-          title="Payment-related"
-          value={paymentEvents}
-          description="Payment request limits and rejections"
+        <Metric
           icon={CreditCard}
+          title="Payment activity"
+          value={paymentCount}
+          subtitle="Limits and request rejections"
         />
-
-        <MetricCard
-          title="Distinct accounts"
-          value={uniqueAccounts}
-          description="Unique account hashes in loaded events"
+        <Metric
           icon={Users}
+          title="Distinct accounts"
+          value={distinctCount}
+          subtitle="Unique account hashes in results"
         />
-      </div>
+      </section>
 
-      {/* CONTEXT */}
-
-      <div className="mt-6 flex items-start gap-3 rounded-2xl border border-white/10 bg-[#17171b] p-4">
+      <section
+        className="mt-6 flex items-start gap-4 rounded-[18px] border border-[#D71935]/25 bg-[#D71935]/[0.065] p-5"
+        aria-label="Monitoring context"
+      >
         <ShieldCheck
-          size={19}
-          className="mt-0.5 shrink-0 text-[#f0788d]"
+          size={21}
+          className="mt-0.5 shrink-0 text-[#ff8295]"
         />
-
         <div>
-          <p className="text-sm font-medium text-white">
-            Advisory signals, not confirmed fraud
-          </p>
-
-          <p className="mt-1 text-xs leading-6 text-white/50">
-            Rate limits and repeated conflicts can also
-            result from legitimate retries or network
-            problems. No account is automatically
-            blocked by this dashboard.
-            {" "}Redis currently retains{" "}
-            {retainedTotal.toLocaleString("en-IN")}{" "}
-            signal records across the monitored streams.
-            This screen loads up to the latest 100.
+          <h2 className="cine-head text-base text-white">
+            Advisory signals, not confirmed fraud.
+          </h2>
+          <p className="mt-2 text-xs leading-6 text-zinc-400">
+            Legitimate retries or network problems can trigger these thresholds.
+            This dashboard does not automatically block accounts.
+            Redis currently retains {number(retainedCount)} records across
+            monitored streams. The API returns up to 100 recent records per request.
           </p>
         </div>
-      </div>
+      </section>
 
-      {/* FILTERS */}
+      <section aria-label="Risk activity log" className={`${PANEL} mt-7 overflow-hidden`}>
+        <div className="border-b border-white/10 p-5 sm:p-7">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <Eyebrow index="01">Signal archive</Eyebrow>
+              <h2 className="cine-head mt-4 text-2xl text-white">
+                Activity log
+              </h2>
+            </div>
+            <span className="text-xs tabular-nums text-zinc-400">
+              {number(filtered.length)} matching / {number(events.length)} loaded
+            </span>
+          </div>
 
-      <section className="mt-8 rounded-2xl border border-white/10 bg-[#17171b] p-4 sm:p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold tracking-tight">
-              Activity log
-            </h2>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_170px_170px_145px]">
+            <label className="relative min-w-0">
+              <span className="sr-only">Search risk events</span>
+              <Search
+                size={16}
+                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500"
+              />
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search event, show or account"
+                className={`${INPUT} pl-11`}
+              />
+            </label>
 
-            <p className="mt-1 text-xs text-white/45">
-              {filtered.length} matching signals
+            <select
+              value={category}
+              onChange={(event) => setCategory(event.target.value)}
+              aria-label="Filter by activity"
+              className={INPUT}
+            >
+              <option value="ALL">All activity</option>
+              <option value="SEAT">Seat activity</option>
+              <option value="PAYMENT">Payment activity</option>
+            </select>
+
+            <select
+              value={source}
+              onChange={(event) => setSource(event.target.value)}
+              aria-label="Filter by source"
+              className={INPUT}
+            >
+              <option value="ALL">All sources</option>
+              <option value="booking-risk">Risk detector</option>
+              <option value="hold-rate-limit">Hold rate limiter</option>
+            </select>
+
+            <select
+              value={period}
+              onChange={(event) => setPeriod(event.target.value)}
+              aria-label="Filter by period"
+              className={INPUT}
+            >
+              <option value="ALL">All retained</option>
+              <option value="24H">Last 24 hours</option>
+              <option value="7D">Last 7 days</option>
+            </select>
+          </div>
+
+          {error && (
+            <p role="alert" className="mt-5 flex items-center gap-2 rounded-xl border border-rose-500/25 bg-rose-500/10 p-4 text-xs leading-6 text-rose-200">
+              <AlertTriangle size={16} className="shrink-0" />
+              {error}
             </p>
-          </div>
+          )}
         </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_160px_160px_130px]">
-          <label className="relative">
-            <Search
-              size={16}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/40"
-            />
-
-            <input
-              value={search}
-              onChange={(event) =>
-                setSearch(event.target.value)
-              }
-              placeholder="Search event, show or account"
-              aria-label="Search risk events"
-              className={`${selectClass} w-full pl-10`}
-            />
-          </label>
-
-          <select
-            value={category}
-            onChange={(event) =>
-              setCategory(event.target.value)
-            }
-            aria-label="Filter by activity"
-            className={selectClass}
-          >
-            <option value="ALL">All activity</option>
-            <option value="SEAT">Seat activity</option>
-            <option value="PAYMENT">Payment activity</option>
-          </select>
-
-          <select
-            value={source}
-            onChange={(event) =>
-              setSource(event.target.value)
-            }
-            aria-label="Filter by source"
-            className={selectClass}
-          >
-            <option value="ALL">All sources</option>
-            <option value="booking-risk">
-              Risk detector
-            </option>
-            <option value="hold-rate-limit">
-              Hold rate limits
-            </option>
-          </select>
-
-          <select
-            value={period}
-            onChange={(event) =>
-              setPeriod(event.target.value)
-            }
-            aria-label="Filter by period"
-            className={selectClass}
-          >
-            <option value="ALL">All retained</option>
-            <option value="24H">Last 24 hours</option>
-            <option value="7D">Last 7 days</option>
-          </select>
-        </div>
-
-        {error && (
-          <div
-            role="alert"
-            className="mt-5 flex items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/10 p-4 text-sm text-red-200"
-          >
-            <AlertTriangle
-              size={17}
-              className="mt-0.5 shrink-0"
-            />
-            {error}
-          </div>
-        )}
-
-        {/* EVENT RESULTS */}
-
-        <div
-          className="mt-5 space-y-2"
-          aria-live="polite"
-        >
+        <div className="space-y-3 p-4 sm:p-6" aria-live="polite">
           {loading && !events.length && (
-            <p className="py-12 text-center text-sm text-white/50">
-              Loading security events…
+            <p role="status" className="py-12 text-center text-sm text-zinc-500">
+              Loading risk signals...
             </p>
           )}
 
-          {!loading && !error && !filtered.length && (
-            <div className="rounded-xl border border-dashed border-white/10 py-12 text-center">
-              <ShieldCheck
-                size={28}
-                className="mx-auto text-white/35"
-              />
-
-              <p className="mt-4 text-sm font-medium text-white/80">
-                No matching signals
-              </p>
-
-              <p className="mt-2 text-xs text-white/40">
-                Adjust the filters or refresh
-                the activity log.
+          {!loading && !error && filtered.length === 0 && (
+            <div className="rounded-xl border border-dashed border-white/10 px-5 py-14 text-center">
+              <ShieldCheck size={30} className="mx-auto text-zinc-500" />
+              <p className="cine-head mt-4 text-lg">No matching signals.</p>
+              <p className="mt-2 text-xs text-zinc-500">
+                Adjust the filters or refresh the activity log.
               </p>
             </div>
           )}
 
-          {filtered.map((event) => {
-            const payment = isPaymentSignal(event);
-            const Icon = payment
-              ? CreditCard
-              : Armchair;
+          {filtered.map((event, index) => {
+            const payment = isPayment(event);
+            const Icon = payment ? CreditCard : Armchair;
+            const count =
+              Number(event.count) ||
+              Math.max(
+                Number(event.minuteCount) || 0,
+                Number(event.fifteenMinuteCount) || 0
+              );
 
             return (
-              <article
-                key={event.id}
-                className="rounded-xl border border-white/10 bg-[#202024] p-4 transition-colors hover:border-white/20"
+              <motion.article
+                key={event.id || `${event.source}-${index}`}
+                initial={reduced ? false : { opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  duration: 0.3,
+                  ease: EASE,
+                  delay: reduced ? 0 : Math.min(index, 8) * 0.025,
+                }}
+                className="rounded-xl border border-white/[0.09] bg-[#19191d] p-4 transition-colors hover:border-[#D71935]/30 sm:p-5"
               >
-                <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="flex min-w-0 items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#D71935]/20 bg-[#D71935]/10 text-[#f17a90]">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#D71935]/25 bg-[#D71935]/10 text-[#ff7189]">
                       <Icon size={18} />
                     </div>
-
                     <div className="min-w-0">
-                      <h3 className="text-sm font-semibold leading-6">
+                      <h3 className="cine-head text-[15px] leading-6 text-white">
                         {displayType(event.type)}
                       </h3>
-
-                      <p className="mt-1 text-xs text-white/45">
+                      <p className="mt-1 text-xs text-zinc-500">
                         {event.source === "booking-risk"
                           ? "Risk detection"
                           : "Seat-hold rate limiter"}
                       </p>
                     </div>
                   </div>
-
-                  <span className="text-xs text-white/45">
-                    {formatDate(event.occurredAt)}
-                  </span>
+                  <div className="shrink-0 text-xs text-zinc-400">
+                    {time(event.occurredAt)}
+                  </div>
                 </div>
 
-                <div className="mt-4 grid gap-3 border-t border-white/10 pt-4 text-xs sm:grid-cols-3">
+                <div className="mt-5 grid gap-4 border-t border-white/[0.08] pt-4 text-xs sm:grid-cols-3">
                   <div>
-                    <p className="text-white/40">
-                      Account reference
-                    </p>
-
-                    <p className="mt-1 break-all font-mono text-white/75">
-                      {maskAccount(event.accountHash)}
+                    <p className="text-zinc-500">Account reference</p>
+                    <p className="mt-2 break-all font-mono text-zinc-200">
+                      {maskHash(event.accountHash)}
                     </p>
                   </div>
-
                   <div>
-                    <p className="text-white/40">
-                      Show
-                    </p>
-
-                    <p className="mt-1 break-all font-mono text-white/75">
+                    <p className="text-zinc-500">Show ID</p>
+                    <p className="mt-2 break-all font-mono text-zinc-200">
                       {event.showId &&
-                      event.showId !== "unknown" &&
-                      event.showId !== "invalid"
+                      !["unknown", "invalid"].includes(event.showId)
                         ? event.showId
                         : "Not specified"}
                     </p>
                   </div>
-
                   <div>
-                    <p className="text-white/40">
-                      Recorded requests
-                    </p>
-
-                    <p className="mt-1 font-semibold tabular-nums text-white/75">
-                      {event.count ||
-                        Math.max(
-                          event.minuteCount || 0,
-                          event.fifteenMinuteCount || 0
-                        ) ||
-                        "—"}
+                    <p className="text-zinc-500">Recorded requests</p>
+                    <p className="mt-2 font-semibold tabular-nums text-zinc-200">
+                      {count || "—"}
                     </p>
                   </div>
                 </div>
-              </article>
+              </motion.article>
             );
           })}
         </div>
       </section>
+
+      <p className="mt-6 flex items-center gap-2 text-[11px] text-zinc-500">
+        <ShieldAlert size={14} className="text-[#ff526e]" />
+        Read-only view of retained security signals.
+      </p>
     </div>
   );
 }

@@ -2,8 +2,10 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import {
+  ArrowRight,
   ArrowUpRight,
   ChevronRight,
+  Clapperboard,
   Film,
   MapPin,
   Plus,
@@ -12,19 +14,34 @@ import {
 import axios from "axios";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
+import PageShell from "../components/ui/PageShell";
 
-// BookMySeat — cinema-specific film assistant.
-// Existing API, chat persistence, multi-turn intent and booking navigation retained.
 const API_URL = (process.env.REACT_APP_BACKEND_URL || "").replace(/\/+$/, "");
 const CHAT_KEY_PREFIX = "bookmyseat_ai_chat";
 const ZONE = "Asia/Kolkata";
 const EASE = [0.22, 1, 0.36, 1];
 
 const QUICK_PROMPTS = [
-  { title: "What's playing?", detail: "Browse current screenings", prompt: "Show me movies" },
-  { title: "Find a comedy", detail: "Something light to watch", prompt: "Suggest a comedy" },
-  { title: "Plan for tomorrow", detail: "Explore another day", prompt: "Hindi movies tomorrow" },
-  { title: "Stay within budget", detail: "Find tickets under ₹300", prompt: "Anything under ₹300" },
+  {
+    title: "What's playing?",
+    detail: "Explore current screenings",
+    prompt: "Show me movies",
+  },
+  {
+    title: "Something funny",
+    detail: "Find a comedy for tonight",
+    prompt: "Suggest a comedy",
+  },
+  {
+    title: "Plan for tomorrow",
+    detail: "Discover your next film",
+    prompt: "Hindi movies tomorrow",
+  },
+  {
+    title: "Stay within budget",
+    detail: "Tickets under ₹300",
+    prompt: "Anything under ₹300",
+  },
 ];
 
 function formatDate(value) {
@@ -42,10 +59,7 @@ function formatTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Time unavailable";
   return new Intl.DateTimeFormat("en-IN", {
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone: ZONE,
-  }).format(date);
+    hour: "numeric", minute: "2-digit", timeZone: ZONE }).format(date);
 }
 
 function readCinema() {
@@ -61,17 +75,25 @@ function readCinema() {
 }
 
 function initialMessages(name) {
-  return [
-    {
-      id: "assistant-welcome",
-      role: "assistant",
-      text: name
-        ? `I'm here to help you find something worth watching at ${name}. Tell me what you're in the mood for, or ask to see what's playing.`
-        : "Select a cinema to see real films and showtimes. I'll help you find the right one.",
-      results: [],
-      resultKind: null,
-    },
-  ];
+  return [{
+    id: "assistant-welcome",
+    role: "assistant",
+    text: name
+      ? `I'm here to help you find something worth watching at ${name}. Tell me what you're in the mood for, or ask to see what's playing.`
+      : "Select a cinema to see real films and showtimes. I'll help you find the right one.",
+    results: [],
+    resultKind: null,
+  }];
+}
+
+function Eyebrow({ children, suffix }) {
+  return (
+    <div className="flex items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.23em] text-[#ff526e] sm:text-[11px]">
+      <span className="h-px w-7 shrink-0 bg-[#D71935]" />
+      <span>{children}</span>
+      {suffix && <span className="text-zinc-600">/ {suffix}</span>}
+    </div>
+  );
 }
 
 function FilmPoster({ show }) {
@@ -81,24 +103,22 @@ function FilmPoster({ show }) {
   useEffect(() => setBroken(false), [poster]);
 
   return (
-    <div className="relative aspect-[2/3] overflow-hidden bg-[#1c1b20]">
+    <div className="relative aspect-[2/3] overflow-hidden bg-[#19191e]">
       {poster && !broken ? (
         <img
           src={poster}
           alt={`${show.movie?.title || "Film"} poster`}
           loading="lazy"
           onError={() => setBroken(true)}
-          className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
+          className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.06]"
         />
       ) : (
-        <div className="flex h-full flex-col items-center justify-center gap-3 border-b border-white/10 px-3 text-center">
-          <Film size={22} strokeWidth={1.25} className="text-white/30" />
-          <span className="text-[12px] leading-5 text-white/50">
-            {show.movie?.title || "Artwork unavailable"}
-          </span>
+        <div className="flex h-full flex-col items-center justify-center gap-3 p-4 text-center">
+          <Film size={22} strokeWidth={1.3} className="text-white/35" />
+          <span className="text-xs text-zinc-500">{show.movie?.title || "Artwork unavailable"}</span>
         </div>
       )}
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent" />
     </div>
   );
 }
@@ -108,40 +128,38 @@ function ResultCards({ results, kind, onSelect }) {
 
   return (
     <section className="mt-6 border-t border-white/10 pt-5" aria-label="Film results">
-      <div className="mb-4 flex items-baseline justify-between gap-4">
-        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#ed6980]">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#ff526e]">
           {kind === "MOVIES" ? "Films found" : "Matching showtimes"}
-        </p>
-        <span className="text-[11px] text-[#86828a] tabular-nums">
+        </span>
+        <span className="text-[10px] tabular-nums text-zinc-500">
           {String(results.length).padStart(2, "0")} results
         </span>
       </div>
-
-      <div className="flex snap-x gap-3 overflow-x-auto pb-3 [scrollbar-color:#444047_transparent] [scrollbar-width:thin]">
+      <div className="cine-scroll flex snap-x gap-3 overflow-x-auto pb-2">
         {results.map((show, index) => (
           <button
             key={`${show.showId || "show"}-${index}`}
             type="button"
             onClick={() => onSelect(show)}
-            className="group w-[156px] shrink-0 snap-start overflow-hidden rounded-[13px] border border-white/[0.09] bg-[#17171b] text-left transition-[border-color,transform,background] duration-300 hover:-translate-y-1 hover:border-[#c9455f]/55 hover:bg-[#1d1c21] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#d71935] sm:w-[174px]"
+            className="group w-[150px] shrink-0 snap-start overflow-hidden rounded-xl border border-white/10 bg-[#17171b] text-left transition-all duration-300 hover:-translate-y-1 hover:border-[#D71935]/70 hover:bg-[#202025] sm:w-[172px]"
           >
             <FilmPoster show={show} />
-            <span className="block px-3 pb-3 pt-3">
-              <span className="block truncate text-[12px] font-semibold tracking-[-0.015em] text-white">
-                {show.movie?.title || "Film"}
-              </span>
-              <span className="mt-2 block truncate text-[11px] leading-5 text-white/50">
-                {formatDate(show.startTime)}
-              </span>
-              <span className="block truncate text-[11px] leading-5 text-white/50">
+            <div className="px-3 pb-3 pt-3">
+              <p className="cine-head truncate text-sm text-white">{show.movie?.title || "Film"}</p>
+              <p className="mt-2 truncate text-[11px] text-zinc-400">{formatDate(show.startTime)}</p>
+              <p className="mt-1 truncate text-[11px] text-zinc-400">
                 {formatTime(show.startTime)}
                 {show.minPrice != null ? ` · ₹${show.minPrice}+` : ""}
-              </span>
-              <span className="mt-3 flex items-center justify-between gap-2 border-t border-white/10 pt-2.5 text-[10px] font-semibold text-[#f18a9a]">
-                <span>{kind === "MOVIES" && Number(show.showCount) > 1 ? `${show.showCount} shows` : "View booking"}</span>
-                <ArrowUpRight size={13} />
-              </span>
-            </span>
+              </p>
+              <div className="mt-3 flex items-center justify-between border-t border-white/10 pt-3 text-[11px] font-semibold text-[#ff637b]">
+                <span>
+                  {kind === "MOVIES" && Number(show.showCount) > 1
+                    ? `${show.showCount} shows` : "View booking"}
+                </span>
+                <ArrowUpRight size={14} className="transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+              </div>
+            </div>
           </button>
         ))}
       </div>
@@ -154,22 +172,23 @@ function ConversationMessage({ message, onSelect, reduceMotion }) {
 
   return (
     <motion.article
-      initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+      initial={reduceMotion ? false : { opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.32, ease: EASE }}
+      transition={{ duration: 0.38, ease: EASE }}
       className={`flex min-w-0 ${isUser ? "justify-end" : "justify-start"}`}
     >
-      <div className={`min-w-0 ${isUser ? "max-w-[88%] sm:max-w-[77%]" : "w-full max-w-[680px]"}`}>
-        <p className={`mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] ${isUser ? "text-right text-white/35" : "text-[#e37589]"}`}>
-          {isUser ? "You" : "Concierge"}
-        </p>
+      <div className={`min-w-0 ${isUser ? "max-w-[90%] sm:max-w-[76%]" : "w-full max-w-[720px]"}`}>
+        <div className={`mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.17em] ${isUser ? "justify-end text-zinc-500" : "text-[#ff526e]"}`}>
+          {!isUser && <span className="h-1.5 w-1.5 rounded-full bg-[#D71935]" />}
+          {isUser ? "You" : "Film concierge"}
+        </div>
         {isUser ? (
-          <div className="whitespace-pre-wrap break-words rounded-[14px] rounded-tr-[3px] border border-[#813444]/35 bg-[#29191e] px-4 py-3.5 text-[13px] leading-6 text-[#f5e9ec]">
-            {message.text}
+          <div className="rounded-2xl rounded-tr-sm border border-[#8a3445]/35 bg-[#321b22] px-4 py-3.5 text-[13px] leading-6 text-[#f4e7e9] sm:text-sm">
+            <p className="whitespace-pre-wrap break-words">{message.text}</p>
           </div>
         ) : (
-          <div className="border-l-2 border-[#d71935] py-0.5 pl-4">
-            <p className="whitespace-pre-wrap break-words text-[14px] leading-[1.85] text-[#e2dee1]">
+          <div className="border-l-2 border-[#D71935] py-0.5 pl-4 sm:pl-5">
+            <p className="whitespace-pre-wrap break-words text-[13px] leading-[1.85] text-zinc-200 sm:text-sm">
               {message.text}
             </p>
             <ResultCards results={message.results} kind={message.resultKind} onSelect={onSelect} />
@@ -204,7 +223,7 @@ export default function AiSearch() {
   const chatKey = `${CHAT_KEY_PREFIX}:${selectedId || "none"}`;
   const hasConversation = messages.some((message) => message.role === "user");
 
-  // Keep discovery, context and booking endpoints identical to the existing page.
+  // Keep existing cinema discovery and API contracts unchanged.
   useEffect(() => {
     const controller = new AbortController();
     let active = true;
@@ -236,7 +255,7 @@ export default function AiSearch() {
     };
   }, []);
 
-  // Conversations are isolated per cinema and persist for this browser tab.
+  // Conversations remain isolated per cinema and persist within this tab.
   useEffect(() => {
     let restored = null;
     try {
@@ -259,11 +278,9 @@ export default function AiSearch() {
           }))
       );
       setIntent(restored.intent && typeof restored.intent === "object" ? restored.intent : {});
-      setCurrentResults(
-        Array.isArray(restored.currentResults)
-          ? restored.currentResults
-          : Array.isArray(restored.results) ? restored.results : []
-      );
+      setCurrentResults(Array.isArray(restored.currentResults)
+        ? restored.currentResults
+        : Array.isArray(restored.results) ? restored.results : []);
       setCurrentResultKind(restored.currentResultKind || restored.resultKind || null);
     } else {
       setMessages(initialMessages(cinema.name));
@@ -281,7 +298,7 @@ export default function AiSearch() {
         messages, intent, currentResults, currentResultKind,
       }));
     } catch {
-      // The assistant remains usable without storage.
+      // The assistant continues without session storage.
     }
   }, [selectedId, readyChatKey, chatKey, messages, intent, currentResults, currentResultKind]);
 
@@ -308,7 +325,7 @@ export default function AiSearch() {
       localStorage.setItem("bookmyseat_theatre_name", next.name);
       localStorage.setItem("bookmyseat_city", next.city);
     } catch {
-      // Local state is sufficient.
+      // Local state still holds the selection.
     }
     setCinema(next);
   }
@@ -322,7 +339,7 @@ export default function AiSearch() {
       localStorage.removeItem("bookmyseat_theatre_name");
       localStorage.removeItem("bookmyseat_city");
     } catch {
-      // Local state is sufficient.
+      // Local state still holds the selection.
     }
     setCinema({ id: "", name: "", city: "" });
   }
@@ -393,7 +410,8 @@ export default function AiSearch() {
       console.error("AI assistant:", error);
       const errorMessage = error.response?.data?.message || "Couldn't reach the assistant. Please try again.";
       setMessages((history) => [...history, {
-        id: createId("error"), role: "assistant", text: errorMessage, results: [], resultKind: null,
+        id: createId("error"), role: "assistant", text: errorMessage,
+        results: [], resultKind: null,
       }]);
       toast.error(errorMessage);
     } finally {
@@ -412,7 +430,7 @@ export default function AiSearch() {
     try {
       sessionStorage.removeItem(chatKey);
     } catch {
-      // Chat still resets in local state.
+      // Local chat still resets.
     }
     inputRef.current?.focus();
   }
@@ -423,161 +441,172 @@ export default function AiSearch() {
   }
 
   const entering = reduceMotion ? {} : {
-    initial: { opacity: 0, y: 12 },
+    initial: { opacity: 0, y: 18 },
     animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.5, ease: EASE },
+    transition: { duration: 0.65, ease: EASE },
   };
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#09090b] px-4 pb-14 pt-[105px] text-[#f5f2f1] sm:px-7 lg:pt-[112px]">
-      <div className="mx-auto max-w-[1390px]">
-        {/* Hero: matching BookMySeat's admin editorial typography and spacing. */}
+    <PageShell glow="left">
+      <main className="relative mx-auto max-w-[1480px] px-5 pb-20 pt-10 text-white md:px-10 md:pt-14">
+        {/* Editorial introduction, shared with the Cinemas page's typography. */}
         <motion.header
           {...entering}
-          className="mb-8 flex flex-col justify-between gap-6 border-b border-white/[0.10] pb-7 md:flex-row md:items-end lg:mb-9"
+          className="mb-8 flex flex-col justify-between gap-6 border-b border-white/10 pb-7 lg:mb-10 lg:flex-row lg:items-end"
         >
           <div className="min-w-0">
-            <p className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.23em] text-[#e66a80]">
-              <span className="h-px w-8 bg-[#d71935]" /> Discover / 01
-            </p>
-            <h1 className="mt-4 text-[clamp(2.45rem,3.85vw,4rem)] font-bold leading-[1.01] tracking-[-0.068em] text-[#f7f5f3]">
-              The cinema <span className="text-[#db3654]">concierge.</span>
+            <Eyebrow suffix="06">The film concierge</Eyebrow>
+            <h1 className="cine-display mt-5 text-[clamp(2.8rem,5.4vw,5.4rem)]">
+              Less searching.<br className="hidden sm:block" />
+              <span className="text-[#ff4562]"> More cinema.</span>
             </h1>
-            <p className="mt-4 max-w-[640px] text-[13px] leading-[1.7] text-[#a6a2a9] sm:text-[14px]">
-              Less searching, more watching. Find a film, a showtime, and the right seat at your cinema.
-            </p>
           </div>
-          <div className="flex shrink-0 items-center gap-3 self-start border-l border-white/[0.13] pl-4 md:self-end">
-            <span className="h-2 w-2 shrink-0 rounded-full bg-[#d71935]" aria-hidden="true" />
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#9d96a0]">Currently browsing</p>
-              <p className="mt-1 max-w-[230px] truncate text-[12px] font-semibold text-white/85">
-                {selectedId ? cinema.name || "Selected cinema" : "Choose a cinema to begin"}
-              </p>
+          <div className="max-w-[370px] lg:pb-1">
+            <p className="text-sm leading-relaxed text-zinc-400 md:text-base">
+              Tell us what you feel like watching. Find real films, showtimes and seats at your cinema.
+            </p>
+            <div className="mt-5 flex items-center gap-2 text-xs text-zinc-500">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#D71935]" />
+              {selectedId ? `Exploring ${cinema.name || "your cinema"}` : "Choose your cinema to begin"}
             </div>
           </div>
         </motion.header>
 
-        <div className="grid items-start gap-5 lg:grid-cols-[302px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)]">
-          {/* Cinema context stays separate from the conversation. */}
-          <motion.aside {...entering} className="space-y-4 lg:sticky lg:top-[84px]">
-            <section className="overflow-hidden rounded-[18px] border border-white/[0.095] bg-[#131216]" aria-label="Cinema selection">
-              <div className="flex items-center justify-between gap-4 border-b border-white/[0.085] px-5 py-4 sm:px-6">
-                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#ec7083]">01 / Your cinema</span>
-                <span className="text-[10px] text-white/35">Location</span>
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(280px,0.75fr)_minmax(0,1.65fr)] lg:gap-9">
+          <motion.aside
+            {...entering}
+            transition={reduceMotion ? undefined : { duration: 0.65, delay: 0.08, ease: EASE }}
+            className="space-y-5 lg:sticky lg:top-[85px]"
+          >
+            <section className="overflow-hidden rounded-[22px] border border-white/10 bg-[#0e0e11]/85" aria-label="Cinema selection">
+              <div className="flex items-center justify-between border-b border-white/10 px-5 py-5 sm:px-6">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.23em] text-[#ff526e]">01 / Your cinema</span>
+                <MapPin size={15} strokeWidth={1.5} className="text-zinc-500" />
               </div>
-              <div className="px-5 pb-6 pt-6 sm:px-6">
+              <div className="p-5 sm:p-6">
                 {selectedId ? (
                   <>
-                    <p className="text-[11px] text-white/45">Selected venue</p>
-                    <h2 className="mt-2 break-words text-[clamp(1.4rem,2vw,1.75rem)] font-bold leading-[1.16] tracking-[-0.045em] text-white">
+                    <p className="text-[10px] uppercase tracking-[0.17em] text-zinc-500">Selected destination</p>
+                    <h2 className="cine-head mt-3 break-words text-[clamp(1.45rem,2vw,1.85rem)] leading-tight text-white">
                       {cinema.name || "Your cinema"}
                     </h2>
-                    <p className="mt-3 flex items-center gap-2 text-[12px] text-white/55">
-                      <MapPin size={14} strokeWidth={1.6} className="text-[#db536c]" />
+                    <p className="mt-3 flex items-center gap-2 text-xs text-zinc-400">
+                      <MapPin size={14} className="text-[#ff526e]" />
                       {cinema.city || "Location not specified"}
                     </p>
-                    <div className="mt-6 h-px bg-white/[0.08]" />
                     <button
                       type="button"
                       onClick={changeCinema}
-                      className="group mt-4 flex w-full items-center justify-between rounded-lg border border-white/[0.12] bg-[#1e1d22] px-4 py-3 text-[12px] font-semibold text-white/85 transition-[border-color,background] hover:border-white/30 hover:bg-[#28262d] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#d71935]"
+                      className="group mt-7 flex w-full items-center justify-between rounded-full border border-white/20 bg-white/[0.035] px-4 py-3 text-xs font-semibold text-white transition-all duration-300 hover:border-[#D71935]/65 hover:bg-[#D71935]/10"
                     >
-                      Change cinema <ArrowUpRight size={15} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                      Change cinema
+                      <ArrowUpRight size={16} className="text-[#ff637b] transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
                     </button>
                   </>
                 ) : (
                   <>
-                    <h2 className="text-[23px] font-bold leading-tight tracking-[-0.045em] text-white">Where are we watching?</h2>
-                    <p className="mt-2 text-[12px] leading-6 text-white/50">Choose a venue to see its actual films and showtimes.</p>
-                    <div className="mt-5 max-h-[300px] space-y-1.5 overflow-y-auto pr-1 [scrollbar-width:thin]">
-                      {cinemasLoading && <p role="status" className="py-4 text-[12px] text-white/50">Loading cinemas…</p>}
+                    <h2 className="cine-head text-[26px] leading-tight text-white">Where to watch?</h2>
+                    <p className="mt-2 text-xs leading-relaxed text-zinc-400">Choose a destination to see what is actually playing.</p>
+                    <div className="cine-scroll mt-5 max-h-[290px] space-y-1.5 overflow-y-auto">
+                      {cinemasLoading && <p role="status" className="py-4 text-xs text-zinc-400">Loading cinemas…</p>}
                       {!cinemasLoading && cinemasError && (
-                        <p role="alert" className="py-4 text-[12px] text-amber-200/85">Cinema list unavailable. Please try again later.</p>
+                        <p role="alert" className="py-4 text-xs text-amber-200">Cinema list unavailable. Please try again later.</p>
                       )}
                       {!cinemasLoading && !cinemasError && availableCinemas.length === 0 && (
-                        <p className="py-4 text-[12px] text-white/50">No cinemas are available right now.</p>
+                        <p className="py-4 text-xs text-zinc-400">No cinemas are available right now.</p>
                       )}
-                      {availableCinemas.map((venue) => (
+                      {availableCinemas.map((venue, index) => (
                         <button
                           key={venue._id}
                           type="button"
                           onClick={() => selectCinema(venue)}
-                          className="group flex w-full items-center justify-between gap-3 rounded-lg border border-white/[0.07] bg-white/[0.025] px-3.5 py-3 text-left transition-colors hover:border-[#d71935]/45 hover:bg-[#d71935]/[0.075] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#d71935]"
+                          className="group flex w-full items-center gap-3 rounded-lg border border-white/[0.08] bg-white/[0.025] px-3 py-3 text-left transition-all duration-300 hover:border-[#D71935]/45 hover:bg-white/[0.075]"
                         >
-                          <span className="min-w-0">
-                            <span className="block truncate text-[12px] font-semibold text-white/85">{venue.name}</span>
-                            <span className="mt-1 block text-[11px] text-white/40">{venue.city || "Cinema"}</span>
+                          <span className="w-5 shrink-0 text-[10px] tabular-nums text-[#ff526e]">
+                            {String(index + 1).padStart(2, "0")}
                           </span>
-                          <ChevronRight size={15} className="shrink-0 text-white/40 transition-colors group-hover:text-[#ee7c8e]" />
+                          <span className="min-w-0 flex-1">
+                            <span className="cine-head block truncate text-[13px] text-zinc-200 group-hover:text-white">{venue.name}</span>
+                            <span className="mt-0.5 block text-[11px] text-zinc-500">{venue.city || "Cinema"}</span>
+                          </span>
+                          <ChevronRight size={15} className="shrink-0 text-zinc-500 transition-transform group-hover:translate-x-0.5 group-hover:text-[#ff526e]" />
                         </button>
                       ))}
                     </div>
                     <button
                       type="button"
                       onClick={() => navigate("/cinemas")}
-                      className="mt-5 inline-flex items-center gap-2 text-[12px] text-white/60 transition-colors hover:text-white"
+                      className="group mt-5 inline-flex items-center gap-2 text-xs text-zinc-400 transition-colors hover:text-white"
                     >
-                      Browse all cinemas <ArrowUpRight size={14} />
+                      Explore the cinema directory
+                      <ArrowUpRight size={14} className="text-[#ff526e] transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
                     </button>
                   </>
                 )}
               </div>
             </section>
 
-            <section className="rounded-[18px] border border-white/[0.095] bg-[#131216]" aria-label="Suggested searches">
-              <div className="flex items-center justify-between border-b border-white/[0.085] px-5 py-4 sm:px-6">
-                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#ec7083]">02 / Explore</span>
-                <span className="text-[10px] text-white/35">Suggestions</span>
+            <section className="overflow-hidden rounded-[22px] border border-white/10 bg-[#0e0e11]/85" aria-label="Suggested searches">
+              <div className="flex items-center justify-between border-b border-white/10 px-5 py-5 sm:px-6">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.23em] text-[#ff526e]">02 / Discover</span>
+                <span className="text-[10px] text-zinc-500">Quick questions</span>
               </div>
-              <div className="divide-y divide-white/[0.075] px-5 sm:px-6">
+              <div className="divide-y divide-white/[0.08] px-5 sm:px-6">
                 {QUICK_PROMPTS.map(({ title, detail, prompt }, index) => (
                   <button
                     key={prompt}
                     type="button"
                     onClick={() => void sendText(prompt)}
                     disabled={!selectedId || busy}
-                    className="group flex w-full items-center gap-3.5 py-[17px] text-left transition-opacity disabled:cursor-not-allowed disabled:opacity-35"
+                    className="group flex w-full items-center gap-3 py-4 text-left transition-opacity disabled:cursor-not-allowed disabled:opacity-35"
                   >
-                    <span className="w-5 shrink-0 self-center text-[10px] font-semibold tabular-nums text-[#d3566d]">
+                    <span className="w-5 shrink-0 text-[10px] tabular-nums text-[#ff526e]">
                       {String(index + 1).padStart(2, "0")}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-[12px] font-semibold text-white/85 transition-colors group-hover:text-white">{title}</span>
-                      <span className="mt-1 block text-[11px] text-white/40">{detail}</span>
+                      <span className="cine-head block text-sm text-zinc-200 transition-colors group-hover:text-white">{title}</span>
+                      <span className="mt-1 block text-[11px] text-zinc-500">{detail}</span>
                     </span>
-                    <ArrowUpRight size={15} className="shrink-0 text-white/30 transition-[transform,color] group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[#f08395]" />
+                    <ArrowUpRight size={16} className="shrink-0 text-zinc-600 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[#ff526e]" />
                   </button>
                 ))}
               </div>
             </section>
-            <p className="px-1 text-[11px] leading-[1.7] text-white/35">
-              Recommendations are limited to actual films and screenings at your chosen cinema.
+            <p className="px-1 text-[11px] leading-relaxed text-zinc-500">
+              Recommendations use available films and showtimes at your chosen cinema.
             </p>
           </motion.aside>
 
-          {/* Clean editorial conversation, without bot artwork or decorative illustrations. */}
           <motion.section
             {...entering}
+            transition={reduceMotion ? undefined : { duration: 0.7, delay: 0.16, ease: EASE }}
             aria-label="BookMySeat assistant conversation"
-            className="flex h-[670px] min-w-0 flex-col overflow-hidden rounded-[18px] border border-white/[0.11] bg-[#111014] sm:h-[745px]"
+            className="relative flex h-[680px] min-w-0 flex-col overflow-hidden rounded-[22px] border border-white/10 bg-[#0e0e11]/95 shadow-[0_30px_80px_rgba(0,0,0,0.24)] sm:h-[745px]"
           >
-            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/[0.09] px-5 py-4 sm:px-7 sm:py-5">
-              <div className="flex min-w-0 items-center gap-3.5">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[#d71935] text-[18px] font-bold tracking-[-0.09em] text-white" aria-hidden="true">B.</span>
-                <span className="min-w-0">
-                  <span className="block text-[14px] font-bold tracking-[-0.025em] text-white">Film concierge</span>
-                  <span className="mt-0.5 block truncate text-[11px] text-white/45">
-                    {selectedId ? `For ${cinema.name || "your cinema"}` : "Choose a cinema to start"}
-                  </span>
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-0 top-0 h-[260px]"
+              style={{ background: "radial-gradient(ellipse at 80% 0%, rgba(215,25,53,.14), transparent 65%)" }}
+            />
+            <div className="relative flex shrink-0 items-center justify-between gap-4 border-b border-white/10 px-5 py-5 sm:px-7">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#D71935]/50 bg-[#D71935]/15">
+                  <Clapperboard size={18} strokeWidth={1.6} className="text-[#ff526e]" />
                 </span>
+                <div className="min-w-0">
+                  <h2 className="cine-head truncate text-lg text-white">Film concierge</h2>
+                  <p className="mt-0.5 truncate text-[11px] text-zinc-500">
+                    {selectedId ? `For ${cinema.name || "your cinema"}` : "Your personal film guide"}
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={startNewChat}
-                className="group inline-flex shrink-0 items-center gap-2 rounded-full border border-white/[0.14] bg-white/[0.035] px-3.5 py-2.5 text-[11px] font-semibold text-white/75 transition-colors hover:border-white/30 hover:bg-white/[0.07] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#d71935] sm:px-4"
+                className="group inline-flex shrink-0 items-center gap-2 rounded-full border border-white/20 bg-white/[0.035] px-3.5 py-2.5 text-[11px] font-semibold text-zinc-200 transition-all duration-300 hover:border-[#D71935]/55 hover:bg-[#D71935]/10 hover:text-white sm:px-4"
               >
-                <Plus size={14} strokeWidth={1.75} /> New chat
+                <Plus size={15} className="text-[#ff526e] transition-transform group-hover:rotate-90" />
+                New chat
               </button>
             </div>
 
@@ -586,26 +615,27 @@ export default function AiSearch() {
               role="log"
               aria-live="polite"
               aria-relevant="additions"
-              className="min-h-0 flex-1 space-y-7 overflow-y-auto overscroll-contain px-5 py-7 [scrollbar-color:#403841_transparent] [scrollbar-width:thin] sm:px-9 sm:py-9"
+              className="cine-scroll relative min-h-0 flex-1 space-y-7 overflow-y-auto overscroll-contain px-5 py-7 sm:px-9 sm:py-9"
             >
               {!hasConversation ? (
-                <div className="flex min-h-full flex-col justify-center pb-10">
-                  <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.19em] text-[#df7285]">
-                    <span className="h-px w-7 bg-[#d71935]" /> Your next screening
-                  </div>
-                  <h2 className="mt-6 max-w-[590px] text-[clamp(2.25rem,4.1vw,4.4rem)] font-bold leading-[1.04] tracking-[-0.065em] text-white">
-                    Good film.<br />Great night<span className="text-[#db3654]">.</span>
+                <div className="flex min-h-full flex-col justify-center pb-7">
+                  <Eyebrow>Curated for your evening</Eyebrow>
+                  <h2 className="cine-display mt-6 text-[clamp(2.5rem,5vw,4.65rem)]">
+                    A good film.<br />
+                    <span className="text-[#ff4562]">A great night.</span>
                   </h2>
-                  <p className="mt-5 max-w-[480px] text-[13px] leading-[1.85] text-[#b0abb3] sm:text-[14px]">
-                    Tell me what you're in the mood for. I'll help you find a real screening at {selectedId ? cinema.name || "your cinema" : "a cinema you choose"}.
+                  <p className="mt-5 max-w-[480px] text-sm leading-[1.8] text-zinc-400">
+                    {selectedId
+                      ? `Tell me what you're in the mood for. I'll help you find a screening at ${cinema.name || "your cinema"}.`
+                      : "Choose a cinema, then tell me what you're in the mood for. We'll find a film worth your evening."}
                   </p>
-                  <div className="mt-9 border-t border-white/[0.11] pt-5">
-                    <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">Start a conversation</p>
+                  <div className="mt-9 border-t border-white/10 pt-5">
+                    <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">Start with an idea</p>
                     <div className="grid gap-2 sm:grid-cols-2">
                       {[
                         { label: "What's playing tonight?", prompt: "What's playing tonight?" },
                         { label: "I want something funny", prompt: "Suggest a comedy" },
-                        { label: "Find seats under ₹300", prompt: "Anything under ₹300" },
+                        { label: "Find tickets under ₹300", prompt: "Anything under ₹300" },
                         { label: "Help me plan tomorrow", prompt: "Hindi movies tomorrow" },
                       ].map(({ label, prompt }) => (
                         <button
@@ -613,15 +643,15 @@ export default function AiSearch() {
                           type="button"
                           onClick={() => void sendText(prompt)}
                           disabled={!selectedId || busy}
-                          className="group flex min-h-[50px] items-center justify-between gap-3 rounded-lg border border-white/[0.10] bg-[#1a191e] px-4 py-3 text-left text-[12px] font-medium text-white/75 transition-[background,border-color] hover:border-[#d71935]/45 hover:bg-[#25191f] hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+                          className="group flex min-h-[56px] items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3 text-left text-xs font-medium text-zinc-300 transition-all duration-300 hover:-translate-y-0.5 hover:border-[#D71935]/50 hover:bg-[#D71935]/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:translate-y-0"
                         >
                           <span>{label}</span>
-                          <ArrowUpRight size={14} className="shrink-0 text-white/40 transition-colors group-hover:text-[#ef7286]" />
+                          <ArrowUpRight size={15} className="shrink-0 text-zinc-500 transition-all group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[#ff526e]" />
                         </button>
                       ))}
                     </div>
                   </div>
-                  {!selectedId && <p className="mt-5 text-[12px] text-[#f18899]">Select a cinema to unlock recommendations.</p>}
+                  {!selectedId && <p className="mt-5 text-xs text-[#ff778b]">Choose a cinema from the panel to start chatting.</p>}
                 </div>
               ) : (
                 messages.map((message, index) => (
@@ -633,16 +663,15 @@ export default function AiSearch() {
                   />
                 ))
               )}
-
               {busy && (
-                <div role="status" aria-label="Assistant is responding" className="flex items-center gap-3 border-l-2 border-[#d71935] py-1 pl-4">
-                  <span className="text-[12px] text-white/65">Looking through the programme</span>
+                <div role="status" aria-label="Assistant is responding" className="flex items-center gap-3 border-l-2 border-[#D71935] py-1 pl-4">
+                  <span className="text-xs text-zinc-400">Finding your next screening</span>
                   <span className="flex gap-1" aria-hidden="true">
                     {[0, 1, 2].map((index) => (
                       <motion.span
                         key={index}
-                        className="h-1 w-1 rounded-full bg-[#e96a81]"
-                        animate={reduceMotion ? undefined : { opacity: [0.3, 1, 0.3] }}
+                        className="h-1 w-1 rounded-full bg-[#ff526e]"
+                        animate={reduceMotion ? undefined : { opacity: [0.25, 1, 0.25] }}
                         transition={{ duration: 0.9, repeat: Infinity, delay: index * 0.15 }}
                       />
                     ))}
@@ -651,10 +680,10 @@ export default function AiSearch() {
               )}
             </div>
 
-            <div className="shrink-0 border-t border-white/[0.10] bg-[#161419] px-4 pb-4 pt-4 sm:px-7 sm:pb-5">
+            <div className="relative shrink-0 border-t border-white/10 bg-[#131316] px-4 pb-4 pt-4 sm:px-7 sm:pb-5">
               <form
                 onSubmit={submit}
-                className="flex items-center gap-2 rounded-[12px] border border-white/[0.15] bg-[#211f25] p-1.5 pl-4 transition-[border-color,background] focus-within:border-[#cf5570] focus-within:bg-[#28222b]"
+                className="flex items-center gap-2 rounded-xl border border-white/[0.16] bg-[#1e1e23] p-1.5 pl-4 transition-all duration-300 focus-within:border-[#D71935]/75 focus-within:bg-[#242028]"
               >
                 <input
                   ref={inputRef}
@@ -668,27 +697,29 @@ export default function AiSearch() {
                   placeholder={
                     !selectedId ? "Choose a cinema first…"
                       : currentResults.length ? "Ask a follow-up or refine your results…"
-                        : "Ask about films, timings or ticket prices…"
+                        : "Ask about films, showtimes or ticket prices…"
                   }
-                  className="min-w-0 flex-1 border-0 bg-transparent py-2.5 text-[13px] text-white outline-none placeholder:text-[#8a818d] focus:border-0 focus:outline-none focus:ring-0 disabled:cursor-not-allowed sm:text-[14px]"
+                  className="min-w-0 flex-1 border-0 bg-transparent py-2.5 text-[13px] text-white outline-none placeholder:text-zinc-500 focus:outline-none focus:ring-0 disabled:cursor-not-allowed sm:text-sm"
                 />
                 <button
                   type="submit"
                   aria-label="Send message"
                   disabled={!selectedId || busy || !input.trim()}
-                  className="group flex h-10 w-11 shrink-0 items-center justify-center rounded-[8px] bg-[#d71935] text-white transition-colors hover:bg-[#f02749] disabled:cursor-not-allowed disabled:opacity-35 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                  className="group flex h-10 w-11 shrink-0 items-center justify-center rounded-lg bg-[#D71935] text-white transition-all duration-300 hover:bg-[#ed2a49] disabled:cursor-not-allowed disabled:opacity-35"
                 >
-                  <Send size={17} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                  <Send size={17} className="transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
                 </button>
               </form>
-              <div className="mt-3 flex items-center justify-between gap-3 text-[10px] text-[#827d87]">
-                <span>Real cinema schedules. No invented showtimes.</span>
-                <span className="hidden shrink-0 sm:inline">Enter to send</span>
+              <div className="mt-3 flex items-center justify-between gap-3 text-[10px] text-zinc-500">
+                <span>Real films. Real showtimes. Your cinema.</span>
+                <span className="hidden shrink-0 items-center gap-1.5 sm:flex">
+                  Enter to send <ArrowRight size={12} />
+                </span>
               </div>
             </div>
           </motion.section>
         </div>
-      </div>
-    </main>
+      </main>
+    </PageShell>
   );
 }

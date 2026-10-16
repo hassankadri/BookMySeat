@@ -1,0 +1,840 @@
+
+/* =========================================================
+   BOOKMYSEAT — ADMIN DESIGN SYSTEM
+   Shared cinematic theme and readable typography
+   ========================================================= */
+
+.bms-admin-shell {
+  --admin-red: #d71935;
+  --admin-red-light: #ff4968;
+  --admin-bg: #09090b;
+  --admin-panel: #111114;
+  --admin-raised: #19191d;
+  --admin-line: rgba(255, 255, 255, 0.095);
+  --admin-muted: #a1a1aa;
+
+  color: #f7f5f5;
+  color-scheme: dark;
+  font-family:
+    "Instrument Sans",
+    "Manrope",
+    system-ui,
+    sans-serif;
+}
+
+/* =========================================================
+   01 — TYPOGRAPHY
+   Correct tight, compressed and overlapping headings
+   ========================================================= */
+
+.bms-admin-shell .bms-admin-content {
+  min-width: 0;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.bms-admin-shell .bms-admin-content :is(
+  h1,
+  h2,
+  h3,
+  h4,
+  .cine-display,
+  .cine-head
+) {
+  font-family:
+    "Bricolage Grotesque",
+    "Outfit",
+    system-ui,
+    sans-serif;
+
+  font-kerning: normal;
+  font-synthesis: none;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: break-word;
+  text-wrap: pretty;
+}
+
+/* Large display headings */
+
+.bms-admin-shell .bms-admin-content :is(
+  h1,
+  .cine-display
+) {
+  font-weight: 750;
+  font-variation-settings:
+    "wdth" 100,
+    "opsz" 48;
+
+  letter-spacing: -0.018em;
+  line-height: 1.16;
+}
+
+/* Section and card headings */
+
+.bms-admin-shell .bms-admin-content :is(
+  h2,
+  h3,
+  .cine-head
+) {
+  font-weight: 700;
+  font-variation-settings:
+    "wdth" 100,
+    "opsz" 32;
+
+  letter-spacing: -0.012em;
+  line-height: 1.25;
+}
+
+/* Preserve the editorial red highlights */
+
+.bms-admin-shell .bms-admin-content h1 span[class*="text-[#"],
+.bms-admin-shell .bms-admin-content h2 span[class*="text-[#"] {
+  display: inline;
+}
+
+/* Avoid compressed headings inside narrow panels */
+
+.bms-admin-shell .bms-admin-content :is(
+  article,
+  section,
+  aside
+) h2 {
+  max-width: 100%;
+}
+
+/* =========================================================
+   02 — PAGE HEADERS
+   Consistent size, spacing and responsive wrapping
+   ========================================================= */
+
+.bms-admin-shell .bms-admin-content > div > header {
+  position: relative;
+  isolation: isolate;
+
+  margin-bottom: 28px;
+  padding-bottom: 30px;
+
+  border-bottom: 1px solid var(--admin-line);
+}
+
+.bms-admin-shell .bms-admin-content > div > header::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+
+  top: -35px;
+  left: -50px;
+
+  width: min(490px, 90%);
+  height: 240px;
+
+  background: radial-gradient(
+    ellipse at top left,
+    rgba(215, 25, 53, 0.11),
+    rgba(215, 25, 53, 0.025) 45%,
+    transparent 76%
+  );
+}
+
+/* The main correction */
+
+.bms-admin-shell .bms-admin-content > div > header h1 {
+  display: block;
+  max-width: 100%;
+
+  margin-top: 18px;
+  margin-bottom: 0;
+
+  font-family:
+    "Bricolage Grotesque",
+    "Outfit",
+    system-ui,
+    sans-serif;
+
+  font-size: clamp(2.15rem, 3.4vw, 3.7rem);
+  font-weight: 750;
+
+  font-variation-settings:
+    "wdth" 100,
+    "opsz" 48;
+
+  letter-spacing: -0.018em;
+  line-height: 1.16;
+
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
+  text-wrap: balance;
+
+  color: #fff;
+}
+
+/* Crimson emphasis */
+
+.bms-admin-shell .bms-admin-content
+> div > header h1 span {
+  color: var(--admin-red-light);
+}
+
+/* Description under title */
+
+.bms-admin-shell .bms-admin-content
+> div > header h1 + p {
+  max-width: 600px;
+
+  margin-top: 17px;
+
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.85;
+
+  letter-spacing: normal;
+  color: var(--admin-muted);
+}
+
+/* Small labels above headings */
+
+.bms-admin-shell .bms-admin-content
+> div > header > div:first-child > p:first-child,
+
+.bms-admin-shell .bms-admin-content
+> div > header > div:first-child > div:first-child {
+  margin-bottom: 4px;
+}
+
+/* Prevent oversized title blocks in narrow layouts */
+
+.bms-admin-shell .bms-admin-content
+> div > header > div:first-child {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* =========================================================
+   03 — SIDEBAR
+   ========================================================= */
+
+.bms-admin-shell .bms-admin-sidebar {
+  background:
+    linear-gradient(
+      160deg,
+      rgba(215, 25, 53, 0.035),
+      transparent 46%
+    ),
+    #0e0e11;
+}
+
+.bms-admin-shell .bms-admin-sidebar nav a {
+  transition:
+    color 220ms ease,
+    background-color 220ms ease,
+    border-color 220ms ease;
+}
+
+.bms-admin-shell .bms-admin-sidebar nav a:focus-visible {
+  outline: 2px solid var(--admin-red-light);
+  outline-offset: 3px;
+}
+
+.bms-admin-shell .bms-admin-sidebar nav + nav {
+  padding-top: 5px;
+}
+
+/* =========================================================
+   04 — PANELS AND SURFACES
+   ========================================================= */
+
+.bms-admin-shell .bms-admin-content
+:is(section, article, aside)[class*="rounded-"][class*="border"] {
+  transition:
+    border-color 260ms ease,
+    background-color 260ms ease,
+    box-shadow 260ms ease;
+}
+
+@media (hover: hover) {
+  .bms-admin-shell .bms-admin-content
+  :is(section, article, aside)[class*="rounded-"][class*="border"]:hover {
+    border-color: rgba(255, 255, 255, 0.17);
+  }
+}
+
+.bms-admin-shell .bms-admin-content hr {
+  height: 1px;
+  border: 0;
+  background: var(--admin-line);
+}
+
+/* =========================================================
+   05 — FORMS
+   ========================================================= */
+
+.bms-admin-shell .bms-admin-content
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.bms-admin-shell .bms-admin-content textarea,
+.bms-admin-shell .bms-admin-content select {
+  color-scheme: dark;
+  border-radius: 13px;
+  border-color: rgba(255, 255, 255, 0.13);
+
+  font-family:
+    "Instrument Sans",
+    "Manrope",
+    system-ui,
+    sans-serif;
+
+  transition:
+    border-color 200ms ease,
+    background-color 200ms ease,
+    box-shadow 200ms ease;
+}
+
+.bms-admin-shell .bms-admin-content input::placeholder,
+.bms-admin-shell .bms-admin-content textarea::placeholder {
+  color: #777780;
+  opacity: 1;
+}
+
+.bms-admin-shell .bms-admin-content
+:is(input, textarea, select):not(:disabled):hover {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.bms-admin-shell .bms-admin-content
+:is(input, textarea, select):focus-visible {
+  border-color: rgba(255, 73, 104, 0.8);
+  outline: 2px solid rgba(215, 25, 53, 0.45);
+  outline-offset: 2px;
+}
+
+.bms-admin-shell .bms-admin-content select {
+  cursor: pointer;
+}
+
+.bms-admin-shell .bms-admin-content select option {
+  background: #19191d;
+  color: #fff;
+}
+
+.bms-admin-shell .bms-admin-content
+:is(input[type="checkbox"], input[type="radio"]) {
+  accent-color: var(--admin-red);
+}
+
+/* =========================================================
+   06 — BUTTONS
+   ========================================================= */
+
+.bms-admin-shell .bms-admin-content button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bms-admin-shell .bms-admin-content button:disabled {
+  cursor: not-allowed;
+}
+
+.bms-admin-shell .bms-admin-content
+:is(button, a):focus-visible {
+  outline: 2px solid var(--admin-red-light);
+  outline-offset: 3px;
+}
+
+.bms-admin-shell .bms-admin-content
+button[class*="bg-[#D71935]"] {
+  box-shadow: none;
+
+  transition:
+    background-color 220ms ease,
+    box-shadow 220ms ease,
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (hover: hover) {
+  .bms-admin-shell .bms-admin-content
+  button[class*="bg-[#D71935]"]:not(:disabled):hover {
+    background-color: #ed2d4a;
+    box-shadow: 0 8px 24px rgba(215, 25, 53, 0.14);
+  }
+}
+
+.bms-admin-shell .bms-admin-content
+button[aria-pressed="true"][class*="rounded-full"] {
+  border-color: rgba(215, 25, 53, 0.8);
+}
+
+/* =========================================================
+   07 — MODALS AND TABS
+   ========================================================= */
+
+.bms-admin-shell [role="dialog"] {
+  color: #f7f5f5;
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: -20px 0 90px rgba(0, 0, 0, 0.4);
+}
+
+.bms-admin-shell [role="dialog"] h2 {
+  font-family:
+    "Bricolage Grotesque",
+    "Outfit",
+    sans-serif;
+
+  font-weight: 700;
+  font-variation-settings:
+    "wdth" 100,
+    "opsz" 32;
+
+  letter-spacing: -0.015em;
+  line-height: 1.22;
+}
+
+.bms-admin-shell [role="tablist"] {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.bms-admin-shell [role="tablist"]::-webkit-scrollbar {
+  display: none;
+}
+
+.bms-admin-shell [role="tab"] {
+  white-space: nowrap;
+  transition:
+    color 220ms ease,
+    border-color 220ms ease,
+    background-color 220ms ease;
+}
+
+/* =========================================================
+   08 — TABLES
+   ========================================================= */
+
+.bms-admin-shell .bms-admin-content table {
+  width: 100%;
+  border-spacing: 0;
+  border-collapse: separate;
+}
+
+.bms-admin-shell .bms-admin-content thead th {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #a1a1aa;
+}
+
+.bms-admin-shell .bms-admin-content tbody td {
+  font-size: 13px;
+  color: #d6d4d8;
+}
+
+.bms-admin-shell .bms-admin-content tbody tr {
+  transition: background-color 180ms ease;
+}
+
+@media (hover: hover) {
+  .bms-admin-shell .bms-admin-content tbody tr:hover {
+    background: rgba(255, 255, 255, 0.03);
+  }
+}
+
+/* =========================================================
+   09 — SHOWTIMES
+   ========================================================= */
+
+.bms-admin-shell .bms-admin-content
+> div:has([aria-label="Schedule window"]) {
+  --programme-line: rgba(215, 25, 53, 0.26);
+}
+
+.bms-admin-shell .bms-admin-content
+> div:has([aria-label="Schedule window"])
+> header + div.grid > div {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  background: linear-gradient(140deg, #21191e, #111114);
+}
+
+.bms-admin-shell .bms-admin-content
+> div:has([aria-label="Schedule window"])
+> header + div.grid > div::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
+  background: linear-gradient(#d71935, transparent);
+}
+
+.bms-admin-shell .bms-admin-content
+[aria-label="Schedule window"] button {
+  min-height: 39px;
+  font-size: 11px;
+}
+
+.bms-admin-shell .bms-admin-content
+> div:has([aria-label="Schedule window"])
+section[class*="lg:grid-cols-"] > div:last-child {
+  border-left-color: rgba(215, 25, 53, 0.26);
+}
+
+.bms-admin-shell .bms-admin-content
+> div:has([aria-label="Schedule window"])
+section[class*="lg:grid-cols-"] article {
+  background: linear-gradient(120deg, #171518, #111114);
+  border-color: rgba(255, 255, 255, 0.095);
+}
+
+@media (hover: hover) {
+  .bms-admin-shell .bms-admin-content
+  > div:has([aria-label="Schedule window"])
+  section[class*="lg:grid-cols-"] article:hover {
+    border-color: rgba(215, 25, 53, 0.4);
+  }
+}
+
+/* =========================================================
+   10 — ADD SHOW
+   ========================================================= */
+
+.bms-admin-shell .bms-admin-content
+nav[aria-label="Scheduling sections"] {
+  display: flex;
+  gap: 10px;
+  padding: 5px 0 12px;
+  border-bottom: 1px solid var(--admin-line);
+}
+
+.bms-admin-shell .bms-admin-content
+nav[aria-label="Scheduling sections"] button {
+  min-height: 43px;
+
+  transition:
+    transform 220ms ease,
+    border-color 220ms ease,
+    color 220ms ease;
+}
+
+.bms-admin-shell .bms-admin-content
+:is(#addshow-film, #addshow-venue, #addshow-tickets, #addshow-schedule) {
+  position: relative;
+  scroll-margin-top: 115px;
+}
+
+.bms-admin-shell .bms-admin-content
+:is(#addshow-film, #addshow-venue, #addshow-tickets, #addshow-schedule)::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 0;
+  width: 38px;
+  height: 2px;
+  background: #d71935;
+}
+
+.bms-admin-shell .bms-admin-content
+:is(#addshow-film, #addshow-venue, #addshow-tickets, #addshow-schedule) h2 {
+  font-size: clamp(1.5rem, 2.5vw, 2.3rem);
+  font-weight: 700;
+  letter-spacing: -0.012em;
+  line-height: 1.25;
+}
+
+.bms-admin-shell .bms-admin-content
+#addshow-film button[aria-pressed="true"] {
+  border-color: #d71935;
+  background-color: rgba(215, 25, 53, 0.1);
+}
+
+.bms-admin-shell .bms-admin-content
+#addshow-tickets label[class*="rounded-"]:focus-within {
+  border-color: rgba(215, 25, 53, 0.6);
+  background: #1c171b;
+}
+
+/* =========================================================
+   11 — ADMIN BOOKINGS
+   ========================================================= */
+
+.bms-admin-shell
+button[aria-controls="bookings-status-options"] {
+  min-height: 48px;
+  border-radius: 13px;
+  background: #18171b;
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: none;
+}
+
+.bms-admin-shell
+button[aria-controls="bookings-status-options"]:hover {
+  background: #21191e;
+  border-color: rgba(215, 25, 53, 0.5);
+}
+
+.bms-admin-shell
+button[aria-controls="bookings-status-options"][aria-expanded="true"] {
+  border-color: #d71935;
+  background: #23171d;
+  box-shadow: 0 0 0 3px rgba(215, 25, 53, 0.09);
+}
+
+.bms-admin-shell #bookings-status-options {
+  border-radius: 16px;
+  border-color: rgba(255, 255, 255, 0.14);
+  background: #1a191d;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.45);
+}
+
+.bms-admin-shell
+#bookings-status-options [role="option"] {
+  min-height: 43px;
+  border-radius: 10px;
+}
+
+.bms-admin-shell
+#bookings-status-options [role="option"][aria-selected="true"] {
+  background: rgba(215, 25, 53, 0.18);
+  color: #fff;
+  box-shadow: inset 2px 0 0 #ff4968;
+}
+
+.bms-admin-shell
+#bookings-status-options [role="option"]:not([aria-selected="true"]):hover {
+  background: rgba(255, 255, 255, 0.055);
+}
+
+/* =========================================================
+   12 — ADMIN USERS
+   ========================================================= */
+
+.bms-admin-shell .bms-admin-content
+[role="group"][aria-label="Role"] {
+  padding: 2px 0;
+  gap: 8px;
+}
+
+.bms-admin-shell .bms-admin-content
+[role="group"][aria-label="Role"] button {
+  min-height: 42px;
+  font-size: 12px;
+  border-radius: 999px;
+}
+
+.bms-admin-shell .bms-admin-content
+[role="group"][aria-label="Role"]
+button[aria-pressed="true"] {
+  border-color: #d71935;
+  background: #d71935;
+  color: #fff;
+}
+
+.bms-admin-shell .bms-admin-content
+> div:has([aria-label="Role"]) table {
+  min-width: 1000px;
+}
+
+.bms-admin-shell .bms-admin-content
+> div:has([aria-label="Role"]) thead {
+  background: #19171b;
+}
+
+.bms-admin-shell .bms-admin-content
+> div:has([aria-label="Role"]) tbody td {
+  padding-top: 19px;
+  padding-bottom: 19px;
+}
+
+/* =========================================================
+   13 — TICKET SCANNER
+   ========================================================= */
+
+.bms-admin-shell .bms-admin-content
+section[aria-label="Session statistics"] > div {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #1b161a, #101013);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.bms-admin-shell .bms-admin-content
+section[aria-label="Session statistics"] > div::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 16px;
+  bottom: 16px;
+  width: 2px;
+  background: rgba(215, 25, 53, 0.55);
+  border-radius: 2px;
+}
+
+.bms-admin-shell .bms-admin-content
+[role="tablist"][aria-label="Verification method"] {
+  gap: 8px;
+  padding-top: 5px;
+}
+
+.bms-admin-shell .bms-admin-content
+[role="tablist"][aria-label="Verification method"] button {
+  min-height: 50px;
+  font-weight: 600;
+}
+
+.bms-admin-shell .bms-admin-content
+[role="tablist"][aria-label="Verification method"]
+button[aria-selected="true"] {
+  border-bottom-color: #ff4968;
+  color: #fff;
+
+  background: linear-gradient(
+    to top,
+    rgba(215, 25, 53, 0.11),
+    transparent
+  );
+}
+
+.bms-admin-shell #bookmyseat-qr-reader {
+  overflow: hidden;
+  border-radius: 18px;
+  color: #e9e7e9;
+}
+
+.bms-admin-shell #bookmyseat-qr-reader video {
+  max-width: 100%;
+}
+
+/* =========================================================
+   14 — REFRESH CONTROLS
+   ========================================================= */
+
+.bms-admin-shell button[aria-busy] {
+  min-height: 44px;
+
+  transition:
+    border-color 220ms ease,
+    background-color 220ms ease,
+    color 220ms ease;
+}
+
+.bms-admin-shell button[aria-busy="true"] {
+  border-color: rgba(215, 25, 53, 0.4);
+  background: rgba(215, 25, 53, 0.07);
+}
+
+.bms-admin-shell button[aria-busy] svg {
+  flex-shrink: 0;
+}
+
+.bms-admin-shell [role="status"] {
+  line-height: 1.5;
+}
+
+.bms-admin-shell [role="alert"] {
+  line-height: 1.65;
+}
+
+/* =========================================================
+   15 — SCROLLBARS
+   ========================================================= */
+
+.bms-admin-shell {
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  scrollbar-width: thin;
+}
+
+.bms-admin-shell ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.bms-admin-shell ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.bms-admin-shell ::-webkit-scrollbar-thumb {
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.bms-admin-shell ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* =========================================================
+   16 — RESPONSIVE TYPOGRAPHY
+   ========================================================= */
+
+@media (max-width: 1023px) {
+  .bms-admin-shell .bms-admin-content
+  > div > header h1 {
+    font-size: clamp(2.1rem, 5vw, 3.25rem);
+    line-height: 1.18;
+  }
+
+  .bms-admin-shell .bms-admin-content
+  > div > header {
+    row-gap: 22px;
+  }
+}
+
+@media (max-width: 767px) {
+  .bms-admin-shell .bms-admin-content
+  > div > header {
+    margin-bottom: 20px;
+    padding-bottom: 24px;
+  }
+
+  .bms-admin-shell .bms-admin-content
+  > div > header h1 {
+    margin-top: 16px;
+
+    font-size: clamp(2rem, 7vw, 2.85rem);
+    letter-spacing: -0.012em;
+    line-height: 1.2;
+  }
+
+  .bms-admin-shell .bms-admin-content
+  > div > header h1 + p {
+    margin-top: 15px;
+    font-size: 13px;
+    line-height: 1.8;
+  }
+
+  .bms-admin-shell .bms-admin-content
+  :is(h2, h3, .cine-head) {
+    line-height: 1.28;
+    letter-spacing: -0.01em;
+  }
+
+  .bms-admin-shell [role="dialog"] h2 {
+    font-size: 1.5rem;
+    line-height: 1.25;
+  }
+
+  .bms-admin-shell .bms-admin-content
+  nav[aria-label="Scheduling sections"] {
+    gap: 7px;
+    padding-bottom: 14px;
+  }
+
+  .bms-admin-shell .bms-admin-content
+  nav[aria-label="Scheduling sections"] button {
+    font-size: 11px;
+  }
+}
+
+/* =========================================================
+   17 — REDUCED MOTION
+   ========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .bms-admin-shell *,
+  .bms-admin-shell *::before,
+  .bms-admin-shell *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
