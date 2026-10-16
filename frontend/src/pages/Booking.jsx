@@ -30,6 +30,8 @@ import {
 } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useBooking } from "../context/BookingContext";
+import { attachSeatEventRecovery } from "../utils/seatEventRecovery";
+import SeatIntelligencePanel from "../components/SeatIntelligencePanel";
 import "./BookingCinema.css";
 
 // ============================================================
@@ -96,7 +98,7 @@ const countText = (seconds) =>
 
 const imageSrc = (value) =>
   typeof value === "string" &&
-  /^(https?:\/\/|\/)/i.test(value.trim())
+  /^(https?:\/\/|\/\/)/i.test(value.trim())
     ? value.trim()
     : "";
 
@@ -141,6 +143,7 @@ function StatusLegend({ status, title }) {
 function Booking() {
   const { id: movieId } = useParams();
   const [params] = useSearchParams();
+
   const navigate = useNavigate();
   const reducedMotion = useReducedMotion();
 
@@ -151,6 +154,12 @@ function Booking() {
   } = useAuth();
 
   const { updateBooking } = useBooking();
+
+  const updateBookingRef = useRef(updateBooking);
+
+  useEffect(() => {
+    updateBookingRef.current = updateBooking;
+  }, [updateBooking]);
 
   const showId =
     params.get("show") ||
@@ -451,10 +460,41 @@ function Booking() {
       );
     };
 
-    socket.emit("show:join", { showId });
+    const detachRecovery = attachSeatEventRecovery({
+      socket,
+      showId,
+      apiUrl: API_URL,
+      refreshLockedSeats,
 
-    socket.on("connect", () => {
-      socket.emit("show:join", { showId });
+      onBookedSnapshot: (serverSeats) => {
+        const booked = normalizeIds(serverSeats);
+
+        setBookedSeats(booked);
+
+        const unavailable = new Set(booked);
+
+        if (
+          selectedRef.current.some((id) =>
+            unavailable.has(id)
+          )
+        ) {
+          selectedRef.current = [];
+          holdRef.current = null;
+
+          setSelectedSeats([]);
+          setHold(null);
+
+          sessionStorage.removeItem(HOLD_KEY);
+
+          updateBookingRef.current({
+            selectedSeats: [],
+          });
+
+          toast.error(
+            "Seat availability changed. Please choose your seats again."
+          );
+        }
+      },
     });
 
     socket.on("seats:held", onHeld);
@@ -468,9 +508,10 @@ function Booking() {
       socket.off("seats:released", onReleased);
       socket.off("seats:booked", onBooked);
 
+      detachRecovery();
       socket.disconnect();
     };
-  }, [showId]);
+  }, [showId, refreshLockedSeats]);
 
   // ==========================================================
   // HOLD EXPIRY COUNTDOWN
@@ -499,6 +540,7 @@ function Booking() {
 
         setHold(null);
         setSelectedSeats([]);
+
         selectedRef.current = [];
 
         updateBooking({
@@ -699,7 +741,6 @@ function Booking() {
     if (selectedSet.has(seatId)) return "selected";
     if (bookedSet.has(seatId)) return "booked";
     if (lockedSet.has(seatId)) return "held";
-
     return "available";
   };
 
@@ -720,7 +761,6 @@ function Booking() {
       toast.error(
         `You can select a maximum of ${MAX_SEATS} seats.`
       );
-
       return;
     }
 
@@ -873,6 +913,139 @@ function Booking() {
   };
 
   // ==========================================================
+  // ACCESSIBLE KEYBOARD SEAT NAVIGATION
+  // ==========================================================
+  //
+  // Arrow keys follow physical rows and columns.
+  // Unavailable seats are skipped.
+  //
+  // Home / End move to the first / last seat in a row.
+  //
+  // Enter / Space remain native button actions.
+  // ==========================================================
+
+  const handleSeatMapKeyDown = (event) => {
+    if (
+      event.defaultPrevented ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey
+    ) {
+      return;
+    }
+
+    const keys = [
+      "ArrowLeft",
+      "ArrowRight",
+      "ArrowUp",
+      "ArrowDown",
+      "Home",
+      "End",
+    ];
+
+    if (!keys.includes(event.key)) return;
+
+    const current = event.target.closest?.(
+      "button[data-bms-seat-id]"
+    );
+
+    const container = event.currentTarget;
+
+    if (!current || !container.contains(current)) {
+      return;
+    }
+
+    const buttons = Array.from(
+      container.querySelectorAll(
+        "button[data-bms-seat-id]"
+      )
+    ).filter(
+      (button) =>
+        !button.disabled &&
+        button.getClientRects().length
+    );
+
+    if (!buttons.length) return;
+
+    const rows = [
+      ...new Set(
+        buttons.map(
+          (button) => button.dataset.seatRow
+        )
+      ),
+    ];
+
+    const currentRow = current.dataset.seatRow;
+    const rowIndex = rows.indexOf(currentRow);
+
+    const column = Number(
+      current.dataset.seatColumn
+    );
+
+    const inRow = (row) =>
+      buttons
+        .filter(
+          (button) => button.dataset.seatRow === row
+        )
+        .sort(
+          (a, b) =>
+            Number(a.dataset.seatColumn) -
+            Number(b.dataset.seatColumn)
+        );
+
+    let target = null;
+
+    const ownRow = inRow(currentRow);
+    const ownIndex = ownRow.indexOf(current);
+
+    if (event.key === "Home") {
+      target = ownRow[0];
+    } else if (event.key === "End") {
+      target = ownRow[ownRow.length - 1];
+    } else if (event.key === "ArrowLeft") {
+      target = ownRow[ownIndex - 1];
+    } else if (event.key === "ArrowRight") {
+      target = ownRow[ownIndex + 1];
+    } else {
+      const step =
+        event.key === "ArrowDown" ? 1 : -1;
+
+      for (
+        let i = rowIndex + step;
+        i >= 0 && i < rows.length;
+        i += step
+      ) {
+        const candidates = inRow(rows[i]);
+
+        if (candidates.length) {
+          target = candidates.reduce(
+            (best, button) =>
+              Math.abs(
+                Number(button.dataset.seatColumn) -
+                  column
+              ) <
+              Math.abs(
+                Number(best.dataset.seatColumn) -
+                  column
+              )
+                ? button
+                : best
+          );
+
+          break;
+        }
+      }
+    }
+
+    // Only prevent scrolling when focus can move.
+    if (target) {
+      event.preventDefault();
+      target.focus();
+    }
+  };
+
+  // ==========================================================
   // CHANGE SHOWTIME AND RELEASE EXISTING HOLD
   // ==========================================================
 
@@ -946,7 +1119,6 @@ function Booking() {
       toast.error(
         "Your seat reservation expired. Please select again."
       );
-
       return;
     }
 
@@ -986,6 +1158,7 @@ function Booking() {
   if (authLoading || loading) {
     return (
       <main
+        id="main-content"
         className="bms-seat-page bms-seat-loading"
         data-testid="booking-page"
       >
@@ -998,10 +1171,12 @@ function Booking() {
   if (!show?.screen || failed) {
     return (
       <main
+        id="main-content"
         className="bms-seat-page bms-seat-loading"
         data-testid="booking-page"
       >
         <h2>Show unavailable</h2>
+
         <p>
           {failed ||
             "This screening could not be loaded."}
@@ -1037,6 +1212,7 @@ function Booking() {
 
   return (
     <main
+      id="main-content"
       className="bms-seat-page"
       data-testid="booking-page"
       data-design-version="BMS_CINEMATIC_SEATS_V3"
@@ -1180,7 +1356,7 @@ function Booking() {
             {selectedSeats.length > 0 && hold && (
               <div
                 className="bms-seat-timer"
-                role="status"
+                aria-label="Seat hold countdown"
               >
                 <span>
                   <Timer size={16} />
@@ -1188,9 +1364,24 @@ function Booking() {
                   checkout before the timer ends.
                 </span>
 
-                <strong>
+                <strong
+                  aria-live="off"
+                  aria-label={`${countText(secondsLeft)} remaining`}
+                >
                   {countText(secondsLeft)}
                 </strong>
+
+                <span
+                  className="sr-only"
+                  role="status"
+                  aria-live="polite"
+                >
+                  {secondsLeft <= 30
+                    ? "Less than 30 seconds remain to finish checkout."
+                    : secondsLeft <= 60
+                      ? "Less than one minute remains to finish checkout."
+                      : ""}
+                </span>
               </div>
             )}
 
@@ -1199,7 +1390,6 @@ function Booking() {
             {seatRows.length === 0 ? (
               <div className="bms-seat-empty">
                 <Armchair size={34} />
-
                 <p>
                   This auditorium has no active
                   seats configured.
@@ -1207,8 +1397,43 @@ function Booking() {
               </div>
             ) : (
               <div className="bms-seat-map-scroll">
+                {/* SELECTION ANNOUNCEMENTS */}
+
+                <p
+                  className="sr-only"
+                  role="status"
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
+                  {selectedSeats.length
+                    ? `${selectedSeats.length} seat${
+                        selectedSeats.length === 1
+                          ? ""
+                          : "s"
+                      } selected: ${selectedSeats.join(", ")}.`
+                    : "No seats selected."}
+                </p>
+
+                {/* KEYBOARD INSTRUCTIONS */}
+
+                <p
+                  id="bms-seat-keyboard-help"
+                  className="sr-only"
+                >
+                  Use Tab to enter the seat map.
+                  Arrow keys move between available
+                  seats. Home and End move to the
+                  first and last seat in a row.
+                  Enter or Space selects or releases
+                  a seat.
+                </p>
+
                 <div
                   className="bms-seat-map"
+                  role="group"
+                  aria-label="Select your seats"
+                  aria-describedby="bms-seat-keyboard-help"
+                  onKeyDown={handleSeatMapKeyDown}
                   style={{
                     "--bms-cols": seatColumns,
                   }}
@@ -1228,8 +1453,7 @@ function Booking() {
                             length: seatColumns,
                           },
                           (_, index) => {
-                            const column =
-                              index + 1;
+                            const column = index + 1;
 
                             const seat = seatMap.get(
                               `${row}:${column}`
@@ -1237,6 +1461,7 @@ function Booking() {
 
                             // Missing physical columns
                             // remain empty as aisles.
+
                             if (!seat) {
                               return (
                                 <span
@@ -1247,8 +1472,9 @@ function Booking() {
                               );
                             }
 
-                            const status =
-                              seatStatus(seat.seatId);
+                            const status = seatStatus(
+                              seat.seatId
+                            );
 
                             const category = String(
                               seat.type || "REGULAR"
@@ -1269,14 +1495,17 @@ function Booking() {
                               <button
                                 type="button"
                                 key={seat.seatId}
-                                className={`bms-seat-position${
+                                data-bms-seat-id={
+                                  seat.seatId
+                                }
+                                data-seat-row={row}
+                                data-seat-column={column}
+                                className={`bms-seat-position focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#D71935]${
                                   dimmed
                                     ? " bms-seat-position--muted"
                                     : ""
                                 }`}
-                                title={`${
-                                  seat.seatId
-                                } · ${category} · ${money(
+                                title={`${seat.seatId} · ${category} · ${money(
                                   getSeatPrice(seat)
                                 )} · ${status}`}
                                 aria-label={`Seat ${
@@ -1287,7 +1516,15 @@ function Booking() {
                                 aria-pressed={
                                   status === "selected"
                                 }
-                                disabled={disabled}
+                                disabled={
+                                  status === "booked" ||
+                                  status === "held" ||
+                                  proceeding
+                                }
+                                aria-disabled={disabled}
+                                aria-busy={
+                                  seatAction === seat.seatId
+                                }
                                 data-testid={`seat-${seat.seatId}`}
                                 onClick={() =>
                                   clickSeat(seat)
@@ -1468,6 +1705,131 @@ function Booking() {
               delay: 0.14,
             }}
           >
+            <SeatIntelligencePanel
+              showId={showId}
+              apiUrl={API_URL}
+              token={token}
+              selectedCount={selectedSeats.length}
+              busy={Boolean(seatAction || proceeding)}
+              onApply={async (suggestion) => {
+                if (
+                  seatAction ||
+                  proceeding ||
+                  selectedRef.current.length > 0 ||
+                  holdRef.current?.lockId
+                ) {
+                  toast.error(
+                    "Deselect your current seats before applying a recommendation."
+                  );
+
+                  return false;
+                }
+
+                const requested = normalizeIds(
+                  suggestion.seatIds
+                );
+
+                if (
+                  !requested.length ||
+                  requested.length > MAX_SEATS ||
+                  requested.some(
+                    (id) =>
+                      !seatById.has(id) ||
+                      bookedSet.has(id) ||
+                      lockedSet.has(id)
+                  )
+                ) {
+                  toast.error(
+                    "Availability changed. Find seats again."
+                  );
+
+                  await refreshLockedSeats();
+                  return false;
+                }
+
+                setSeatAction("SMART_PICK");
+
+                try {
+                  const { data } = await axios.post(
+                    `${API_URL}/api/seat-locks/hold`,
+                    {
+                      showId,
+                      seatIds: requested,
+                    },
+                    {
+                      headers: {
+                        Authorization: `Bearer ${token}`,
+                      },
+                      timeout: 12000,
+                    }
+                  );
+
+                  const confirmed = normalizeIds(
+                    data.seats
+                  );
+
+                  const matches =
+                    confirmed.length === requested.length &&
+                    confirmed.every((id) =>
+                      requested.includes(id)
+                    );
+
+                  if (
+                    !data.success ||
+                    !matches ||
+                    !data.lockId ||
+                    !data.expiresAt
+                  ) {
+                    throw new Error(
+                      "The server did not confirm the requested seat hold."
+                    );
+                  }
+
+                  const nextHold = {
+                    lockId: data.lockId,
+                    expiresAt: data.expiresAt,
+                  };
+
+                  selectedRef.current = confirmed;
+                  holdRef.current = nextHold;
+
+                  setSelectedSeats(confirmed);
+                  setHold(nextHold);
+
+                  setLockedSeats((old) => [
+                    ...new Set([...old, ...confirmed]),
+                  ]);
+
+                  saveHold(confirmed, nextHold);
+
+                  updateBooking({
+                    movie: show?.movie,
+                    show,
+                    selectedDate: show?.startTime,
+                    selectedTime: show?.startTime,
+                    selectedSeats: confirmed,
+                  });
+
+                  toast.success(
+                    "Your recommended seats are held."
+                  );
+
+                  return true;
+                } catch (error) {
+                  toast.error(
+                    error.response?.data?.message ||
+                      error.message ||
+                      "These seats are no longer available."
+                  );
+
+                  await refreshLockedSeats();
+                  return false;
+                } finally {
+                  setSeatAction(null);
+                }
+              }}
+            />
+
             <div className="bms-seat-summary__head">
               <span className="bms-seat-summary__icon">
                 <Ticket size={22} />
@@ -1549,7 +1911,6 @@ function Booking() {
                 {hold && (
                   <div className="bms-seat-summary__held">
                     <ShieldCheck size={15} />
-
                     Seats held for
 
                     <strong>
@@ -1612,10 +1973,8 @@ function Booking() {
                 {proceeding
                   ? "Opening checkout…"
                   : selectedSeats.length
-                  ? `Continue · ${money(
-                      selectedTotal
-                    )}`
-                  : "Select seats to continue"}
+                    ? `Continue · ${money(selectedTotal)}`
+                    : "Select seats to continue"}
               </span>
 
               <ArrowRight size={18} />

@@ -1,45 +1,95 @@
 
-import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import { LayoutGroup, motion, useMotionValueEvent, useScroll } from "framer-motion";
+import React, {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
+import {
+  Link,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
+
+import {
+  LayoutGroup,
+  motion,
+  useMotionValueEvent,
+  useReducedMotion,
+  useScroll,
+} from "framer-motion";
+
 import { Menu } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { Avatar, triggerClass } from "./nav/AccountTrigger";
+
+import {
+  Avatar,
+  triggerClass,
+} from "./nav/AccountTrigger";
 
 // =====================================================
-// BookMySeat navbar
+// BOOKMYSEAT NAVBAR
+// =====================================================
+// Preserves:
+// - Fixed 64px navbar
+// - Transparent homepage navigation
+// - Scroll-based background transitions
+// - Framer Motion navigation indicators
+// - Lazy-loaded account and mobile menus
+// - Customer, admin and partner navigation
 //
-//  * Exactly 64px tall, fixed, z-50 on every route. Other pages depend on that:
-//    admin/Admin.jsx pins its sidebar at top-16 and many pages use pt-16 to pt-28.
-//  * Transparent only on the homepage routes ("/" and "/booking-cancel"), and only
-//    while the homepage's opening section (#bms-opening) is on screen. Solid everywhere else.
-//  * Same links, auth behaviour and data-testid values as before, plus Cinemas and Assistant.
-//  * The account menu and the mobile menu (Radix dropdown and dialog) load on demand, so they
-//    stay out of the main bundle. They are preloaded when idle for the visitors who can use them.
-//  * Self-contained: it does not import from components/home.
+// Accessibility:
+// - Standard Tab / Shift+Tab navigation
+// - Left / Right / Up / Down arrow navigation
+// - Home / End keyboard shortcuts
+// - Visible keyboard focus
+// - Skip-to-content functionality
+// - Reduced-motion support
 // =====================================================
 
 const NAV_HEIGHT = 64;
 
-// A failed download is retried once. React.lazy remembers a rejection forever and an uncaught one
-// unmounts the whole app, so failures are also contained by ChunkBoundary below.
-const withRetry = (load) => () => load().catch(() => new Promise((resolve) => setTimeout(resolve, 700)).then(load));
-const loadAccountMenu = withRetry(() => import("./nav/AccountMenu"));
-const loadMobileSheet = withRetry(() => import("./nav/MobileSheet"));
+// =====================================================
+// LAZY-LOADED MENUS
+// =====================================================
+
+const withRetry = (load) => () =>
+  load().catch(() =>
+    new Promise((resolve) =>
+      setTimeout(resolve, 700)
+    ).then(load)
+  );
+
+const loadAccountMenu = withRetry(() =>
+  import("./nav/AccountMenu")
+);
+
+const loadMobileSheet = withRetry(() =>
+  import("./nav/MobileSheet")
+);
+
 const AccountMenu = lazy(loadAccountMenu);
 const MobileSheet = lazy(loadMobileSheet);
-const preload = (load) => load().catch(() => {});
 
-/**
- * If a menu's code cannot be downloaded (a flaky connection, or a new deploy that has replaced the
- * old files), show the fallback instead of blanking the page. The fallback reloads the page, which
- * fetches the current files.
- */
+const preload = (load) =>
+  load().catch(() => {});
+
+// =====================================================
+// CHUNK ERROR BOUNDARY
+// =====================================================
+
 class ChunkBoundary extends React.Component {
-  state = { failed: false };
+  state = {
+    failed: false,
+  };
 
   static getDerivedStateFromError() {
-    return { failed: true };
+    return {
+      failed: true,
+    };
   }
 
   componentDidCatch() {
@@ -47,45 +97,137 @@ class ChunkBoundary extends React.Component {
   }
 
   render() {
-    return this.state.failed ? this.props.fallback : this.props.children;
+    return this.state.failed
+      ? this.props.fallback
+      : this.props.children;
   }
 }
 
+// =====================================================
+// NAVIGATION LINKS
+// =====================================================
+
 const CORE_LINKS = [
-  { to: "/", label: "Home", id: "nav-home", exact: true },
-  { to: "/cinemas", label: "Cinemas", id: "nav-cinemas" },
-  { to: "/ai-search", label: "Assistant", id: "nav-assistant" },
-  { to: "/contact", label: "Contact Us", id: "nav-contact" },
+  {
+    to: "/",
+    label: "Home",
+    id: "nav-home",
+    exact: true,
+  },
+  {
+    to: "/cinemas",
+    label: "Cinemas",
+    id: "nav-cinemas",
+  },
+  {
+    to: "/ai-search",
+    label: "Assistant",
+    id: "nav-assistant",
+  },
+  {
+    to: "/contact",
+    label: "Contact Us",
+    id: "nav-contact",
+  },
 ];
 
 const MEMBER_LINKS = [
-  { to: "/favorites", label: "Favorites", id: "nav-favorites" },
-  { to: "/my-bookings", label: "My Bookings", id: "nav-my-bookings" },
+  {
+    to: "/my-bookings",
+    label: "My Bookings",
+    id: "nav-my-bookings",
+  },
 ];
 
-const ADMIN_LINK = { to: "/admin", label: "Admin", id: "nav-admin" };
+const ADMIN_LINK = {
+  to: "/admin",
+  label: "Admin",
+  id: "nav-admin",
+};
+
+const PARTNER_LINK = {
+  to: "/partner",
+  label: "Partner Portal",
+  id: "nav-partner",
+};
+
+// =====================================================
+// ACCESSIBILITY STYLES
+// =====================================================
 
 const ring =
-  "outline-none focus-visible:ring-2 focus-visible:ring-paper focus-visible:ring-offset-2 focus-visible:ring-offset-black";
+  "outline-none focus-visible:ring-2 focus-visible:ring-[#D71935] focus-visible:ring-offset-2 focus-visible:ring-offset-black";
 
 const idle = (fn) => {
-  if (typeof window.requestIdleCallback === "function") {
-    const id = window.requestIdleCallback(fn, { timeout: 2500 });
-    return () => window.cancelIdleCallback(id);
+  if (
+    typeof window.requestIdleCallback === "function"
+  ) {
+    const id = window.requestIdleCallback(fn, {
+      timeout: 2500,
+    });
+
+    return () =>
+      window.cancelIdleCallback(id);
   }
 
   const id = window.setTimeout(fn, 1200);
+
   return () => window.clearTimeout(id);
 };
 
+// =====================================================
+// LOGO
+// =====================================================
+
 const Logo = () => (
   <span className="flex items-center gap-2.5">
-    <svg viewBox="0 0 32 32" className="h-7 w-7" fill="none" aria-hidden="true">
-      <path d="M3.5 12.5C7 7.2 11.4 4.8 16 4.8s9 2.4 12.5 7.7" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" />
-      <path d="M9 27.2v-8.1a3.2 3.2 0 0 1 3.2-3.2h7.6a3.2 3.2 0 0 1 3.2 3.2v8.1" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
-      <rect x="6.6" y="19.6" width="3.4" height="7.6" rx="1.7" fill="#fff" />
-      <rect x="22" y="19.6" width="3.4" height="7.6" rx="1.7" fill="#fff" />
-      <rect x="11.2" y="10.4" width="9.6" height="4.6" rx="2.3" fill="#fff" />
+    <svg
+      viewBox="0 0 32 32"
+      className="h-7 w-7"
+      fill="none"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d="M3.5 12.5C7 7.2 11.4 4.8 16 4.8s9 2.4 12.5 7.7"
+        stroke="#fff"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+
+      <path
+        d="M9 27.2v-8.1a3.2 3.2 0 0 1 3.2-3.2h7.6a3.2 3.2 0 0 1 3.2 3.2v8.1"
+        stroke="#fff"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+
+      <rect
+        x="6.6"
+        y="19.6"
+        width="3.4"
+        height="7.6"
+        rx="1.7"
+        fill="#fff"
+      />
+
+      <rect
+        x="22"
+        y="19.6"
+        width="3.4"
+        height="7.6"
+        rx="1.7"
+        fill="#fff"
+      />
+
+      <rect
+        x="11.2"
+        y="10.4"
+        width="9.6"
+        height="4.6"
+        rx="2.3"
+        fill="#fff"
+      />
     </svg>
 
     <span className="font-display text-[21px] font-bold leading-none tracking-[-0.03em] text-paper [font-variation-settings:'wdth'_92,'opsz'_48]">
@@ -94,26 +236,62 @@ const Logo = () => (
   </span>
 );
 
+// =====================================================
+// MAIN NAVBAR
+// =====================================================
+
 const Navbar = () => {
-  const { user, logout, isAuthenticated } = useAuth();
+  const {
+    user,
+    logout,
+    isAuthenticated,
+  } = useAuth();
+
   const { pathname } = useLocation();
   const navigate = useNavigate();
 
-  const isHome = pathname === "/" || pathname === "/booking-cancel";
-  const isAdmin = user?.role === "admin";
+  const reducedMotion = useReducedMotion();
+
+  const isHome =
+    pathname === "/" ||
+    pathname === "/booking-cancel";
+
+  const isAdmin =
+    user?.role === "admin";
+
+  const isPartner =
+    user?.role === "partner";
 
   const [solid, setSolid] = useState(!isHome);
   const [hovered, setHovered] = useState(null);
   const [hasMain, setHasMain] = useState(false);
 
-  // Menus load on demand. A click that arrives before its chunk does is remembered and honoured.
   const [sheet, setSheet] = useState(false);
-  const [sheetWanted, setSheetWanted] = useState(false);
-  const [accountWanted, setAccountWanted] = useState(false);
-  const [menusBroken, setMenusBroken] = useState(false);
+
+  const [
+    sheetWanted,
+    setSheetWanted,
+  ] = useState(false);
+
+  const [
+    accountWanted,
+    setAccountWanted,
+  ] = useState(false);
+
+  const [
+    menusBroken,
+    setMenusBroken,
+  ] = useState(false);
+
   const menuButton = useRef(null);
 
-  // Transparent while the homepage opening is still on screen, solid otherwise.
+  // References desktop navigation links only.
+  const desktopNavRef = useRef(null);
+
+  // ===================================================
+  // TRANSPARENT HOMEPAGE BEHAVIOR
+  // ===================================================
+
   const { scrollY } = useScroll();
 
   const measure = useCallback(() => {
@@ -122,119 +300,399 @@ const Navbar = () => {
       return;
     }
 
-    const opening = document.getElementById("bms-opening");
+    const opening =
+      document.getElementById("bms-opening");
 
     setSolid(
       opening
-        ? opening.getBoundingClientRect().bottom <= NAV_HEIGHT
+        ? opening.getBoundingClientRect().bottom <=
+            NAV_HEIGHT
         : window.scrollY > 24
     );
   }, [isHome]);
 
-  useMotionValueEvent(scrollY, "change", measure);
+  useMotionValueEvent(
+    scrollY,
+    "change",
+    measure
+  );
 
   useEffect(() => {
     measure();
-    window.addEventListener("resize", measure);
 
-    return () => window.removeEventListener("resize", measure);
+    window.addEventListener(
+      "resize",
+      measure
+    );
+
+    return () =>
+      window.removeEventListener(
+        "resize",
+        measure
+      );
   }, [measure, pathname]);
 
-  // Close the mobile menu on navigation.
+  // ===================================================
+  // CLOSE MOBILE MENU ON NAVIGATION
+  // ===================================================
+
   useEffect(() => {
     setSheet(false);
-    setHasMain(Boolean(document.getElementById("main-content")));
+    setHovered(null);
+
+    const checkMain = () => {
+      setHasMain(
+        Boolean(
+          document.getElementById(
+            "main-content"
+          )
+        )
+      );
+    };
+
+    checkMain();
+
+    const frame =
+      window.requestAnimationFrame(checkMain);
+
+    return () =>
+      window.cancelAnimationFrame(frame);
   }, [pathname]);
 
-  // Warm up only what this visitor can use.
+  // ===================================================
+  // ACCESSIBLE SKIP LINK
+  // ===================================================
+
+  const skipToMain = useCallback((event) => {
+    const main =
+      document.getElementById("main-content");
+
+    if (!main) return;
+
+    event.preventDefault();
+
+    if (!main.hasAttribute("tabindex")) {
+      main.setAttribute("tabindex", "-1");
+    }
+
+    main.focus({
+      preventScroll: true,
+    });
+
+    const top =
+      window.scrollY +
+      main.getBoundingClientRect().top -
+      NAV_HEIGHT;
+
+    window.scrollTo({
+      top: Math.max(0, top),
+      behavior: "auto",
+    });
+  }, []);
+
+  // ===================================================
+  // MENU PRELOADING
+  // ===================================================
+
   useEffect(
     () =>
       idle(() => {
-        if (isAuthenticated) preload(loadAccountMenu);
+        if (isAuthenticated) {
+          preload(loadAccountMenu);
+        }
 
-        if (window.matchMedia("(max-width: 1023px)").matches) {
+        if (
+          window
+            .matchMedia("(max-width: 1023px)")
+            .matches
+        ) {
           preload(loadMobileSheet);
         }
       }),
     [isAuthenticated]
   );
 
+  // ===================================================
+  // ACCOUNT ACTIONS
+  // ===================================================
+
   const handleLogout = () => {
     logout();
     navigate("/");
   };
 
-  const reloadPage = () => window.location.reload();
+  const reloadPage = () =>
+    window.location.reload();
 
-  const openSheet = () => {
+  const toggleSheet = () => {
     if (menusBroken) {
       reloadPage();
       return;
     }
 
     setSheetWanted(true);
-    setSheet(true);
+
+    setSheet((previous) => !previous);
   };
+
+  // ===================================================
+  // ACTIVE LINK CHECK
+  // ===================================================
 
   const isActive = (link) => {
     if (
       link.to === "/cinemas" &&
-      (pathname === "/movies" || pathname.startsWith("/movie/"))
+      (
+        pathname === "/movies" ||
+        pathname.startsWith("/movie/")
+      )
     ) {
       return true;
     }
 
     return link.exact
       ? pathname === link.to
-      : pathname === link.to || pathname.startsWith(`${link.to}/`);
+      : pathname === link.to ||
+          pathname.startsWith(
+            `${link.to}/`
+          );
   };
 
+  // ===================================================
+  // DESKTOP KEYBOARD ARROW NAVIGATION
+  // ===================================================
+  //
+  // Tab moves into and out of the navbar normally.
+  //
+  // Once a navbar link is focused:
+  //
+  // ArrowRight / ArrowDown => Next link
+  // ArrowLeft / ArrowUp   => Previous link
+  // Home                  => First link
+  // End                   => Last link
+  // Enter                 => Opens focused link
+  //
+  // Hidden links are excluded automatically.
+  // Keyboard focus wraps around at the ends.
+  //
+  // This only affects desktop navbar links.
+  // ===================================================
+
+  const handleDesktopKeyDown = useCallback(
+    (event) => {
+      if (
+        event.defaultPrevented ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey
+      ) {
+        return;
+      }
+
+      const key = event.key;
+
+      const forward =
+        key === "ArrowRight" ||
+        key === "ArrowDown";
+
+      const backward =
+        key === "ArrowLeft" ||
+        key === "ArrowUp";
+
+      const first =
+        key === "Home";
+
+      const last =
+        key === "End";
+
+      if (
+        !forward &&
+        !backward &&
+        !first &&
+        !last
+      ) {
+        return;
+      }
+
+      const container =
+        desktopNavRef.current;
+
+      if (!container) return;
+
+      // Select only the real, visible desktop links.
+      // Links hidden by Tailwind's responsive classes
+      // do not have layout rectangles.
+      const links = Array.from(
+        container.querySelectorAll(
+          "a[data-bms-desktop-nav]"
+        )
+      ).filter(
+        (link) =>
+          link.getClientRects().length > 0
+      );
+
+      if (!links.length) return;
+
+      const currentIndex =
+        links.indexOf(document.activeElement);
+
+      // Do not hijack arrows while keyboard focus
+      // is outside the desktop navigation links.
+      if (currentIndex === -1) {
+        return;
+      }
+
+      event.preventDefault();
+
+      let nextIndex = currentIndex;
+
+      if (first) {
+        nextIndex = 0;
+      } else if (last) {
+        nextIndex = links.length - 1;
+      } else if (forward) {
+        nextIndex =
+          (currentIndex + 1) %
+          links.length;
+      } else if (backward) {
+        nextIndex =
+          (
+            currentIndex -
+            1 +
+            links.length
+          ) % links.length;
+      }
+
+      const nextLink =
+        links[nextIndex];
+
+      if (!nextLink) return;
+
+      // Transfer actual keyboard focus, not just
+      // the visual hover animation.
+      nextLink.focus();
+
+      setHovered(
+        nextLink.dataset.bmsDesktopNav
+      );
+    },
+    []
+  );
+
+  // ===================================================
+  // DESKTOP LINKS
+  // ===================================================
+
   const desktopLinks = [
-    ...CORE_LINKS.map((link) => ({ ...link, xlOnly: false })),
+    ...CORE_LINKS.map((link) => ({
+      ...link,
+      xlOnly: false,
+    })),
+
     ...(isAuthenticated
-      ? MEMBER_LINKS.map((link) => ({ ...link, xlOnly: true }))
+      ? MEMBER_LINKS.map((link) => ({
+          ...link,
+          xlOnly: true,
+        }))
       : []),
-    ...(isAdmin ? [{ ...ADMIN_LINK, xlOnly: true }] : []),
+
+    ...(isPartner
+      ? [
+          {
+            ...PARTNER_LINK,
+            xlOnly: false,
+          },
+        ]
+      : []),
+
+    ...(isAdmin
+      ? [
+          {
+            ...ADMIN_LINK,
+            xlOnly: true,
+          },
+        ]
+      : []),
   ];
+
+  // ===================================================
+  // MOBILE LINKS
+  // ===================================================
 
   const sheetLinks = [
     ...CORE_LINKS,
-    ...(isAuthenticated ? MEMBER_LINKS : []),
-    ...(isAdmin ? [ADMIN_LINK] : []),
+
+    ...(isAuthenticated
+      ? MEMBER_LINKS
+      : []),
+
+    ...(isPartner
+      ? [PARTNER_LINK]
+      : []),
+
+    ...(isAdmin
+      ? [ADMIN_LINK]
+      : []),
   ];
+
+  const indicatorTransition = reducedMotion
+    ? { duration: 0 }
+    : {
+        type: "spring",
+        stiffness: 420,
+        damping: 36,
+      };
+
+  // ===================================================
+  // RENDER
+  // ===================================================
 
   return (
     <>
+      {/* SKIP NAVIGATION */}
+
       {hasMain && (
         <a
           href="#main-content"
-          className="fixed left-4 top-3 z-[95] -translate-y-24 rounded-full bg-paper px-5 py-2.5 text-sm font-semibold text-ink transition-transform focus:translate-y-0 focus:outline-none"
+          onClick={skipToMain}
+          className={`fixed left-4 top-3 z-[95] -translate-y-24 rounded-full bg-paper px-5 py-2.5 text-sm font-semibold text-ink transition-transform focus:translate-y-0 motion-reduce:transition-none ${ring}`}
         >
           Skip to content
         </a>
       )}
 
+      {/* MAIN NAVIGATION */}
+
       <nav
         data-testid="main-navbar"
-        aria-label="Main"
+        aria-label="Primary navigation"
         className="fixed inset-x-0 top-0 z-50 box-border h-16"
       >
-        {/* Transparent and solid navbar backgrounds */}
-        <div
-          aria-hidden="true"
-          className={`pointer-events-none absolute inset-0 bg-gradient-to-b from-black/60 to-transparent transition-opacity duration-300 ${
-            solid ? "opacity-0" : "opacity-100"
-          }`}
-        />
+        {/* TRANSPARENT HOMEPAGE BACKGROUND */}
 
         <div
           aria-hidden="true"
-          className={`pointer-events-none absolute inset-0 border-b border-line bg-black/90 backdrop-blur-xl transition-opacity duration-300 ${
-            solid ? "opacity-100" : "opacity-0"
+          className={`pointer-events-none absolute inset-0 bg-gradient-to-b from-black/60 to-transparent transition-opacity duration-300 motion-reduce:transition-none ${
+            solid
+              ? "opacity-0"
+              : "opacity-100"
+          }`}
+        />
+
+        {/* SOLID BACKGROUND */}
+
+        <div
+          aria-hidden="true"
+          className={`pointer-events-none absolute inset-0 border-b border-line bg-black/90 backdrop-blur-xl transition-opacity duration-300 motion-reduce:transition-none ${
+            solid
+              ? "opacity-100"
+              : "opacity-0"
           }`}
         />
 
         <div className="relative mx-auto flex h-full max-w-[1400px] items-center justify-between px-5 lg:px-8">
+          {/* LOGO */}
+
           <Link
             to="/"
             data-testid="logo-link"
@@ -244,53 +702,88 @@ const Navbar = () => {
             <Logo />
           </Link>
 
+          {/* DESKTOP NAVIGATION */}
+
           <LayoutGroup id="bms-nav">
             <ul
+              ref={desktopNavRef}
+              onKeyDown={
+                handleDesktopKeyDown
+              }
               className="relative hidden items-center gap-0.5 lg:flex"
-              onMouseLeave={() => setHovered(null)}
+              onMouseLeave={() =>
+                setHovered(null)
+              }
             >
               {desktopLinks.map((link) => (
                 <li
                   key={link.to}
-                  className={`relative ${link.xlOnly ? "hidden xl:block" : ""}`}
+                  className={`relative ${
+                    link.xlOnly
+                      ? "hidden xl:block"
+                      : ""
+                  }`}
                 >
                   <Link
                     to={link.to}
                     data-testid={link.id}
-                    onMouseEnter={() => setHovered(link.to)}
-                    onFocus={() => setHovered(link.to)}
-                    onBlur={() => setHovered(null)}
-                    aria-current={isActive(link) ? "page" : undefined}
-                    className={`relative z-10 block rounded-full px-3.5 py-2 text-[15px] transition-colors duration-300 ${ring} ${
+                    data-bms-desktop-nav={
+                      link.to
+                    }
+                    onMouseEnter={() =>
+                      setHovered(link.to)
+                    }
+                    onFocus={() =>
+                      setHovered(link.to)
+                    }
+                    onBlur={() =>
+                      setHovered(null)
+                    }
+                    aria-current={
+                      isActive(link)
+                        ? "page"
+                        : undefined
+                    }
+                    className={`relative z-10 flex min-h-11 items-center rounded-full px-3.5 py-2 text-[15px] transition-colors duration-300 motion-reduce:transition-none ${ring} ${
                       isActive(link)
                         ? "text-paper"
-                        : "text-soft hover:text-paper"
+                        : "text-soft hover:text-paper focus-visible:text-paper"
                     }`}
                   >
                     {link.label}
                   </Link>
 
+                  {/* HOVER / KEYBOARD FOCUS INDICATOR */}
+
                   {hovered === link.to && (
                     <motion.span
-                      layoutId="bms-nav-hover"
-                      className="absolute inset-0 z-0 rounded-full bg-white/10"
-                      transition={{
-                        type: "spring",
-                        stiffness: 420,
-                        damping: 36,
-                      }}
+                      aria-hidden="true"
+                      layoutId={
+                        reducedMotion
+                          ? undefined
+                          : "bms-nav-hover"
+                      }
+                      className="pointer-events-none absolute inset-0 z-0 rounded-full bg-white/10"
+                      transition={
+                        indicatorTransition
+                      }
                     />
                   )}
 
+                  {/* ACTIVE PAGE INDICATOR */}
+
                   {isActive(link) && (
                     <motion.span
-                      layoutId="bms-nav-dot"
-                      className="absolute -bottom-0.5 left-1/2 z-10 h-1 w-1 -translate-x-1/2 rounded-full bg-paper"
-                      transition={{
-                        type: "spring",
-                        stiffness: 420,
-                        damping: 36,
-                      }}
+                      aria-hidden="true"
+                      layoutId={
+                        reducedMotion
+                          ? undefined
+                          : "bms-nav-dot"
+                      }
+                      className="pointer-events-none absolute -bottom-0.5 left-1/2 z-10 h-1 w-1 -translate-x-1/2 rounded-full bg-paper"
+                      transition={
+                        indicatorTransition
+                      }
                     />
                   )}
                 </li>
@@ -298,17 +791,21 @@ const Navbar = () => {
             </ul>
           </LayoutGroup>
 
+          {/* ACCOUNT AND MOBILE CONTROLS */}
+
           <div className="flex items-center gap-2">
             {isAuthenticated ? (
               <ChunkBoundary
-                onFail={() => setMenusBroken(true)}
+                onFail={() =>
+                  setMenusBroken(true)
+                }
                 fallback={
                   <button
                     type="button"
                     data-testid="user-menu-button"
                     aria-label="Reload to open the account menu"
                     onClick={reloadPage}
-                    className={triggerClass}
+                    className={`${triggerClass} ${ring}`}
                   >
                     <Avatar user={user} />
                   </button>
@@ -320,8 +817,10 @@ const Navbar = () => {
                       type="button"
                       data-testid="user-menu-button"
                       aria-label="Open account menu"
-                      onClick={() => setAccountWanted(true)}
-                      className={triggerClass}
+                      onClick={() =>
+                        setAccountWanted(true)
+                      }
+                      className={`${triggerClass} ${ring}`}
                     >
                       <Avatar user={user} />
                     </button>
@@ -339,28 +838,47 @@ const Navbar = () => {
               <Link
                 to="/auth"
                 data-testid="login-button"
-                className={`hidden h-10 items-center rounded-full border border-line-strong px-5 text-sm font-semibold text-paper transition-colors hover:border-paper min-[370px]:inline-flex ${ring}`}
+                className={`hidden min-h-11 items-center rounded-full border border-line-strong px-5 text-sm font-semibold text-paper transition-colors hover:border-paper motion-reduce:transition-none min-[370px]:inline-flex ${ring}`}
               >
                 Sign In
               </Link>
             )}
 
+            {/* MOBILE MENU BUTTON */}
+
             <button
               ref={menuButton}
               type="button"
-              aria-label="Open menu"
+              aria-label={
+                sheet
+                  ? "Close navigation menu"
+                  : "Open navigation menu"
+              }
               aria-haspopup="dialog"
               aria-expanded={sheet}
-              onClick={openSheet}
-              onPointerEnter={() => preload(loadMobileSheet)}
-              className={`flex h-10 w-10 items-center justify-center rounded-full border border-line-strong text-paper transition-colors hover:border-paper lg:hidden ${ring}`}
+              onClick={toggleSheet}
+              onPointerEnter={() =>
+                preload(loadMobileSheet)
+              }
+              onFocus={() =>
+                preload(loadMobileSheet)
+              }
+              className={`flex h-11 w-11 items-center justify-center rounded-full border border-line-strong text-paper transition-colors hover:border-paper motion-reduce:transition-none lg:hidden ${ring}`}
             >
-              <Menu className="h-5 w-5" strokeWidth={1.6} />
+              <Menu
+                className="h-5 w-5"
+                strokeWidth={1.6}
+                aria-hidden="true"
+              />
             </button>
+
+            {/* MOBILE SHEET */}
 
             {sheetWanted && (
               <ChunkBoundary
-                onFail={() => setMenusBroken(true)}
+                onFail={() =>
+                  setMenusBroken(true)
+                }
                 fallback={null}
               >
                 <Suspense fallback={null}>
@@ -369,7 +887,9 @@ const Navbar = () => {
                     onOpenChange={setSheet}
                     links={sheetLinks}
                     isActive={isActive}
-                    isAuthenticated={isAuthenticated}
+                    isAuthenticated={
+                      isAuthenticated
+                    }
                     onLogout={handleLogout}
                     logo={<Logo />}
                     triggerRef={menuButton}

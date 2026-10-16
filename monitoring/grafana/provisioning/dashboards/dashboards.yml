@@ -1,0 +1,15 @@
+
+apiVersion: 1
+
+providers:
+  - name: BookMySeat Operations
+    orgId: 1
+    folder: BookMySeat
+    folderUid: bookmyseat-ops-folder
+    type: file
+    disableDeletion: false
+    allowUiUpdates: true
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/bookmyseat-dashboards
+      foldersFromFilesStructure: false

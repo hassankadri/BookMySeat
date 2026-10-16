@@ -1,3 +1,6 @@
+
+"use strict";
+
 require("dotenv").config();
 
 const crypto = require("crypto");
@@ -19,98 +22,96 @@ const {
 } = require("./config/metrics");
 
 // =====================================================
-// ROUTES
+// EXISTING ROUTES
 // =====================================================
 
-const authRoutes =
-  require("./routes/auth");
+const authRoutes = require("./routes/auth");
+const movieRoutes = require("./routes/movies");
+const theatreRoutes = require("./routes/theatres");
+const screenRoutes = require("./routes/screens");
+const showRoutes = require("./routes/shows");
+const seatLockRoutes = require("./routes/seatLocks");
+const paymentRoutes = require("./routes/payments");
+const bookingRoutes = require("./routes/bookings");
+const adminRoutes = require("./routes/admin");
 
-const movieRoutes =
-  require("./routes/movies");
+const adminDynamicPricingRoutes = require(
+  "./routes/adminDynamicPricing"
+);
 
-const theatreRoutes =
-  require("./routes/theatres");
+const stripeWebhookRoutes = require(
+  "./routes/stripeWebhook"
+);
 
-const screenRoutes =
-  require("./routes/screens");
+const ticketRoutes = require("./routes/tickets");
+const contactRoutes = require("./routes/contact");
 
-const showRoutes =
-  require("./routes/shows");
+const customerBookingRoutes = require(
+  "./routes/customerBookings"
+);
 
-const seatLockRoutes =
-  require("./routes/seatLocks");
+const adminAnalyticsRoutes = require(
+  "./routes/adminAnalytics"
+);
 
-const paymentRoutes =
-  require("./routes/payments");
+const aiRoutes = require("./routes/ai");
 
-const bookingRoutes =
-  require("./routes/bookings");
-
-const adminRoutes =
-  require("./routes/admin");
-
-const stripeWebhookRoutes =
-  require("./routes/stripeWebhook");
-
-const ticketRoutes =
-  require("./routes/tickets");
-
-const contactRoutes =
-  require("./routes/contact");
-
-const customerBookingRoutes =
-  require("./routes/customerBookings");
-
-const adminAnalyticsRoutes =
-  require("./routes/adminAnalytics");
-
-const aiRoutes =
-  require("./routes/ai");
+const seatIntelligenceRoutes = require(
+  "./routes/seatIntelligence"
+);
 
 // =====================================================
-// SEEDING
+// FEATURE 7 — CINEMA PARTNER ROUTES
 // =====================================================
+
+const partnerTheatreRoutes = require(
+  "./routes/partnerTheatres"
+);
+
+// =====================================================
+// FEATURE 8 — VIRTUAL QUEUE
+// =====================================================
+
+const virtualQueueRoutes = require(
+  "./routes/virtualQueue"
+);
 
 const {
-  seedAdmin,
-} = require("./utils/seed");
+  auth,
+} = require("./middleware/auth");
+
+const {
+  requireQueueAdmission,
+} = require("./middleware/queueAdmissionGuard");
 
 // =====================================================
-// BACKGROUND WORKERS
+// SEEDING AND BACKGROUND WORKERS
 // =====================================================
+
+const { seedAdmin } = require("./utils/seed");
 
 const {
   startBookingExpiryWorker,
-} =
-  require("./services/bookingExpiryService");
+} = require("./services/bookingExpiryService");
 
 const {
   startBookingNotificationWorker,
-} =
-  require("./services/bookingNotificationWorker");
+} = require("./services/bookingNotificationWorker");
 
 // =====================================================
 // ENVIRONMENT
 // =====================================================
 
 const isProduction =
-  process.env.NODE_ENV ===
-  "production";
+  process.env.NODE_ENV === "production";
 
-const PORT =
-  Number(
-    process.env.PORT ||
-      8001
-  );
+const PORT = Number(
+  process.env.PORT || 8001
+);
 
-const mongoUrl =
-  process.env.MONGO_URL;
-
-const dbName =
-  process.env.DB_NAME;
-
-const jwtSecret =
-  process.env.JWT_SECRET;
+const mongoUrl = process.env.MONGO_URL;
+const dbName = process.env.DB_NAME;
+const jwtSecret = process.env.JWT_SECRET;
 
 const requiredEnvironment = [
   ["MONGO_URL", mongoUrl],
@@ -120,34 +121,20 @@ const requiredEnvironment = [
 
 const missingEnvironment =
   requiredEnvironment
-    .filter(
-      ([, value]) =>
-        !value
-    )
-    .map(
-      ([name]) =>
-        name
-    );
+    .filter(([, value]) => !value)
+    .map(([name]) => name);
 
-if (
-  missingEnvironment.length
-) {
+if (missingEnvironment.length) {
   console.error(
-    `❌ Missing environment variables: ${missingEnvironment.join(
-      ", "
-    )}`
+    `Missing environment variables: ${missingEnvironment.join(", ")}`
   );
 
   process.exit(1);
 }
 
-// Weak JWT secrets make signed tokens much easier
-// to compromise. Do not silently start with one.
-if (
-  jwtSecret.length < 32
-) {
+if (jwtSecret.length < 32) {
   console.error(
-    "❌ JWT_SECRET must be at least 32 characters long."
+    "JWT_SECRET must be at least 32 characters long."
   );
 
   process.exit(1);
@@ -165,87 +152,62 @@ if (
   !process.env.CORS_ORIGINS
 ) {
   console.error(
-    "❌ CORS_ORIGINS must be configured in production."
+    "CORS_ORIGINS must be configured in production."
   );
 
   process.exit(1);
 }
 
-const normalizeOrigin = (
-  origin
-) =>
+const normalizeOrigin = (origin) =>
   String(origin || "")
     .trim()
     .replace(/\/+$/, "");
 
-const allowedOrigins =
-  (
-    process.env.CORS_ORIGINS ||
-    defaultDevelopmentOrigins
-  )
-    .split(",")
-    .map(normalizeOrigin)
-    .filter(Boolean);
+const allowedOrigins = (
+  process.env.CORS_ORIGINS ||
+  defaultDevelopmentOrigins
+)
+  .split(",")
+  .map(normalizeOrigin)
+  .filter(Boolean);
 
 const allowedOriginSet =
-  new Set(
-    allowedOrigins
-  );
+  new Set(allowedOrigins);
 
 // =====================================================
-// APP
+// APPLICATION AND REQUEST METADATA
 // =====================================================
 
-const app =
-  express();
+const app = express();
+const httpServer = http.createServer(app);
 
-const httpServer =
-  http.createServer(app);
+app.disable("x-powered-by");
 
-// Hide Express fingerprint.
-app.disable(
-  "x-powered-by"
-);
-
-// Needed when deployed behind Render,
-// Railway, Nginx, Cloudflare, etc.
 if (isProduction) {
-  app.set(
-    "trust proxy",
-    1
-  );
+  app.set("trust proxy", 1);
 }
 
 // =====================================================
 // REQUEST ID
 // =====================================================
 
-app.use(
-  (
-    req,
-    res,
-    next
-  ) => {
-    const requestId =
-      req.get(
-        "X-Request-Id"
-      ) ||
-      crypto.randomUUID();
+app.use((req, res, next) => {
+  const requestId =
+    req.get("X-Request-Id") ||
+    crypto.randomUUID();
 
-    req.requestId =
-      requestId;
+  req.requestId = requestId;
 
-    res.setHeader(
-      "X-Request-Id",
-      requestId
-    );
+  res.setHeader(
+    "X-Request-Id",
+    requestId
+  );
 
-    next();
-  }
-);
+  next();
+});
 
 // =====================================================
-// OBSERVABILITY / PROMETHEUS METRICS
+// PROMETHEUS METRICS
 // =====================================================
 
 app.use(metricsMiddleware);
@@ -256,18 +218,13 @@ app.use(metricsMiddleware);
 
 app.use(
   helmet({
-    // This backend is an API rather than a page-rendering
-    // server. Allow frontend resources to call it.
     crossOriginResourcePolicy: {
-      policy:
-        "cross-origin",
+      policy: "cross-origin",
     },
 
-    // Avoid HSTS while developing on localhost.
-    hsts:
-      isProduction
-        ? undefined
-        : false,
+    hsts: isProduction
+      ? undefined
+      : false,
   })
 );
 
@@ -277,50 +234,28 @@ app.use(
 
 app.use(
   cors({
-    origin: (
-      origin,
-      callback
-    ) => {
-      // Server-to-server tools such as Stripe may not
-      // send a browser Origin header.
+    origin: (origin, callback) => {
       if (!origin) {
-        return callback(
-          null,
-          true
-        );
+        return callback(null, true);
       }
-
-      const normalized =
-        normalizeOrigin(
-          origin
-        );
 
       if (
         allowedOriginSet.has(
-          normalized
+          normalizeOrigin(origin)
         )
       ) {
-        return callback(
-          null,
-          true
-        );
+        return callback(null, true);
       }
 
       const error =
-        new Error(
-          "CORS_ORIGIN_BLOCKED"
-        );
+        new Error("CORS_ORIGIN_BLOCKED");
 
-      error.status =
-        403;
+      error.status = 403;
 
-      return callback(
-        error
-      );
+      return callback(error);
     },
 
-    credentials:
-      true,
+    credentials: true,
 
     methods: [
       "GET",
@@ -335,11 +270,11 @@ app.use(
       "Content-Type",
       "Authorization",
       "X-Request-Id",
+      "X-Queue-Admission",
       "Cache-Control",
     ],
 
-    optionsSuccessStatus:
-      204,
+    optionsSuccessStatus: 204,
   })
 );
 
@@ -347,96 +282,72 @@ app.use(
 // SOCKET.IO
 // =====================================================
 
-initSocketServer(
-  httpServer,
-  {
-    allowedOrigins,
-  }
-);
+initSocketServer(httpServer, {
+  allowedOrigins,
+});
 
 // =====================================================
 // STRIPE WEBHOOK
-//
-// MUST REMAIN BEFORE express.json().
-//
-// Stripe signature verification needs the exact raw body.
-// It is also mounted before the general API rate limiter
-// so legitimate Stripe retries are not accidentally
-// throttled.
 // =====================================================
+//
+// IMPORTANT:
+// Must remain before express.json().
+//
+// Stripe signature verification requires the
+// original raw request body.
+//
+// Keep webhook routing before API rate limiting
+// so legitimate Stripe retries are not disrupted.
 
 app.use(
   "/api/webhooks/stripe",
 
   express.raw({
-    type:
-      "application/json",
-
-    limit:
-      "1mb",
+    type: "application/json",
+    limit: "1mb",
   }),
 
   stripeWebhookRoutes
 );
 
 // =====================================================
-// GENERAL API RATE LIMIT
+// GENERAL API RATE LIMITING
 // =====================================================
 
-const apiLimiter =
-  rateLimit({
-    windowMs:
-      15 *
-      60 *
-      1000,
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
 
-    max: Number(
-      process.env
-        .API_RATE_LIMIT ||
-        500
-    ),
+  max: Number(
+    process.env.API_RATE_LIMIT || 500
+  ),
 
-    standardHeaders:
-      true,
+  standardHeaders: true,
+  legacyHeaders: false,
 
-    legacyHeaders:
-      false,
+  message: {
+    error:
+      "Too many requests. Please try again later.",
+  },
+});
 
-    message: {
-      error:
-        "Too many requests. Please try again later.",
-    },
-  });
-
-app.use(
-  "/api",
-  apiLimiter
-);
+app.use("/api", apiLimiter);
 
 // =====================================================
-// BODY PARSERS
+// REQUEST BODY PARSERS
 // =====================================================
 
 app.use(
   express.json({
-    limit:
-      "1mb",
-
-    strict:
-      true,
+    limit: "1mb",
+    strict: true,
   })
 );
 
 app.use(
   express.urlencoded({
-    extended:
-      false,
-
-    limit:
-      "1mb",
-
-    parameterLimit:
-      100,
+    extended: false,
+    limit: "1mb",
+    parameterLimit: 100,
   })
 );
 
@@ -444,44 +355,29 @@ app.use(
 // DATABASE SETTINGS
 // =====================================================
 
-mongoose.set(
-  "strictQuery",
-  true
-);
+mongoose.set("strictQuery", true);
 
 // =====================================================
 // HEALTH
 // =====================================================
 
-app.get(
-  "/api/",
+app.get("/api/", (req, res) => {
+  return res.json({
+    success: true,
 
-  (
-    req,
-    res
-  ) => {
-    return res.json({
-      success:
-        true,
+    service: "BookMySeat API",
 
-      service:
-        "BookMySeat API",
+    status: "ok",
 
-      status:
-        "ok",
-
-      database:
-        mongoose.connection
-          .readyState ===
-        1
-          ? "connected"
-          : "unavailable",
-    });
-  }
-);
+    database:
+      mongoose.connection.readyState === 1
+        ? "connected"
+        : "unavailable",
+  });
+});
 
 // =====================================================
-// PROMETHEUS METRICS
+// PROMETHEUS
 // =====================================================
 
 app.get(
@@ -490,38 +386,61 @@ app.get(
 );
 
 // =====================================================
-// API ROUTES
+// EXISTING API ROUTES
 // =====================================================
 
-app.use(
-  "/api/auth",
-  authRoutes
-);
+app.use("/api/auth", authRoutes);
+app.use("/api/movies", movieRoutes);
+app.use("/api/theatres", theatreRoutes);
+app.use("/api/screens", screenRoutes);
+app.use("/api/shows", showRoutes);
+
+// =====================================================
+// FEATURE 8 — VIRTUAL QUEUE API
+// =====================================================
+//
+// Admin:
+// PATCH /api/queue/admin/shows/:showId
+//
+// Customer:
+// GET  /api/queue/shows/:showId
+// POST /api/queue/shows/:showId/join
+// POST /api/queue/shows/:showId/status
+// POST /api/queue/shows/:showId/leave
 
 app.use(
-  "/api/movies",
-  movieRoutes
+  "/api/queue",
+  virtualQueueRoutes
 );
 
-app.use(
-  "/api/theatres",
-  theatreRoutes
-);
+// =====================================================
+// FEATURE 8 — SEAT HOLD ADMISSION PREFLIGHT
+// =====================================================
+//
+// The preflight runs before the existing seat-lock
+// route. It authenticates the request and checks
+// virtual queue admission.
+//
+// The original seat-lock router is unchanged.
+//
+// This is intentionally limited to POST /hold.
+// Seat release and seat-availability reads continue
+// working normally.
 
-app.use(
-  "/api/screens",
-  screenRoutes
-);
-
-app.use(
-  "/api/shows",
-  showRoutes
+app.post(
+  "/api/seat-locks/hold",
+  auth,
+  requireQueueAdmission
 );
 
 app.use(
   "/api/seat-locks",
   seatLockRoutes
 );
+
+// =====================================================
+// PAYMENTS AND BOOKINGS
+// =====================================================
 
 app.use(
   "/api/payments",
@@ -533,10 +452,23 @@ app.use(
   bookingRoutes
 );
 
+// =====================================================
+// ADMIN
+// =====================================================
+
 app.use(
   "/api/admin",
   adminRoutes
 );
+
+app.use(
+  "/api/admin/pricing",
+  adminDynamicPricingRoutes
+);
+
+// =====================================================
+// TICKETS AND CONTACT
+// =====================================================
 
 app.use(
   "/api/tickets",
@@ -548,273 +480,223 @@ app.use(
   contactRoutes
 );
 
+// =====================================================
+// ADMIN ANALYTICS
+// =====================================================
+
 app.use(
   "/api/admin/analytics",
   adminAnalyticsRoutes
 );
+
+// =====================================================
+// CUSTOMER BOOKINGS
+// =====================================================
 
 app.use(
   "/api/customer-bookings",
   customerBookingRoutes
 );
 
+// =====================================================
+// AI FEATURES
+// =====================================================
+
+app.use("/api/ai", aiRoutes);
+
 app.use(
-  "/api/ai",
-  aiRoutes
+  "/api/seat-intelligence",
+  seatIntelligenceRoutes
+);
+
+// =====================================================
+// FEATURE 7 — PARTNER ROUTES
+// =====================================================
+
+app.use(
+  "/api/partner/theatres",
+  partnerTheatreRoutes
 );
 
 // =====================================================
 // 404
 // =====================================================
 
-app.use(
-  (
-    req,
-    res
-  ) => {
-    return res
-      .status(404)
-      .json({
-        error:
-          "API route not found.",
-
-        requestId:
-          req.requestId,
-      });
-  }
-);
+app.use((req, res) => {
+  return res.status(404).json({
+    error: "API route not found.",
+    requestId: req.requestId,
+  });
+});
 
 // =====================================================
 // GLOBAL ERROR HANDLER
 // =====================================================
 
-app.use(
-  (
-    err,
-    req,
-    res,
-    next
-  ) => {
-    // Keep server-side details in logs.
-    console.error(
-      `[${req.requestId}]`,
-      err.stack ||
-        err
+app.use((err, req, res, next) => {
+  console.error(
+    `[${req.requestId}]`,
+    err.stack || err
+  );
+
+  if (
+    err.message === "CORS_ORIGIN_BLOCKED"
+  ) {
+    return res.status(403).json({
+      error: "This origin is not allowed.",
+      requestId: req.requestId,
+    });
+  }
+
+  if (
+    err.type === "entity.too.large"
+  ) {
+    return res.status(413).json({
+      error: "Request body is too large.",
+      requestId: req.requestId,
+    });
+  }
+
+  if (
+    err instanceof SyntaxError
+  ) {
+    return res.status(400).json({
+      error: "Invalid request body.",
+      requestId: req.requestId,
+    });
+  }
+
+  const status = Number(
+    err.status ||
+    err.statusCode ||
+    500
+  );
+
+  const message =
+    status >= 500
+      ? isProduction
+        ? "Internal server error."
+        : err.message ||
+          "Internal server error."
+      : err.message ||
+        "Request failed.";
+
+  return res.status(status).json({
+    error: message,
+    requestId: req.requestId,
+  });
+});
+
+// =====================================================
+// START SERVER
+// =====================================================
+
+let shuttingDown = false;
+
+const startServer = async () => {
+  try {
+    await mongoose.connect(
+      `${mongoUrl.replace(/\/$/, "")}/${dbName}`,
+      {
+        serverSelectionTimeoutMS: 10000,
+      }
     );
 
-    if (
-      err.message ===
-      "CORS_ORIGIN_BLOCKED"
-    ) {
-      return res
-        .status(403)
-        .json({
-          error:
-            "This origin is not allowed.",
+    console.log(
+      "MongoDB connected successfully"
+    );
 
-          requestId:
-            req.requestId,
-        });
-    }
+    console.log(
+      `Database: ${mongoose.connection.name}`
+    );
 
-    if (
-      err.type ===
-      "entity.too.large"
-    ) {
-      return res
-        .status(413)
-        .json({
-          error:
-            "Request body is too large.",
+    await seedAdmin();
 
-          requestId:
-            req.requestId,
-        });
-    }
+    startBookingExpiryWorker();
+    startBookingNotificationWorker();
 
-    if (
-      err instanceof
-      SyntaxError
-    ) {
-      return res
-        .status(400)
-        .json({
-          error:
-            "Invalid request body.",
+    httpServer.listen(
+      PORT,
+      "0.0.0.0",
+      () => {
+        console.log(
+          `Server running on port ${PORT}`
+        );
 
-          requestId:
-            req.requestId,
-        });
-    }
+        console.log(
+          `Environment: ${
+            isProduction
+              ? "production"
+              : "development"
+          }`
+        );
+      }
+    );
+  } catch (error) {
+    console.error(
+      "Server startup failed:",
+      error
+    );
 
-    const status =
-      Number(
-        err.status ||
-          err.statusCode ||
-          500
-      );
-
-    // Never leak internal exception messages to users
-    // for unexpected production failures.
-    const message =
-      status >= 500
-        ? isProduction
-          ? "Internal server error."
-          : err.message ||
-            "Internal server error."
-        : err.message ||
-          "Request failed.";
-
-    return res
-      .status(status)
-      .json({
-        error:
-          message,
-
-        requestId:
-          req.requestId,
-      });
+    process.exit(1);
   }
-);
-
-// =====================================================
-// START
-// =====================================================
-
-let shuttingDown =
-  false;
-
-const startServer =
-  async () => {
-    try {
-      await mongoose.connect(
-        `${mongoUrl.replace(
-          /\/$/,
-          ""
-        )}/${dbName}`,
-        {
-          serverSelectionTimeoutMS:
-            10000,
-        }
-      );
-
-      console.log(
-        "✅ MongoDB connected successfully"
-      );
-
-      console.log(
-        `✅ Database: ${mongoose.connection.name}`
-      );
-
-      await seedAdmin();
-
-      startBookingExpiryWorker();
-
-      startBookingNotificationWorker();
-
-      httpServer.listen(
-        PORT,
-        "0.0.0.0",
-        () => {
-          console.log(
-            `🚀 Server running on port ${PORT}`
-          );
-
-          console.log(
-            `🔒 Environment: ${
-              isProduction
-                ? "production"
-                : "development"
-            }`
-          );
-        }
-      );
-
-    } catch (error) {
-      console.error(
-        "❌ Server startup failed:",
-        error
-      );
-
-      process.exit(1);
-    }
-  };
+};
 
 // =====================================================
 // GRACEFUL SHUTDOWN
 // =====================================================
 
-const shutdown =
-  async (
-    signal
-  ) => {
-    if (
-      shuttingDown
-    ) {
-      return;
-    }
+const shutdown = async (signal) => {
+  if (shuttingDown) {
+    return;
+  }
 
-    shuttingDown =
-      true;
+  shuttingDown = true;
 
-    console.log(
-      `\n${signal} received. Shutting down...`
+  console.log(
+    `\n${signal} received. Shutting down...`
+  );
+
+  const forceExit = setTimeout(() => {
+    console.error(
+      "Forced shutdown after timeout."
     );
 
-    const forceExit =
-      setTimeout(
-        () => {
-          console.error(
-            "Forced shutdown after timeout."
-          );
+    process.exit(1);
+  }, 10000);
 
-          process.exit(1);
-        },
-        10000
+  forceExit.unref();
+
+  httpServer.close(async () => {
+    try {
+      await mongoose.connection.close();
+
+      console.log(
+        "MongoDB connection closed"
       );
 
-    forceExit.unref();
+      process.exit(0);
+    } catch (error) {
+      console.error(
+        "Shutdown error:",
+        error
+      );
 
-    httpServer.close(
-      async () => {
-        try {
-          await mongoose.connection.close();
-
-          console.log(
-            "✅ MongoDB connection closed"
-          );
-
-          process.exit(0);
-
-        } catch (error) {
-          console.error(
-            "Shutdown error:",
-            error
-          );
-
-          process.exit(1);
-        }
-      }
-    );
-  };
+      process.exit(1);
+    }
+  });
+};
 
 process.on(
   "SIGTERM",
-  () =>
-    shutdown(
-      "SIGTERM"
-    )
+  () => shutdown("SIGTERM")
 );
 
 process.on(
   "SIGINT",
-  () =>
-    shutdown(
-      "SIGINT"
-    )
+  () => shutdown("SIGINT")
 );
 
 startServer();
 
-module.exports =
-  app;
+module.exports = app;

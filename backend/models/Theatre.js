@@ -1,3 +1,4 @@
+
 const mongoose = require("mongoose");
 
 // =====================================================
@@ -30,16 +31,15 @@ const galleryImageSchema = new mongoose.Schema(
 /**
  * GeoJSON location.
  *
- * Later this lets us support:
+ * Supports:
+ * - Nearby theatres
+ * - Distance sorting
+ * - Map display
  *
- * "Theatres near me"
- * distance sorting
- * map view
- *
- * coordinates format:
- *
+ * Coordinate format:
  * [longitude, latitude]
  */
+
 const locationSchema = new mongoose.Schema(
   {
     type: {
@@ -76,7 +76,6 @@ const locationSchema = new mongoose.Schema(
 
 const theatreSchema = new mongoose.Schema(
   {
-    // Example: PVR Phoenix Palladium
     name: {
       type: String,
       required: true,
@@ -84,13 +83,6 @@ const theatreSchema = new mongoose.Schema(
       maxlength: 150,
     },
 
-    /**
-     * URL-friendly unique name.
-     *
-     * Example:
-     *
-     * pvr-phoenix-palladium-mumbai
-     */
     slug: {
       type: String,
       required: true,
@@ -100,7 +92,6 @@ const theatreSchema = new mongoose.Schema(
       index: true,
     },
 
-    // Kept at top level for easy filtering.
     city: {
       type: String,
       required: true,
@@ -239,15 +230,44 @@ const theatreSchema = new mongoose.Schema(
     },
 
     // =================================================
+    // FEATURE 7 — CINEMA PARTNER OWNERSHIP
+    // =================================================
+
+    /**
+     * Reference to the partner responsible for
+     * managing this theatre.
+     *
+     * Security rules:
+     *
+     * 1. Only administrators can assign a partner.
+     *
+     * 2. Partner operations must verify ownership
+     *    on every request.
+     *
+     * 3. An unassigned theatre is never accessible
+     *    through partner-management endpoints.
+     *
+     * 4. Existing theatres remain unassigned until
+     *    an administrator explicitly assigns them.
+     *
+     * Do not accept this field from public requests.
+     */
+
+    partner: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    // =================================================
     // STATUS
     // =================================================
 
     /**
-     * We soft-delete theatres.
-     *
-     * Old bookings/shows may still reference them,
-     * so we should not physically remove the document.
+     * Soft-deletion preserves historical references
+     * from bookings, screens and showtimes.
      */
+
     isActive: {
       type: Boolean,
       default: true,
@@ -263,22 +283,27 @@ const theatreSchema = new mongoose.Schema(
 // INDEXES
 // =====================================================
 
-/**
- * Allows future queries such as:
- *
- * "find cinemas within 5 km"
- */
+// Support nearby theatre searches.
 theatreSchema.index({
   location: "2dsphere",
 });
 
-/**
- * Common query:
- *
- * city -> active theatres
- */
+// Common public search:
+// city -> active theatres.
 theatreSchema.index({
   city: 1,
+  isActive: 1,
+});
+
+// =====================================================
+// FEATURE 7 — PARTNER OWNERSHIP INDEX
+// =====================================================
+
+// Efficiently retrieve theatres assigned to a partner.
+// Also supports filtering for active theatres.
+
+theatreSchema.index({
+  partner: 1,
   isActive: 1,
 });
 
@@ -292,6 +317,7 @@ theatreSchema.pre(
     /**
      * Keep top-level city and address.city consistent.
      */
+
     if (
       this.city &&
       this.address &&

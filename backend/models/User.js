@@ -29,9 +29,23 @@ const userSchema = new mongoose.Schema({
     default: null,
   },
 
+  // =====================================================
+  // ACCOUNT ROLES
+  // =====================================================
+  //
+  // user    - Customer
+  // admin   - Platform administrator
+  // partner - Cinema operator
+  //
+  // Partner accounts must be assigned to theatres by
+  // an authorized administrator. A partner role alone
+  // does not grant access to any theatre.
+  //
+  // Existing account roles are preserved.
+
   role: {
     type: String,
-    enum: ["user", "admin"],
+    enum: ["user", "admin", "partner"],
     default: "user",
   },
 
@@ -90,4 +104,7 @@ const userSchema = new mongoose.Schema({
   },
 });
 
-module.exports = mongoose.model("User", userSchema);
+module.exports = mongoose.model(
+  "User",
+  userSchema
+);

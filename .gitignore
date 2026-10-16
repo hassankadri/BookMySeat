@@ -98,3 +98,12 @@ credentials.json
 *.key
 .credentials
 memory/
+
+
+# BookMySeat local backup files
+*.before-*
+BookingSuccessOriginal.jsx
+
+# Additional temporary files
+*.tmp
+*.temp

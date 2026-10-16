@@ -5,6 +5,7 @@ import "@/App.css";
 
 import {
   BrowserRouter,
+  Link,
   Route,
   Routes,
   useLocation,
@@ -16,6 +17,8 @@ import { AuthProvider } from "./context/AuthContext";
 import { BookingProvider } from "./context/BookingContext";
 
 import Navbar from "./components/Navbar";
+
+import VirtualQueueGate from "./components/VirtualQueueGate";
 
 // =====================================================
 // PUBLIC PAGES
@@ -45,22 +48,48 @@ import AdminShows from "./pages/admin/AdminShows";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminBookings from "./pages/admin/AdminBookings";
 import AdminAnalytics from "./pages/admin/AdminAnalytics";
+import AdminDynamicPricing from "./pages/admin/AdminDynamicPricing";
+import AdminRiskMonitoring from "./pages/admin/AdminRiskMonitoring";
 import AddShow from "./pages/admin/AddShow";
 import TicketScanner from "./pages/admin/TicketScanner";
 
 // =====================================================
-// ROUTING FIX — BMS_ROUTER_FIX_V1
+// PARTNER PAGES
 // =====================================================
-//
-// React Router renders the correct page immediately.
-//
-// Preserves:
-// - Homepage animations
-// - Movie card animations
-// - Cinema transitions
-// - Trailer effects
-// - Individual page animations
-//
+
+import PartnerDashboard from "./pages/partner/PartnerDashboard";
+
+import PartnerShowtimeCreate from "./pages/partner/PartnerShowtimeCreate";
+
+// =====================================================
+// PARTNER HOME
+// =====================================================
+
+function PartnerHome() {
+  return (
+    <div className="bg-[#09090b]">
+      <div className="px-5 pt-20 sm:px-8 lg:px-12">
+        <div className="mx-auto flex max-w-[1480px] flex-wrap items-center justify-between gap-4">
+          <p className="text-xs font-medium uppercase tracking-[0.15em] text-white/40">
+            Partner workspace
+          </p>
+
+          <Link
+            to="/partner/new-show"
+            className="inline-flex items-center justify-center rounded-full border border-[#D71935]/60 bg-[#D71935] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#ec2e4b]"
+          >
+            Schedule a show
+          </Link>
+        </div>
+      </div>
+
+      <PartnerDashboard />
+    </div>
+  );
+}
+
+// =====================================================
+// ROUTING — PRESERVE ADMIN SHELL
 // =====================================================
 
 function AppRoutes() {
@@ -74,7 +103,6 @@ function AppRoutes() {
     });
   }, [location.pathname]);
 
-  // Preserve the admin shell between admin subpages.
   const routeKey =
     location.pathname.startsWith("/admin")
       ? "admin"
@@ -104,9 +132,15 @@ function AppRoutes() {
         element={<MovieDetails />}
       />
 
+      {/* FEATURE 8 — VIRTUAL QUEUE GATE */}
+
       <Route
         path="/booking/:id"
-        element={<Booking />}
+        element={
+          <VirtualQueueGate>
+            <Booking />
+          </VirtualQueueGate>
+        }
       />
 
       <Route
@@ -144,6 +178,18 @@ function AppRoutes() {
         element={<AiSearch />}
       />
 
+      {/* PARTNER ROUTES */}
+
+      <Route
+        path="/partner"
+        element={<PartnerHome />}
+      />
+
+      <Route
+        path="/partner/new-show"
+        element={<PartnerShowtimeCreate />}
+      />
+
       {/* ADMIN ROUTES */}
 
       <Route
@@ -178,6 +224,16 @@ function AppRoutes() {
         <Route
           path="shows"
           element={<AdminShows />}
+        />
+
+        <Route
+          path="pricing"
+          element={<AdminDynamicPricing />}
+        />
+
+        <Route
+          path="risk"
+          element={<AdminRiskMonitoring />}
         />
 
         <Route

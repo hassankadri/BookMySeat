@@ -5,6 +5,7 @@ const Booking = require("../models/Booking");
 const BookedSeat = require("../models/BookedSeat");
 const { releaseSeats } = require("./seatLockService");
 const { getStripe } = require("../utils/stripe");
+const { bookingEventsTotal } = require("../config/metrics");
 
 const INTERVAL_MS = Math.max(
   Number(process.env.BOOKING_EXPIRY_CHECK_INTERVAL_MS || 30000),
@@ -192,6 +193,9 @@ async function expireOne(booking) {
   );
 
   if (!result) return false;
+
+  // Count a completed MongoDB state transition, not a polling iteration.
+  bookingEventsTotal.inc({ event: "expired" });
 
   await releaseOldLock(result);
 

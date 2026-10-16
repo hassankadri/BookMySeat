@@ -1,481 +1,791 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { motion } from "framer-motion";
+
+import React, {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
+import axios from "axios";
+
+import {
+  motion,
+  useReducedMotion,
+} from "framer-motion";
+
 import {
   ArrowRight,
-  Calendar,
-  Check,
-  Clock,
-  MapPin,
+  CircleAlert,
+  Clock3,
+  RefreshCw,
   ShieldCheck,
   Ticket,
 } from "lucide-react";
-import { QRCodeSVG } from "qrcode.react";
-import axios from "axios";
+
+import {
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
+
 import { useAuth } from "../context/AuthContext";
 
-const API_URL = process.env.REACT_APP_BACKEND_URL;
-const CINEMA_TIME_ZONE = "Asia/Kolkata";
+import BookingSuccessOriginal from "./BookingSuccessOriginal";
 
 // =====================================================
-// HELPERS
+// BOOKMYSEAT — BOOKING CONFIRMATION
+// =====================================================
+//
+// Preserves:
+// - Existing ticket design
+// - Payment recovery API
+// - Automatic confirmation polling
+// - Stripe webhook reconciliation
+// - Existing booking status handling
+// - Authentication and navigation
+//
+// Accessibility:
+// - Screen-reader payment status announcements
+// - Keyboard focus management
+// - Visible button focus indicators
+// - Accessible loading and error states
+// - Reduced-motion preferences
+//
+// SECURITY:
+// Only a booking confirmed in the database may
+// render BookingSuccessOriginal.
 // =====================================================
 
-const formatDate = (booking) => {
-  const value = booking?.show?.startTime || booking?.show?.date;
-  if (!value) return "—";
+const API_URL = (
+  process.env.REACT_APP_BACKEND_URL ||
+  "http://localhost:5000"
+).replace(/\/+$/, "");
 
-  return new Intl.DateTimeFormat("en-IN", {
-    timeZone: CINEMA_TIME_ZONE,
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(value));
+const POLL_INTERVAL_MS = 2500;
+
+const MAX_AUTO_CHECKS = 24;
+
+// =====================================================
+// ACCESSIBILITY STYLES
+// =====================================================
+
+const focusRing =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D71935] focus-visible:ring-offset-2 focus-visible:ring-offset-black";
+
+// =====================================================
+// PAYMENT OUTCOMES
+// =====================================================
+
+const OUTCOMES = {
+  PAYMENT_FAILED: {
+    title: "Payment not completed.",
+    description:
+      "This payment has not been confirmed. Check your bookings before starting another payment.",
+  },
+
+  PAYMENT_RETRY_AVAILABLE: {
+    title: "Payment needs attention.",
+    description:
+      "Stripe has not received a successful payment. Check your booking before trying again.",
+  },
+
+  CANCELLED: {
+    title: "Booking cancelled.",
+    description:
+      "This reservation is cancelled. Do not use its ticket for entry.",
+  },
+
+  EXPIRED: {
+    title: "Reservation expired.",
+    description:
+      "The reservation is no longer active. If you were charged, check your bookings and refund status before paying again.",
+  },
+
+  REFUND_PENDING: {
+    title: "Refund being processed.",
+    description:
+      "This booking is not confirmed for entry. Check your bookings for refund updates.",
+  },
+
+  REFUNDED: {
+    title: "Booking refunded.",
+    description:
+      "This booking has been refunded and its ticket is not valid for entry.",
+  },
+
+  REVIEW_REQUIRED: {
+    title: "Payment needs review.",
+    description:
+      "The payment and booking records need reconciliation. Do not make another payment until the status is resolved.",
+  },
 };
 
-const formatTime = (booking) => {
-  if (booking?.show?.startTime) {
-    return new Intl.DateTimeFormat("en-IN", {
-      timeZone: CINEMA_TIME_ZONE,
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(booking.show.startTime));
+// =====================================================
+// PENDING PAYMENT DESCRIPTIONS
+// =====================================================
+
+function describePending(paymentState) {
+  if (paymentState === "AWAITING_WEBHOOK") {
+    return (
+      "Stripe reports a successful payment. " +
+      "We are waiting for the server to finish " +
+      "confirming your exact seats. Do not pay again."
+    );
   }
 
-  return booking?.show?.time || "—";
-};
+  if (paymentState === "PAYMENT_PENDING") {
+    return (
+      "The payment is still processing. " +
+      "We will check again automatically. " +
+      "Do not submit another payment while this is pending."
+    );
+  }
 
-const theatreLocation = (theatre) =>
-  [theatre?.address?.area, theatre?.address?.city].filter(Boolean).join(", ") || "—";
-
-// =====================================================
-// SMALL UI PIECES
-// =====================================================
-
-const MetaBlock = ({ icon: Icon, label, value }) => (
-  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-    <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] text-white/45">
-      <Icon className="h-4 w-4 text-[#D71935]" />
-      <span>{label}</span>
-    </div>
-    <p className="mt-3 text-sm font-medium text-white">{value || "—"}</p>
-  </div>
-);
-
-const NextStepCard = ({ index, title, text }) => (
-  <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
-    <div className="flex items-center gap-3">
-      <div className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-white/[0.04] text-sm font-semibold text-white/80">
-        {index}
-      </div>
-      <h3 className="text-sm font-semibold text-white">{title}</h3>
-    </div>
-    <p className="mt-3 text-sm leading-6 text-white/55">{text}</p>
-  </div>
-);
+  return (
+    "We're checking your booking with the payment server. " +
+    "Please avoid starting another payment until the result is clear."
+  );
+}
 
 // =====================================================
-// PAGE
+// ACCESSIBLE STATUS TEXT
 // =====================================================
 
-const BookingSuccess = () => {
+function getStatusAnnouncement(result) {
+  if (result.phase === "CONFIRMED") {
+    return (
+      "Booking confirmed successfully. " +
+      "Your confirmed cinema ticket is now available."
+    );
+  }
+
+  if (result.phase === "CHECKING") {
+    if (result.paymentState === "AWAITING_WEBHOOK") {
+      return (
+        "Payment received. Waiting for the server " +
+        "to confirm your booking."
+      );
+    }
+
+    if (result.paymentState === "PAYMENT_PENDING") {
+      return (
+        "Your payment is processing. " +
+        "Your booking status is being checked automatically."
+      );
+    }
+
+    return "Checking your booking status securely.";
+  }
+
+  if (result.phase === "DELAYED") {
+    return (
+      "Booking confirmation is taking longer than expected. " +
+      "You can check again without making another payment."
+    );
+  }
+
+  if (result.phase === "FINAL") {
+    return (
+      OUTCOMES[result.paymentState]?.title ||
+      "Your booking requires attention."
+    );
+  }
+
+  if (result.phase === "ERROR") {
+    return (
+      result.message ||
+      "Unable to check your booking status."
+    );
+  }
+
+  return "";
+}
+
+// =====================================================
+// MAIN COMPONENT
+// =====================================================
+
+export default function BookingSuccess() {
   const navigate = useNavigate();
+
   const [searchParams] = useSearchParams();
-  const bookingId = searchParams.get("bookingId");
 
-  const { token, isAuthenticated, loading: authLoading } = useAuth();
+  const bookingId =
+    searchParams.get("bookingId");
 
-  const [booking, setBooking] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [stillProcessing, setStillProcessing] = useState(false);
+  const {
+    token,
+    isAuthenticated,
+    loading: authLoading,
+  } = useAuth();
 
-  const findBooking = useCallback(async () => {
-    if (!token || !bookingId) return null;
+  const reducedMotion = useReducedMotion();
 
-    const response = await axios.get(`${API_URL}/api/bookings/my-bookings`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+  // Focus management for status changes.
+  const headingRef = useRef(null);
 
-    return (response.data?.bookings || []).find((item) => item._id === bookingId);
-  }, [token, bookingId]);
+  const previousPhaseRef = useRef(null);
+
+  const [
+    retryKey,
+    setRetryKey,
+  ] = useState(0);
+
+  const [
+    result,
+    setResult,
+  ] = useState({
+    phase: "CHECKING",
+    paymentState: null,
+    bookingCode: null,
+  });
+
+  // ===================================================
+  // AUTHENTICATION
+  // ===================================================
 
   useEffect(() => {
     if (authLoading) return;
 
-    if (!isAuthenticated) {
-      navigate("/auth", { replace: true });
+    if (!isAuthenticated || !token) {
+      navigate("/auth", {
+        replace: true,
+      });
+
       return;
     }
 
     if (!bookingId) {
-      navigate("/my-bookings", { replace: true });
-      return;
+      navigate("/my-bookings", {
+        replace: true,
+      });
     }
+  }, [
+    authLoading,
+    isAuthenticated,
+    token,
+    bookingId,
+    navigate,
+  ]);
+
+  // ===================================================
+  // PAYMENT RECOVERY AND CONFIRMATION
+  // ===================================================
+
+  useEffect(() => {
+    if (
+      authLoading ||
+      !isAuthenticated ||
+      !token ||
+      !bookingId
+    ) {
+      return undefined;
+    }
+
+    const controller =
+      new AbortController();
+
+    let timer;
 
     let cancelled = false;
 
-    const loadBooking = async () => {
+    setResult({
+      phase: "CHECKING",
+      paymentState: null,
+      bookingCode: null,
+    });
+
+    const check = async (attempt) => {
       try {
-        for (let attempt = 0; attempt < 12; attempt += 1) {
-          const result = await findBooking();
+        const { data } = await axios.get(
+          `${API_URL}/api/payments/recovery/${encodeURIComponent(
+            bookingId
+          )}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
 
-          if (result) {
-            if (!cancelled) {
-              setBooking(result);
-              setLoading(false);
-            }
-            return;
+            signal: controller.signal,
+
+            timeout: 12000,
           }
+        );
 
-          await new Promise((resolve) => setTimeout(resolve, 700));
+        if (cancelled) return;
+
+        const paymentState =
+          data.paymentState ||
+          "NOT_STARTED";
+
+        const common = {
+          paymentState,
+          bookingCode:
+            data.bookingCode ||
+            null,
+        };
+
+        // =================================================
+        // VERIFIED CONFIRMATION
+        // =================================================
+        //
+        // The database decides whether the ticket
+        // is valid. A successful Stripe charge alone
+        // cannot issue an admission pass.
+        // =================================================
+
+        if (
+          data.bookingStatus === "CONFIRMED" &&
+          paymentState === "CONFIRMED"
+        ) {
+          setResult({
+            phase: "CONFIRMED",
+            ...common,
+          });
+
+          return;
         }
 
-        if (!cancelled) {
-          setStillProcessing(true);
-          setLoading(false);
+        // =================================================
+        // FINAL PAYMENT / BOOKING OUTCOMES
+        // =================================================
+
+        if (
+          Object.prototype.hasOwnProperty.call(
+            OUTCOMES,
+            paymentState
+          )
+        ) {
+          setResult({
+            phase: "FINAL",
+            ...common,
+          });
+
+          return;
         }
+
+        // =================================================
+        // MAXIMUM AUTOMATIC CHECKS
+        // =================================================
+
+        if (
+          attempt + 1 >=
+          MAX_AUTO_CHECKS
+        ) {
+          setResult({
+            phase: "DELAYED",
+            ...common,
+          });
+
+          return;
+        }
+
+        // =================================================
+        // CONTINUE POLLING
+        // =================================================
+
+        setResult({
+          phase: "CHECKING",
+          ...common,
+        });
+
+        const interval = Math.max(
+          POLL_INTERVAL_MS,
+          Math.min(
+            10000,
+            Number(
+              data.retryAfterSeconds ||
+              0
+            ) * 1000
+          )
+        );
+
+        timer = window.setTimeout(
+          () => {
+            void check(attempt + 1);
+          },
+          interval
+        );
       } catch (error) {
-        console.error("Booking confirmation fetch failed:", error);
-
-        if (!cancelled) {
-          setStillProcessing(true);
-          setLoading(false);
+        if (
+          cancelled ||
+          controller.signal.aborted ||
+          axios.isCancel(error)
+        ) {
+          return;
         }
+
+        const status =
+          error.response?.status;
+
+        // =================================================
+        // NON-RETRYABLE ACCESS ERRORS
+        // =================================================
+
+        if (
+          status === 401 ||
+          status === 403 ||
+          status === 404 ||
+          status === 400
+        ) {
+          setResult({
+            phase: "ERROR",
+
+            message:
+              status === 404
+                ? "This booking was not found in your account."
+                : error.response?.data?.message ||
+                  "Unable to access this booking.",
+          });
+
+          return;
+        }
+
+        // =================================================
+        // RETRYABLE SERVICE ERRORS
+        // =================================================
+
+        if (
+          attempt + 1 >=
+          MAX_AUTO_CHECKS
+        ) {
+          setResult({
+            phase: "ERROR",
+
+            message:
+              "The payment service is temporarily unavailable. Check your bookings before paying again.",
+          });
+
+          return;
+        }
+
+        timer = window.setTimeout(
+          () => {
+            void check(attempt + 1);
+          },
+          POLL_INTERVAL_MS
+        );
       }
     };
 
-    loadBooking();
+    void check(0);
 
     return () => {
       cancelled = true;
+
+      controller.abort();
+
+      window.clearTimeout(timer);
     };
-  }, [authLoading, isAuthenticated, bookingId, navigate, findBooking]);
-
-  const movie = booking?.movie || booking?.show?.movie;
-  const theatre = booking?.show?.theatre;
-  const screen = booking?.show?.screen;
-
-  const qrValue = useMemo(() => {
-    if (!booking?.qrToken) return null;
-    return `BMS1:${booking.qrToken}`;
-  }, [booking]);
+  }, [
+    authLoading,
+    isAuthenticated,
+    token,
+    bookingId,
+    retryKey,
+  ]);
 
   // ===================================================
-  // LOADING
+  // KEYBOARD FOCUS MANAGEMENT
+  // ===================================================
+  //
+  // Focus the status heading when:
+  // - The page initially opens
+  // - Checking transitions to a final outcome
+  // - A manual retry starts
+  //
+  // Do not steal keyboard focus on every poll.
   // ===================================================
 
-  if (loading) {
+  useEffect(() => {
+    if (authLoading) return;
+
+    if (
+      previousPhaseRef.current ===
+      result.phase
+    ) {
+      return;
+    }
+
+    previousPhaseRef.current =
+      result.phase;
+
+    if (
+      result.phase === "CONFIRMED"
+    ) {
+      return;
+    }
+
+    headingRef.current?.focus({
+      preventScroll: true,
+    });
+  }, [
+    result.phase,
+    authLoading,
+  ]);
+
+  // ===================================================
+  // VERIFIED BOOKING — ORIGINAL TICKET UI
+  // ===================================================
+
+  if (
+    result.phase === "CONFIRMED"
+  ) {
     return (
-      <div className="min-h-screen bg-[#07080b] text-white">
-        <div className="mx-auto flex min-h-screen max-w-7xl items-center justify-center px-4">
-          <div className="text-center">
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-              className="mx-auto h-14 w-14 rounded-full border-2 border-white/10 border-t-[#D71935]"
-            />
-            <p className="mt-5 text-sm tracking-[0.18em] text-white/55">
-              CONFIRMING YOUR BOOKING
-            </p>
-          </div>
-        </div>
-      </div>
+      <>
+        <span
+          className="sr-only"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          Booking confirmed successfully.
+          Your cinema ticket is ready.
+        </span>
+
+        <BookingSuccessOriginal />
+      </>
     );
   }
 
   // ===================================================
-  // PROCESSING FALLBACK
+  // DERIVED PAYMENT STATUS
   // ===================================================
 
-  if (stillProcessing && !booking) {
-    return (
-      <div className="min-h-screen overflow-hidden bg-[#07080b] px-4 pb-16 pt-28 text-white">
-        <div className="pointer-events-none absolute left-[-12%] top-24 h-[420px] w-[420px] rounded-full bg-[#D71935]/18 blur-[130px]" />
-        <div className="pointer-events-none absolute bottom-0 right-[-8%] h-[320px] w-[320px] rounded-full bg-[#D71935]/10 blur-[140px]" />
+  const checking =
+    result.phase === "CHECKING";
 
-        <div className="relative mx-auto max-w-3xl">
-          <div className="rounded-[32px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,.06),rgba(255,255,255,.02))] p-8 text-center shadow-[0_30px_120px_rgba(0,0,0,.45)] sm:p-12">
-            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-amber-400/25 bg-amber-400/10 text-amber-300">
-              <Clock className="h-10 w-10" />
-            </div>
+  const delayed =
+    result.phase === "DELAYED";
 
-            <p className="mt-8 text-[11px] uppercase tracking-[0.35em] text-[#ffb84d]">
-              Payment received
-            </p>
+  const outcome =
+    OUTCOMES[result.paymentState];
 
-            <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-5xl">
-              Your booking is still being confirmed
-            </h1>
+  const title = checking
+    ? "Confirming your booking."
+    : delayed
+      ? "Confirmation is taking longer."
+      : outcome?.title ||
+        "Booking status unavailable.";
 
-            <p className="mx-auto mt-5 max-w-xl text-sm leading-7 text-white/60 sm:text-base">
-              Stripe payment looks successful, but the booking is still finishing on the
-              backend. Do not pay again. You can safely check your bookings page.
-            </p>
+  const description = checking
+    ? describePending(
+        result.paymentState
+      )
+    : delayed
+      ? (
+          "We could not confirm the final outcome yet. " +
+          "You can safely check again without starting a new charge."
+        )
+      : outcome?.description ||
+        result.message ||
+        "Check your bookings before attempting another payment.";
 
-            <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-              <button
-                onClick={() => navigate("/my-bookings")}
-                className="rounded-full bg-[#D71935] px-8 py-3 text-sm font-semibold text-white transition hover:bg-[#ef2947]"
-              >
-                Check My Bookings
-              </button>
+  const Icon =
+    checking || delayed
+      ? Clock3
+      : outcome || result.phase === "ERROR"
+        ? CircleAlert
+        : Ticket;
 
-              <button
-                onClick={() => navigate("/movies")}
-                className="rounded-full border border-white/10 bg-white/[0.04] px-8 py-3 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08]"
-              >
-                Browse Movies
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+  // ===================================================
+  // MANUAL RECHECK
+  // ===================================================
+
+  const handleRetry = () => {
+    setResult({
+      phase: "CHECKING",
+      paymentState: null,
+      bookingCode:
+        result.bookingCode ||
+        null,
+    });
+
+    setRetryKey(
+      (value) => value + 1
     );
-  }
+  };
 
   // ===================================================
-  // SUCCESS UI
+  // PAGE RENDER
   // ===================================================
 
   return (
-    <div className="min-h-screen overflow-hidden bg-[#07080b] px-4 pb-16 pt-28 text-white">
-      <div className="pointer-events-none absolute left-[-12%] top-28 h-[450px] w-[450px] rounded-full bg-[#D71935]/16 blur-[145px]" />
-      <div className="pointer-events-none absolute right-[-10%] top-[18%] h-[300px] w-[300px] rounded-full bg-[#D71935]/10 blur-[140px]" />
-      <div className="pointer-events-none absolute bottom-0 left-[18%] h-[220px] w-[220px] rounded-full bg-white/[0.03] blur-[120px]" />
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className="min-h-screen bg-[#09090b] px-4 pb-20 pt-28 text-white"
+      data-testid="booking-confirmation"
+    >
+      {/* SCREEN-READER STATUS ANNOUNCEMENT */}
 
-      <div className="relative mx-auto max-w-7xl">
-        <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_430px]">
-          {/* LEFT SIDE */}
-          <div>
-            <motion.div
-              initial={{ y: 24, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ duration: 0.45 }}
-            >
-              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-300">
-                <ShieldCheck className="h-4 w-4" />
-                Transaction completed
-              </div>
+      <span
+        className="sr-only"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {getStatusAnnouncement(result)}
+      </span>
 
-              <h1 className="mt-6 max-w-[11ch] text-[clamp(2.5rem,5vw,5.6rem)] font-semibold leading-[0.95] tracking-[-0.04em]">
-                Booking confirmed.
-              </h1>
+      <div className="mx-auto max-w-3xl">
+        <motion.section
+          initial={
+            reducedMotion
+              ? false
+              : {
+                  opacity: 0,
+                  y: 16,
+                }
+          }
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
+          transition={{
+            duration: reducedMotion
+              ? 0
+              : 0.4,
+          }}
+          className="overflow-hidden rounded-[28px] border border-white/10 bg-[#151518] p-7 sm:p-12"
+          aria-labelledby="bms-booking-status-heading"
+          aria-describedby="bms-booking-status-description"
+        >
+          {/* SECTION LABEL */}
 
-              <p className="mt-6 max-w-2xl text-base leading-8 text-white/60">
-                Your payment is complete and your ticket is ready. Keep this screen or
-                open <span className="text-white">My Bookings</span> anytime to access
-                your QR ticket again.
-              </p>
-            </motion.div>
+          <p className="flex items-center gap-3 text-[11px] font-bold uppercase tracking-[0.2em] text-[#ed657c]">
+            <span
+              aria-hidden="true"
+              className="h-px w-8 bg-[#D71935]"
+            />
 
-            <motion.div
-              initial={{ y: 24, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.1, duration: 0.45 }}
-              className="mt-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
-            >
-              <MetaBlock icon={Calendar} label="Show date" value={formatDate(booking)} />
-              <MetaBlock icon={Clock} label="Time" value={formatTime(booking)} />
-              <MetaBlock
-                icon={Ticket}
-                label="Seats"
-                value={booking?.seats?.join(", ") || "—"}
-              />
-              <MetaBlock
-                icon={MapPin}
-                label="Screen"
-                value={screen?.name || "Screen"}
-              />
-            </motion.div>
+            BookMySeat / Payment recovery
+          </p>
 
-            <motion.div
-              initial={{ y: 24, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.18, duration: 0.45 }}
-              className="mt-10 flex flex-wrap gap-4"
-            >
-              <button
-                onClick={() => navigate("/my-bookings")}
-                className="inline-flex items-center gap-2 rounded-full bg-[#D71935] px-8 py-3.5 text-sm font-semibold text-white transition hover:bg-[#ef2947]"
-              >
-                Open My Bookings
-                <ArrowRight className="h-4 w-4" />
-              </button>
+          {/* STATUS ICON */}
 
-              <button
-                onClick={() => navigate("/movies")}
-                className="rounded-full border border-white/10 bg-white/[0.04] px-8 py-3.5 text-sm font-semibold text-white/90 transition hover:bg-white/[0.08]"
-              >
-                Browse more films
-              </button>
-            </motion.div>
-
-            <motion.div
-              initial={{ y: 28, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.26, duration: 0.45 }}
-              className="mt-14"
-            >
-              <p className="mb-5 text-[11px] uppercase tracking-[0.32em] text-white/45">
-                What happens next
-              </p>
-
-              <div className="grid gap-4 md:grid-cols-3">
-                <NextStepCard
-                  index="01"
-                  title="Reach the theatre"
-                  text="Arrive a little early so you have enough time for entry and snacks."
-                />
-                <NextStepCard
-                  index="02"
-                  title="Show your QR"
-                  text="Present the QR code from this page or from My Bookings at the entrance."
-                />
-                <NextStepCard
-                  index="03"
-                  title="Enjoy the show"
-                  text="Your selected seats are already reserved under this booking."
-                />
-              </div>
-            </motion.div>
+          <div
+            className="mt-9 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#D71935]/30 bg-[#D71935]/10 text-[#f0758a]"
+            aria-hidden="true"
+          >
+            <Icon
+              size={28}
+              className={
+                checking &&
+                !reducedMotion
+                  ? "animate-pulse"
+                  : ""
+              }
+            />
           </div>
 
-          {/* RIGHT SIDE / TICKET */}
-          <motion.div
-            initial={{ y: 36, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.2, duration: 0.5 }}
-            className="h-fit rounded-[34px] border border-white/10 bg-[linear-gradient(155deg,rgba(255,255,255,.07),rgba(255,255,255,.025))] p-5 shadow-[0_28px_120px_rgba(0,0,0,.5)] sm:p-6"
+          {/* STATUS HEADING */}
+
+          <h1
+            ref={headingRef}
+            id="bms-booking-status-heading"
+            tabIndex={-1}
+            className="mt-7 text-[clamp(2rem,4vw,3.25rem)] font-semibold leading-tight tracking-[-0.055em] focus:outline-none"
           >
-            <div className="rounded-[28px] border border-white/10 bg-[#0f1116]/95 p-5">
-              <div className="flex items-start gap-4">
-                {movie?.poster ? (
-                  <img
-                    src={movie.poster}
-                    alt={movie?.title || "Movie poster"}
-                    className="h-32 w-24 rounded-2xl object-cover"
-                  />
-                ) : (
-                  <div className="flex h-32 w-24 items-end rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_top,rgba(215,25,53,.35),transparent_60%),linear-gradient(180deg,#16181d,#0c0d10)] p-3">
-                    <span className="text-[10px] uppercase tracking-[0.25em] text-white/55">
-                      Ticket
-                    </span>
-                  </div>
-                )}
+            {title}
+          </h1>
 
-                <div className="min-w-0 flex-1">
-                  <p className="text-[11px] uppercase tracking-[0.28em] text-white/45">
-                    BookMySeat ticket
-                  </p>
+          {/* STATUS DESCRIPTION */}
 
-                  <h2 className="mt-3 text-2xl font-semibold leading-tight">
-                    {movie?.title || "Movie"}
-                  </h2>
+          <p
+            id="bms-booking-status-description"
+            className="mt-4 max-w-xl text-sm leading-7 text-[#acabb4]"
+          >
+            {description}
+          </p>
 
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-300">
-                      Confirmed
-                    </span>
+          {/* BOOKING REFERENCE */}
 
-                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] text-white/65">
-                      {booking?.bookingCode || booking?.bookingReference || "—"}
-                    </span>
-                  </div>
-                </div>
-              </div>
+          {result.bookingCode && (
+            <p className="mt-6 font-mono text-xs tracking-wide text-white/70">
+              <span className="sr-only">
+                Booking reference:
+              </span>
 
-              <div className="my-6 border-t border-dashed border-white/10" />
+              <span aria-hidden="true">
+                Reference:{" "}
+              </span>
 
-              <div className="space-y-4">
-                <div className="flex items-start justify-between gap-5">
-                  <span className="text-sm text-white/48">Cinema</span>
-                  <span className="max-w-[60%] text-right text-sm font-medium text-white">
-                    {theatre?.name || "BookMySeat Cinema"}
-                  </span>
-                </div>
+              {result.bookingCode}
+            </p>
+          )}
 
-                <div className="flex items-start justify-between gap-5">
-                  <span className="text-sm text-white/48">Location</span>
-                  <span className="max-w-[60%] text-right text-sm font-medium text-white">
-                    {theatreLocation(theatre)}
-                  </span>
-                </div>
+          {/* CHECKING INDICATOR */}
 
-                <div className="flex items-start justify-between gap-5">
-                  <span className="text-sm text-white/48">Screen</span>
-                  <span className="text-right text-sm font-medium text-white">
-                    {screen?.name || "Screen"}
-                  </span>
-                </div>
+          {checking && (
+            <p
+              className="mt-8 flex items-center gap-3 text-xs text-[#a8a8b2]"
+            >
+              <RefreshCw
+                size={15}
+                aria-hidden="true"
+                className={
+                  reducedMotion
+                    ? ""
+                    : "animate-spin"
+                }
+              />
 
-                <div className="flex items-start justify-between gap-5">
-                  <span className="text-sm text-white/48">Seats</span>
-                  <span className="text-right text-sm font-medium text-white">
-                    {booking?.seats?.join(", ") || "—"}
-                  </span>
-                </div>
+              Checking securely with the server...
+            </p>
+          )}
 
-                <div className="flex items-start justify-between gap-5">
-                  <span className="text-sm text-white/48">Showtime</span>
-                  <span className="text-right text-sm font-medium text-white">
-                    {formatDate(booking)} • {formatTime(booking)}
-                  </span>
-                </div>
-              </div>
+          {/* ACTIONS */}
 
-              <div className="mt-6 rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-                <div className="flex items-end justify-between">
-                  <div>
-                    <p className="text-[11px] uppercase tracking-[0.28em] text-white/40">
-                      Amount paid
-                    </p>
-                    <p className="mt-2 text-3xl font-semibold tracking-tight">
-                      ₹{Number(booking?.totalAmount || 0).toLocaleString("en-IN")}
-                    </p>
-                  </div>
+          <div className="mt-9 flex flex-wrap gap-3 border-t border-white/10 pt-6">
+            {!checking && (
+              <button
+                type="button"
+                onClick={handleRetry}
+                data-testid="booking-check-again"
+                className={`inline-flex min-h-12 items-center gap-2 rounded-full bg-[#D71935] px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#ef2947] motion-reduce:transition-none ${focusRing}`}
+              >
+                <RefreshCw
+                  size={16}
+                  aria-hidden="true"
+                />
 
-                  <span className="text-xs uppercase tracking-[0.22em] text-white/40">
-                    {booking?.currency || "INR"}
-                  </span>
-                </div>
-              </div>
-            </div>
+                Check again
+              </button>
+            )}
 
-            <div className="mt-5 rounded-[28px] border border-white/10 bg-white p-6 text-zinc-950">
-              {qrValue ? (
-                <>
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold">Entry QR</p>
-                    <span className="rounded-full bg-zinc-100 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-600">
-                      Scan at venue
-                    </span>
-                  </div>
+            <button
+              type="button"
+              onClick={() =>
+                navigate("/my-bookings")
+              }
+              data-testid="booking-view-bookings"
+              className={`inline-flex min-h-12 items-center gap-2 rounded-full border border-white/15 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/5 motion-reduce:transition-none ${focusRing}`}
+            >
+              My bookings
 
-                  <div className="mt-5 flex justify-center">
-                    <QRCodeSVG value={qrValue} size={180} level="H" marginSize={1} />
-                  </div>
+              <ArrowRight
+                size={16}
+                aria-hidden="true"
+              />
+            </button>
+          </div>
 
-                  <p className="mt-5 text-center text-xs leading-6 text-zinc-500">
-                    Show this QR at the theatre entrance for ticket verification.
-                  </p>
-                </>
-              ) : (
-                <div className="text-center">
-                  <p className="text-sm font-semibold">QR unavailable</p>
-                  <p className="mt-2 text-xs text-zinc-500">
-                    The QR ticket is not available for this booking right now.
-                  </p>
-                </div>
-              )}
-            </div>
-          </motion.div>
-        </div>
+          {/* PAYMENT SAFETY NOTICE */}
+
+          <p className="mt-6 flex items-start gap-2 text-xs leading-5 text-white/65">
+            <ShieldCheck
+              size={15}
+              aria-hidden="true"
+              className="mt-0.5 shrink-0 text-[#e15e76]"
+            />
+
+            <span>
+              A successful card charge alone never
+              issues a ticket. Only a confirmed
+              booking displays the QR pass.
+            </span>
+          </p>
+        </motion.section>
       </div>
-    </div>
+    </main>
   );
-};
-
-export default BookingSuccess;
+}

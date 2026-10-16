@@ -188,8 +188,6 @@ export default function AddShow() {
     const controller = new AbortController();
     loadInitial(controller.signal);
     return () => controller.abort();
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   useEffect(() => {
