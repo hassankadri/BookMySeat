@@ -8,6 +8,7 @@ import {
   Film, ImageOff, Pencil, Plus, RefreshCw, Save, Search, Star, X,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { formatDuration } from "../../utils/formatDuration";
 
 const API = (process.env.REACT_APP_BACKEND_URL || "").replace(/\/+$/, "");
 const EASE = [0.22, 1, 0.36, 1];
@@ -57,8 +58,9 @@ function Field({ label, name, form, onChange, ...props }) {
 function FilmEditor({ movie, token, onClose, onSaved }) {
   const reduced = useReducedMotion();
   const [form, setForm] = useState(() => movie ? {
-    ...defaultForm(), ...movie,
-    releaseYear: String(movie.releaseYear ?? ""),
+  ...defaultForm(), ...movie,
+  duration: formatDuration(movie.duration),
+  releaseYear: String(movie.releaseYear ?? ""),
     releaseDate: dateInput(movie.releaseDate),
     avgRating: movie.avgRating == null ? "" : String(movie.avgRating),
   } : defaultForm());
@@ -327,7 +329,7 @@ export default function AdminMovies() {
               <div className="grid grid-cols-2 gap-4 border-t border-white/10 pt-5 text-xs">
                 {[
                   ["Director", selected.director],
-                  ["Duration", selected.duration],
+                  ["Duration", formatDuration(selected.duration)],
                   ["Language", selected.language],
                   ["Release year", selected.releaseYear],
                 ].map(([label, value]) => <div key={label}><p className="text-zinc-500">{label}</p><p className="mt-1.5 break-words font-semibold text-white">{value || "—"}</p></div>)}

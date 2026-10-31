@@ -1,0 +1,292 @@
+{
+  "scope": "15 public/anonymous GET checks plus 26 SPA HTML fallback checks. HTML availability is not authenticated React workflow or server deployment certification. Existing localhost services were not restarted. No credentials or mutation requests.",
+  "results": [
+    {
+      "url": "http://localhost:3000/",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://localhost:5000/api/",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://localhost:5000/api/theatres",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://localhost:5000/api/movies",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://localhost:5000/api/shows?status=SCHEDULED",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://localhost:5000/api/movies/69e5becc45e9cd7533fc22bd",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://localhost:5000/api/shows?theatre=6ac3b88c8403b4367e8eafbb&status=SCHEDULED",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://localhost:5000/api/shows/6ac3bb518403b4367e8eafca",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://localhost:5000/api/seat-locks/6ac3bb518403b4367e8eafca",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://localhost:5000/api/queue/shows/6ac3bb518403b4367e8eafca",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://localhost:5000/api/auth/me",
+      "expected": 401,
+      "actual": 401,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://localhost:5000/api/admin/stats",
+      "expected": 401,
+      "actual": 401,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://localhost:5000/api/customer-bookings",
+      "expected": 401,
+      "actual": 401,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://localhost:5000/api/partner/theatres",
+      "expected": 401,
+      "actual": 401,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://localhost:5000/api/movies/favorites/list",
+      "expected": 404,
+      "actual": 404,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://localhost:3000/",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": false,
+      "status": "FAIL"
+    },
+    {
+      "url": "http://localhost:3000/movies",
+      "expected": 200,
+      "actual": 404,
+      "shapeMatches": false,
+      "status": "FAIL"
+    },
+    {
+      "url": "http://localhost:3000/cinemas",
+      "expected": 200,
+      "actual": 404,
+      "shapeMatches": false,
+      "status": "FAIL"
+    },
+    {
+      "url": "http://localhost:3000/movie/69e5becc45e9cd7533fc22bd",
+      "expected": 200,
+      "actual": 404,
+      "shapeMatches": false,
+      "status": "FAIL"
+    },
+    {
+      "url": "http://localhost:3000/booking/69e5becc45e9cd7533fc22bd",
+      "expected": 200,
+      "actual": 404,
+      "shapeMatches": false,
+      "status": "FAIL"
+    },
+    {
+      "url": "http://localhost:3000/checkout",
+      "expected": 200,
+      "actual": 404,
+      "shapeMatches": false,
+      "status": "FAIL"
+    },
+    {
+      "url": "http://localhost:3000/auth",
+      "expected": 200,
+      "actual": 404,
+      "shapeMatches": false,
+      "status": "FAIL"
+    },
+    {
+      "url": "http://localhost:3000/my-bookings",
+      "expected": 200,
+      "actual": 404,
+      "shapeMatches": false,
+      "status": "FAIL"
+    },
+    {
+      "url": "http://localhost:3000/booking-success",
+      "expected": 200,
+      "actual": 404,
+      "shapeMatches": false,
+      "status": "FAIL"
+    },
+    {
+      "url": "http://localhost:3000/booking-cancel",
+      "expected": 200,
+      "actual": 404,
+      "shapeMatches": false,
+      "status": "FAIL"
+    },
+    {
+      "url": "http://localhost:3000/contact",
+      "expected": 200,
+      "actual": 404,
+      "shapeMatches": false,
+      "status": "FAIL"
+    },
+    {
+      "url": "http://localhost:3000/ai-search",
+      "expected": 200,
+      "actual": 404,
+      "shapeMatches": false,
+      "status": "FAIL"
+    },
+    {
+      "url": "http://localhost:3000/partner",
+      "expected": 200,
+      "actual": 404,
+      "shapeMatches": false,
+      "status": "FAIL"
+    },
+    {
+      "url": "http://localhost:3000/partner/new-show",
+      "expected": 200,
+      "actual": 404,
+      "shapeMatches": false,
+      "status": "FAIL"
+    },
+    {
+      "url": "http://localhost:3000/admin",
+      "expected": 200,
+      "actual": 404,
+      "shapeMatches": false,
+      "status": "FAIL"
+    },
+    {
+      "url": "http://localhost:3000/admin/analytics",
+      "expected": 200,
+      "actual": 404,
+      "shapeMatches": false,
+      "status": "FAIL"
+    },
+    {
+      "url": "http://localhost:3000/admin/movies",
+      "expected": 200,
+      "actual": 404,
+      "shapeMatches": false,
+      "status": "FAIL"
+    },
+    {
+      "url": "http://localhost:3000/admin/theatres",
+      "expected": 200,
+      "actual": 404,
+      "shapeMatches": false,
+      "status": "FAIL"
+    },
+    {
+      "url": "http://localhost:3000/admin/screens",
+      "expected": 200,
+      "actual": 404,
+      "shapeMatches": false,
+      "status": "FAIL"
+    },
+    {
+      "url": "http://localhost:3000/admin/add-show",
+      "expected": 200,
+      "actual": 404,
+      "shapeMatches": false,
+      "status": "FAIL"
+    },
+    {
+      "url": "http://localhost:3000/admin/shows",
+      "expected": 200,
+      "actual": 404,
+      "shapeMatches": false,
+      "status": "FAIL"
+    },
+    {
+      "url": "http://localhost:3000/admin/pricing",
+      "expected": 200,
+      "actual": 404,
+      "shapeMatches": false,
+      "status": "FAIL"
+    },
+    {
+      "url": "http://localhost:3000/admin/risk",
+      "expected": 200,
+      "actual": 404,
+      "shapeMatches": false,
+      "status": "FAIL"
+    },
+    {
+      "url": "http://localhost:3000/admin/users",
+      "expected": 200,
+      "actual": 404,
+      "shapeMatches": false,
+      "status": "FAIL"
+    },
+    {
+      "url": "http://localhost:3000/admin/bookings",
+      "expected": 200,
+      "actual": 404,
+      "shapeMatches": false,
+      "status": "FAIL"
+    },
+    {
+      "url": "http://localhost:3000/admin/scanner",
+      "expected": 200,
+      "actual": 404,
+      "shapeMatches": false,
+      "status": "FAIL"
+    }
+  ]
+}

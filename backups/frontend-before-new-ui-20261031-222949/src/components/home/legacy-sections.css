@@ -1,0 +1,41 @@
+
+/* Original Monochrome-Layout section styles, scoped to the homepage.
+   Preserves the original heading fonts, notched button, ticket and hover rim. */
+.bms-home .font-display-wide {
+    font-family: 'Bricolage Grotesque', 'Outfit', sans-serif;
+    font-variation-settings: 'wdth' 84, 'opsz' 96;
+}
+
+.bms-home .font-display-tight {
+    font-family: 'Bricolage Grotesque', 'Outfit', sans-serif;
+    font-variation-settings: 'wdth' 92, 'opsz' 48;
+}
+
+/* Ticket-stub button shape: original rule. */
+.bms-home .notch {
+    --r: 8px;
+    border-radius: 3px;
+    -webkit-mask:
+        radial-gradient(circle var(--r) at 0 50%, #0000 97%, #000) left / 51% 100% no-repeat,
+        radial-gradient(circle var(--r) at 100% 50%, #0000 97%, #000) right / 51% 100% no-repeat;
+    mask:
+        radial-gradient(circle var(--r) at 0 50%, #0000 97%, #000) left / 51% 100% no-repeat,
+        radial-gradient(circle var(--r) at 100% 50%, #0000 97%, #000) right / 51% 100% no-repeat;
+}
+
+/* Paper ticket notches: original rule. */
+.bms-home .ticket-cut {
+    --r: 14px;
+    -webkit-mask:
+        radial-gradient(circle var(--r) at 0 var(--cut, 68%), #0000 97%, #000) left / 51% 100% no-repeat,
+        radial-gradient(circle var(--r) at 100% var(--cut, 68%), #0000 97%, #000) right / 51% 100% no-repeat;
+    mask:
+        radial-gradient(circle var(--r) at 0 var(--cut, 68%), #0000 97%, #000) left / 51% 100% no-repeat,
+        radial-gradient(circle var(--r) at 100% var(--cut, 68%), #0000 97%, #000) right / 51% 100% no-repeat;
+}
+
+.bms-home .ring-mask {
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}

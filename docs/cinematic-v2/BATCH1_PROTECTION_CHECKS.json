@@ -1,0 +1,35 @@
+{
+  "branch": "feature/cinematic-ui-v2",
+  "originalSourceFilesChecked": 153,
+  "originalSourceFilesChanged": [],
+  "protectedTrackedDiff": "",
+  "lintRuleProbe": [
+    {
+      "ruleId": "no-unused-vars",
+      "severity": 1
+    },
+    {
+      "ruleId": "react-hooks/rules-of-hooks",
+      "severity": 2
+    },
+    {
+      "ruleId": "no-undef",
+      "severity": 2
+    }
+  ],
+  "artifacts": [
+    {
+      "file": "CONTRACT_INDEX.md",
+      "exists": true
+    },
+    {
+      "file": "SOURCE_INVENTORY.json",
+      "exists": true
+    },
+    {
+      "file": "RUNTIME_CHECKS.json",
+      "exists": true
+    }
+  ],
+  "status": "PASS"
+}

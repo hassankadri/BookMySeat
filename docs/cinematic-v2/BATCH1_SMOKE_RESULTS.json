@@ -1,0 +1,293 @@
+{
+  "frontendOrigin": "http://127.0.0.1:3010",
+  "scope": "15 public/anonymous GET checks plus 26 SPA HTML fallback checks. HTML availability is not authenticated React workflow or production hosting certification. No credentials or mutation requests.",
+  "results": [
+    {
+      "url": "http://127.0.0.1:3010/",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://localhost:5000/api/",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://localhost:5000/api/theatres",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://localhost:5000/api/movies",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://localhost:5000/api/shows?status=SCHEDULED",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://localhost:5000/api/movies/69e5becc45e9cd7533fc22bd",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://localhost:5000/api/shows?theatre=6ac3b88c8403b4367e8eafbb&status=SCHEDULED",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://localhost:5000/api/shows/6ac3bb518403b4367e8eafca",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://localhost:5000/api/seat-locks/6ac3bb518403b4367e8eafca",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://localhost:5000/api/queue/shows/6ac3bb518403b4367e8eafca",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://localhost:5000/api/auth/me",
+      "expected": 401,
+      "actual": 401,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://localhost:5000/api/admin/stats",
+      "expected": 401,
+      "actual": 401,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://localhost:5000/api/customer-bookings",
+      "expected": 401,
+      "actual": 401,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://localhost:5000/api/partner/theatres",
+      "expected": 401,
+      "actual": 401,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://localhost:5000/api/movies/favorites/list",
+      "expected": 404,
+      "actual": 404,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://127.0.0.1:3010/",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://127.0.0.1:3010/movies",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://127.0.0.1:3010/cinemas",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://127.0.0.1:3010/movie/69e5becc45e9cd7533fc22bd",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://127.0.0.1:3010/booking/69e5becc45e9cd7533fc22bd",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://127.0.0.1:3010/checkout",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://127.0.0.1:3010/auth",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://127.0.0.1:3010/my-bookings",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://127.0.0.1:3010/booking-success",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://127.0.0.1:3010/booking-cancel",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://127.0.0.1:3010/contact",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://127.0.0.1:3010/ai-search",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://127.0.0.1:3010/partner",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://127.0.0.1:3010/partner/new-show",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://127.0.0.1:3010/admin",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://127.0.0.1:3010/admin/analytics",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://127.0.0.1:3010/admin/movies",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://127.0.0.1:3010/admin/theatres",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://127.0.0.1:3010/admin/screens",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://127.0.0.1:3010/admin/add-show",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://127.0.0.1:3010/admin/shows",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://127.0.0.1:3010/admin/pricing",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://127.0.0.1:3010/admin/risk",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://127.0.0.1:3010/admin/users",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://127.0.0.1:3010/admin/bookings",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    },
+    {
+      "url": "http://127.0.0.1:3010/admin/scanner",
+      "expected": 200,
+      "actual": 200,
+      "shapeMatches": true,
+      "status": "PASS"
+    }
+  ]
+}

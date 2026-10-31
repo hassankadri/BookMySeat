@@ -1,0 +1,282 @@
+[
+  {
+    "file": "frame-000.jpg",
+    "timeMs": 39
+  },
+  {
+    "file": "frame-001.jpg",
+    "timeMs": 70
+  },
+  {
+    "file": "frame-002.jpg",
+    "timeMs": 101
+  },
+  {
+    "file": "frame-003.jpg",
+    "timeMs": 130
+  },
+  {
+    "file": "frame-004.jpg",
+    "timeMs": 168
+  },
+  {
+    "file": "frame-005.jpg",
+    "timeMs": 199
+  },
+  {
+    "file": "frame-006.jpg",
+    "timeMs": 240
+  },
+  {
+    "file": "frame-007.jpg",
+    "timeMs": 269
+  },
+  {
+    "file": "frame-008.jpg",
+    "timeMs": 303
+  },
+  {
+    "file": "frame-009.jpg",
+    "timeMs": 337
+  },
+  {
+    "file": "frame-010.jpg",
+    "timeMs": 386
+  },
+  {
+    "file": "frame-011.jpg",
+    "timeMs": 416
+  },
+  {
+    "file": "frame-012.jpg",
+    "timeMs": 3516
+  },
+  {
+    "file": "frame-013.jpg",
+    "timeMs": 3546
+  },
+  {
+    "file": "frame-014.jpg",
+    "timeMs": 3574
+  },
+  {
+    "file": "frame-015.jpg",
+    "timeMs": 3605
+  },
+  {
+    "file": "frame-016.jpg",
+    "timeMs": 3638
+  },
+  {
+    "file": "frame-017.jpg",
+    "timeMs": 3672
+  },
+  {
+    "file": "frame-018.jpg",
+    "timeMs": 3702
+  },
+  {
+    "file": "frame-019.jpg",
+    "timeMs": 3769
+  },
+  {
+    "file": "frame-020.jpg",
+    "timeMs": 3796
+  },
+  {
+    "file": "frame-021.jpg",
+    "timeMs": 3828
+  },
+  {
+    "file": "frame-022.jpg",
+    "timeMs": 3857
+  },
+  {
+    "file": "frame-023.jpg",
+    "timeMs": 3889
+  },
+  {
+    "file": "frame-024.jpg",
+    "timeMs": 3937
+  },
+  {
+    "file": "frame-025.jpg",
+    "timeMs": 3973
+  },
+  {
+    "file": "frame-026.jpg",
+    "timeMs": 4009
+  },
+  {
+    "file": "frame-027.jpg",
+    "timeMs": 4038
+  },
+  {
+    "file": "frame-028.jpg",
+    "timeMs": 4064
+  },
+  {
+    "file": "frame-029.jpg",
+    "timeMs": 4090
+  },
+  {
+    "file": "frame-030.jpg",
+    "timeMs": 4123
+  },
+  {
+    "file": "frame-031.jpg",
+    "timeMs": 4150
+  },
+  {
+    "file": "frame-032.jpg",
+    "timeMs": 4178
+  },
+  {
+    "file": "frame-033.jpg",
+    "timeMs": 4203
+  },
+  {
+    "file": "frame-034.jpg",
+    "timeMs": 4231
+  },
+  {
+    "file": "frame-035.jpg",
+    "timeMs": 4257
+  },
+  {
+    "file": "frame-036.jpg",
+    "timeMs": 4295
+  },
+  {
+    "file": "frame-037.jpg",
+    "timeMs": 4320
+  },
+  {
+    "file": "frame-038.jpg",
+    "timeMs": 4347
+  },
+  {
+    "file": "frame-039.jpg",
+    "timeMs": 4373
+  },
+  {
+    "file": "frame-040.jpg",
+    "timeMs": 4399
+  },
+  {
+    "file": "frame-041.jpg",
+    "timeMs": 4438
+  },
+  {
+    "file": "frame-042.jpg",
+    "timeMs": 4464
+  },
+  {
+    "file": "frame-043.jpg",
+    "timeMs": 4499
+  },
+  {
+    "file": "frame-044.jpg",
+    "timeMs": 4523
+  },
+  {
+    "file": "frame-045.jpg",
+    "timeMs": 4561
+  },
+  {
+    "file": "frame-046.jpg",
+    "timeMs": 4588
+  },
+  {
+    "file": "frame-047.jpg",
+    "timeMs": 4624
+  },
+  {
+    "file": "frame-048.jpg",
+    "timeMs": 4666
+  },
+  {
+    "file": "frame-049.jpg",
+    "timeMs": 4695
+  },
+  {
+    "file": "frame-050.jpg",
+    "timeMs": 4724
+  },
+  {
+    "file": "frame-051.jpg",
+    "timeMs": 4754
+  },
+  {
+    "file": "frame-052.jpg",
+    "timeMs": 4781
+  },
+  {
+    "file": "frame-053.jpg",
+    "timeMs": 4807
+  },
+  {
+    "file": "frame-054.jpg",
+    "timeMs": 4841
+  },
+  {
+    "file": "frame-055.jpg",
+    "timeMs": 4874
+  },
+  {
+    "file": "frame-056.jpg",
+    "timeMs": 4906
+  },
+  {
+    "file": "frame-057.jpg",
+    "timeMs": 4938
+  },
+  {
+    "file": "frame-058.jpg",
+    "timeMs": 4969
+  },
+  {
+    "file": "frame-059.jpg",
+    "timeMs": 4998
+  },
+  {
+    "file": "frame-060.jpg",
+    "timeMs": 5033
+  },
+  {
+    "file": "frame-061.jpg",
+    "timeMs": 5061
+  },
+  {
+    "file": "frame-062.jpg",
+    "timeMs": 5095
+  },
+  {
+    "file": "frame-063.jpg",
+    "timeMs": 5120
+  },
+  {
+    "file": "frame-064.jpg",
+    "timeMs": 5191
+  },
+  {
+    "file": "frame-065.jpg",
+    "timeMs": 5225
+  },
+  {
+    "file": "frame-066.jpg",
+    "timeMs": 5327
+  },
+  {
+    "file": "frame-067.jpg",
+    "timeMs": 5355
+  },
+  {
+    "file": "frame-068.jpg",
+    "timeMs": 5389
+  },
+  {
+    "file": "frame-069.jpg",
+    "timeMs": 5415
+  }
+]

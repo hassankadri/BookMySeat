@@ -1,0 +1,195 @@
+{
+  "scope": "Unauthenticated localhost GET checks only. No payment, seat hold, queue join, contact, email or database mutation requested.",
+  "checks": [
+    {
+      "url": "http://localhost:3000/",
+      "expected": 200,
+      "actual": 200,
+      "status": "PASS",
+      "shapeValid": true,
+      "keys": [],
+      "counts": {}
+    },
+    {
+      "url": "http://localhost:5000/api/",
+      "expected": 200,
+      "actual": 200,
+      "status": "PASS",
+      "shapeValid": true,
+      "keys": [
+        "success",
+        "service",
+        "status",
+        "database"
+      ],
+      "counts": {}
+    },
+    {
+      "url": "http://localhost:5000/api/theatres",
+      "expected": 200,
+      "actual": 200,
+      "status": "PASS",
+      "shapeValid": true,
+      "keys": [
+        "success",
+        "count",
+        "theatres"
+      ],
+      "counts": {
+        "theatres": 6
+      }
+    },
+    {
+      "url": "http://localhost:5000/api/movies",
+      "expected": 200,
+      "actual": 200,
+      "status": "PASS",
+      "shapeValid": true,
+      "keys": [
+        "success",
+        "count",
+        "movies"
+      ],
+      "counts": {
+        "movies": 46
+      }
+    },
+    {
+      "url": "http://localhost:5000/api/shows?status=SCHEDULED",
+      "expected": 200,
+      "actual": 200,
+      "status": "PASS",
+      "shapeValid": true,
+      "keys": [
+        "success",
+        "count",
+        "shows"
+      ],
+      "counts": {
+        "shows": 136
+      }
+    },
+    {
+      "url": "http://localhost:5000/api/movies/69e5becc45e9cd7533fc22bd",
+      "expected": 200,
+      "actual": 200,
+      "status": "PASS",
+      "shapeValid": true,
+      "keys": [
+        "movie"
+      ],
+      "counts": {}
+    },
+    {
+      "url": "http://localhost:5000/api/shows?theatre=6ac3b88c8403b4367e8eafbb&status=SCHEDULED",
+      "expected": 200,
+      "actual": 200,
+      "status": "PASS",
+      "shapeValid": true,
+      "keys": [
+        "success",
+        "count",
+        "shows"
+      ],
+      "counts": {
+        "shows": 1
+      }
+    },
+    {
+      "url": "http://localhost:5000/api/shows/6ac3bb518403b4367e8eafca",
+      "expected": 200,
+      "actual": 200,
+      "status": "PASS",
+      "shapeValid": true,
+      "keys": [
+        "success",
+        "show"
+      ],
+      "counts": {}
+    },
+    {
+      "url": "http://localhost:5000/api/seat-locks/6ac3bb518403b4367e8eafca",
+      "expected": 200,
+      "actual": 200,
+      "status": "PASS",
+      "shapeValid": true,
+      "keys": [
+        "success",
+        "lockedSeats"
+      ],
+      "counts": {
+        "lockedSeats": 0
+      }
+    },
+    {
+      "url": "http://localhost:5000/api/queue/shows/6ac3bb518403b4367e8eafca",
+      "expected": 200,
+      "actual": 200,
+      "status": "PASS",
+      "shapeValid": true,
+      "keys": [
+        "success",
+        "enabled",
+        "capacity",
+        "admissionSeconds"
+      ],
+      "counts": {}
+    },
+    {
+      "url": "http://localhost:5000/api/auth/me",
+      "expected": 401,
+      "actual": 401,
+      "status": "PASS",
+      "shapeValid": true,
+      "keys": [
+        "error"
+      ],
+      "counts": {}
+    },
+    {
+      "url": "http://localhost:5000/api/admin/stats",
+      "expected": 401,
+      "actual": 401,
+      "status": "PASS",
+      "shapeValid": true,
+      "keys": [
+        "error"
+      ],
+      "counts": {}
+    },
+    {
+      "url": "http://localhost:5000/api/customer-bookings",
+      "expected": 401,
+      "actual": 401,
+      "status": "PASS",
+      "shapeValid": true,
+      "keys": [
+        "error"
+      ],
+      "counts": {}
+    },
+    {
+      "url": "http://localhost:5000/api/partner/theatres",
+      "expected": 401,
+      "actual": 401,
+      "status": "PASS",
+      "shapeValid": true,
+      "keys": [
+        "error"
+      ],
+      "counts": {}
+    },
+    {
+      "url": "http://localhost:5000/api/movies/favorites/list",
+      "expected": 404,
+      "actual": 404,
+      "status": "PASS",
+      "shapeValid": true,
+      "keys": [
+        "error",
+        "requestId"
+      ],
+      "counts": {}
+    }
+  ]
+}

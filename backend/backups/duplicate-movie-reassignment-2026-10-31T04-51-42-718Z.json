@@ -1,0 +1,182 @@
+[
+  {
+    "_id": "6ae4d9801c3d084b7b623355",
+    "movie": "6ace39926b6e073bf1dedee3",
+    "theatre": "6ace39936b6e073bf1dedf4c",
+    "screen": "6ace39936b6e073bf1dedf4f",
+    "startTime": "2026-11-09T15:31:00.000Z",
+    "endTime": "2026-11-09T17:54:00.000Z",
+    "date": "2026-11-09T15:31:00.000Z",
+    "time": "09:01 pm",
+    "language": "English",
+    "format": "STANDARD",
+    "pricing": [
+      {
+        "seatType": "REGULAR",
+        "price": 300
+      },
+      {
+        "seatType": "PREMIUM",
+        "price": 600
+      },
+      {
+        "seatType": "RECLINER",
+        "price": 1000
+      }
+    ],
+    "price": 300,
+    "bookedSeats": [],
+    "bookingOpensAt": null,
+    "bookingClosesAt": null,
+    "status": "SCHEDULED",
+    "isActive": true,
+    "createdBy": null,
+    "createdAt": "2026-10-30T17:53:04.750Z",
+    "updatedAt": "2026-10-30T17:53:04.750Z",
+    "__v": 0
+  },
+  {
+    "_id": "6ae4d9801c3d084b7b623363",
+    "movie": "6ac5f811d9dc29d56908c912",
+    "theatre": "6ace39936b6e073bf1dedfa4",
+    "screen": "6ace39936b6e073bf1dedfaa",
+    "startTime": "2026-11-05T10:00:00.000Z",
+    "endTime": "2026-11-05T12:05:00.000Z",
+    "date": "2026-11-05T10:00:00.000Z",
+    "time": "03:30 pm",
+    "language": "Original",
+    "format": "STANDARD",
+    "pricing": [
+      {
+        "seatType": "REGULAR",
+        "price": 260
+      },
+      {
+        "seatType": "PREMIUM",
+        "price": 360
+      },
+      {
+        "seatType": "RECLINER",
+        "price": 520
+      }
+    ],
+    "price": 260,
+    "bookedSeats": [],
+    "bookingOpensAt": null,
+    "bookingClosesAt": null,
+    "status": "SCHEDULED",
+    "isActive": true,
+    "createdBy": null,
+    "createdAt": "2026-10-30T17:53:04.770Z",
+    "updatedAt": "2026-10-30T17:53:04.770Z",
+    "__v": 0
+  },
+  {
+    "_id": "6ae4d9801c3d084b7b623365",
+    "movie": "6ace39926b6e073bf1dedeeb",
+    "theatre": "6ace39936b6e073bf1dedfa4",
+    "screen": "6ace39936b6e073bf1dedfa7",
+    "startTime": "2026-11-06T12:30:00.000Z",
+    "endTime": "2026-11-06T15:18:00.000Z",
+    "date": "2026-11-06T12:30:00.000Z",
+    "time": "06:00 pm",
+    "language": "English",
+    "format": "STANDARD",
+    "pricing": [
+      {
+        "seatType": "REGULAR",
+        "price": 260
+      },
+      {
+        "seatType": "PREMIUM",
+        "price": 360
+      },
+      {
+        "seatType": "RECLINER",
+        "price": 520
+      }
+    ],
+    "price": 260,
+    "bookedSeats": [],
+    "bookingOpensAt": null,
+    "bookingClosesAt": null,
+    "status": "SCHEDULED",
+    "isActive": true,
+    "createdBy": null,
+    "createdAt": "2026-10-30T17:53:04.772Z",
+    "updatedAt": "2026-10-30T17:53:04.772Z",
+    "__v": 0
+  },
+  {
+    "_id": "6ae4d9801c3d084b7b623367",
+    "movie": "6ace39926b6e073bf1dededa",
+    "theatre": "6ace39936b6e073bf1dedfa4",
+    "screen": "6ace39936b6e073bf1dedfaa",
+    "startTime": "2026-11-07T14:30:00.000Z",
+    "endTime": "2026-11-07T16:43:00.000Z",
+    "date": "2026-11-07T14:30:00.000Z",
+    "time": "08:00 pm",
+    "language": "English",
+    "format": "STANDARD",
+    "pricing": [
+      {
+        "seatType": "REGULAR",
+        "price": 260
+      },
+      {
+        "seatType": "PREMIUM",
+        "price": 360
+      },
+      {
+        "seatType": "RECLINER",
+        "price": 520
+      }
+    ],
+    "price": 260,
+    "bookedSeats": [],
+    "bookingOpensAt": null,
+    "bookingClosesAt": null,
+    "status": "SCHEDULED",
+    "isActive": true,
+    "createdBy": null,
+    "createdAt": "2026-10-30T17:53:04.775Z",
+    "updatedAt": "2026-10-30T17:53:04.775Z",
+    "__v": 0
+  },
+  {
+    "_id": "6ae4d9801c3d084b7b623369",
+    "movie": "6ac5f811d9dc29d56908c915",
+    "theatre": "6ace39936b6e073bf1dedfa4",
+    "screen": "6ace39936b6e073bf1dedfa7",
+    "startTime": "2026-11-08T08:30:00.000Z",
+    "endTime": "2026-11-08T11:40:00.000Z",
+    "date": "2026-11-08T08:30:00.000Z",
+    "time": "02:00 pm",
+    "language": "Original",
+    "format": "STANDARD",
+    "pricing": [
+      {
+        "seatType": "REGULAR",
+        "price": 260
+      },
+      {
+        "seatType": "PREMIUM",
+        "price": 360
+      },
+      {
+        "seatType": "RECLINER",
+        "price": 520
+      }
+    ],
+    "price": 260,
+    "bookedSeats": [],
+    "bookingOpensAt": null,
+    "bookingClosesAt": null,
+    "status": "SCHEDULED",
+    "isActive": true,
+    "createdBy": null,
+    "createdAt": "2026-10-30T17:53:04.778Z",
+    "updatedAt": "2026-10-30T17:53:04.778Z",
+    "__v": 0
+  }
+]

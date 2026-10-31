@@ -1,0 +1,638 @@
+[
+  {
+    "file": "backend/cinemaPlan.js",
+    "sha256": "286dba690c381058d02d859e4c3c3929ddbe43994de731aa405889ec8cd8a722"
+  },
+  {
+    "file": "backend/config/metrics.js",
+    "sha256": "035e6ce5694241291c5122f8516a3c4e77084039fbdd0b4a8fd0ac752eceba0c"
+  },
+  {
+    "file": "backend/config/redis.js",
+    "sha256": "daa19e51a71b9a51c5af1efa8bcc1c974a36ef0028738f9f4735a837ddd3ab97"
+  },
+  {
+    "file": "backend/config/socket.js",
+    "sha256": "41e410cae16933bdb508ca2d0cab71f531a1e2a828d053e8b713fbb3ddea8fb8"
+  },
+  {
+    "file": "backend/middleware/auth.js",
+    "sha256": "266739c3b3ed511d3c3f24b8abc5133d3a86272b4c2bcd69cc7b827a3307cee1"
+  },
+  {
+    "file": "backend/middleware/bookingRiskProtection.js",
+    "sha256": "6e8bfaa4adffccadfc15a7a3cc712f660119abb400b4b888c39ee9492070dce3"
+  },
+  {
+    "file": "backend/middleware/fraudProtection.js",
+    "sha256": "55da5129e43eb8192ed7adf2d505288603cd6e258e5e923724aae4f86ba889df"
+  },
+  {
+    "file": "backend/middleware/partnerAccess.js",
+    "sha256": "bfbbc3644c4b3c33883c3d63c3d5bfcaf354de445a54d72648a28c6a7cd6a44a"
+  },
+  {
+    "file": "backend/middleware/queueAdmissionGuard.js",
+    "sha256": "d75e8a55272c17ffb4d8ff668b7f3401e861be6f24a79029c710cd0414b8a576"
+  },
+  {
+    "file": "backend/models/BookedSeat.js",
+    "sha256": "b07340cbfad720fa26a79276ce23e1c626c070b56680d8b584b9bf6a20b5c575"
+  },
+  {
+    "file": "backend/models/Booking.js",
+    "sha256": "041009aff3a3596a1f08023a3e7661ab306bf0a20d2a4bf5676257a842bd0776"
+  },
+  {
+    "file": "backend/models/DynamicPricingPolicy.js",
+    "sha256": "8add963c511fd606f4c83b7c4363bf8e0c54a54690447ff1b704560eb8c0fbbb"
+  },
+  {
+    "file": "backend/models/Movie.js",
+    "sha256": "48433139e437ee4d5bd0f53270c5e32cda6d4a3c1b18519abaa89bc8c1773c89"
+  },
+  {
+    "file": "backend/models/NotificationLog.js",
+    "sha256": "0f570a0d5e9e2e4d61c6972e454d81043e3f9d0bf5cb05035e886fef540cc4f6"
+  },
+  {
+    "file": "backend/models/Refund.js",
+    "sha256": "6c975e2faffebae5ddf896852c8239220eb6cc335a59aca8193fdc3b4a51b077"
+  },
+  {
+    "file": "backend/models/Screen.js",
+    "sha256": "6ed272537deb2be4ad4e1a25527041b780083f830e7155b0ad8cdbacd9330c36"
+  },
+  {
+    "file": "backend/models/Show.js",
+    "sha256": "cdcd2a245054d6834e1e31a19dc8ec95380c3f25b2876a570b34025d9691de69"
+  },
+  {
+    "file": "backend/models/Theatre.js",
+    "sha256": "0753f61910a701db6f9b81a2f5d006349b3ac140f9169d81e451bf72583a6484"
+  },
+  {
+    "file": "backend/models/User.js",
+    "sha256": "c2cfdf790ea2f70f5c0ab16650883a3cf9138fb2490be2749e5b4c7055397546"
+  },
+  {
+    "file": "backend/routes/admin.js",
+    "sha256": "17c5e25f3a43a2fc9032715eb927cf48d9d412076ab6ef354197d141c368aec6"
+  },
+  {
+    "file": "backend/routes/adminAnalytics.js",
+    "sha256": "916b0d4d589f29198703c6c3212bd0217b4eea33c71794336e40229cf7db32e0"
+  },
+  {
+    "file": "backend/routes/adminCore.js",
+    "sha256": "19ea7ace9b73d730aadb7e89b029b4fae9622409d176d9f82904f0dc6db107af"
+  },
+  {
+    "file": "backend/routes/adminDynamicPricing.js",
+    "sha256": "3feaea39d919a053781dad3e3f971dd3f8e45fd26eb94466d121ab5c556dc363"
+  },
+  {
+    "file": "backend/routes/adminPartnerAssignments.js",
+    "sha256": "c5afc8b581f4f46367499f2800a91ca9f67be5c3f59e58b1f8cf893c4002b4b1"
+  },
+  {
+    "file": "backend/routes/adminRisk.js",
+    "sha256": "e7dcaf78891974881013a79d96b3286ffced351e66964b084a8b467c5d80840e"
+  },
+  {
+    "file": "backend/routes/ai.js",
+    "sha256": "cf803cc3bb325317226e3e36fe3c65eb3bbbda14ec9ef3566be899fc2689c215"
+  },
+  {
+    "file": "backend/routes/auth.js",
+    "sha256": "64ce4f4fb4acd400cec4f9370f47b46f05644faa780c8e080ea89ebea51a0e64"
+  },
+  {
+    "file": "backend/routes/bookings.js",
+    "sha256": "3a39731d1dd7035082e2396b3179b76e0436a32272474938442aae866384c00d"
+  },
+  {
+    "file": "backend/routes/bookingsLegacyCompat.js",
+    "sha256": "1b1f1e99bf6399ee029ce1a5ef4724c94b371b5d89249bdb722df518bd986e7f"
+  },
+  {
+    "file": "backend/routes/contact.js",
+    "sha256": "62b48e15069b4e4aceaf35e1b6bde757c043aa4e2656171fc5dbd4004478dc8f"
+  },
+  {
+    "file": "backend/routes/customerBookings.js",
+    "sha256": "13dde946d1e334abb3bba8fcb7dcb595cc03a0028533af4a219eb76ee35fdb65"
+  },
+  {
+    "file": "backend/routes/movies.js",
+    "sha256": "62639a3c87ba7c44a36ac5a4ee809dfab8227008a14a975703494d88086cf973"
+  },
+  {
+    "file": "backend/routes/partnerOperations.js",
+    "sha256": "ff068f66af5357d99178c9f0fe85d738f21f2697e2d546af61790c0dafd9e918"
+  },
+  {
+    "file": "backend/routes/partnerTheatres.js",
+    "sha256": "ea57e9efdab6ef5722206721609034679c400b98db62a7c739887ee89266173c"
+  },
+  {
+    "file": "backend/routes/payments.js",
+    "sha256": "e412faa3efc853d7fc3c1c8326b6fb2c1e0a237d80633d317bba5e7a77951263"
+  },
+  {
+    "file": "backend/routes/paymentsCore.js",
+    "sha256": "88044883b4b437d50370924560a6fd1a29a5914b61d0ed76691744786e6e22ca"
+  },
+  {
+    "file": "backend/routes/screens.js",
+    "sha256": "25937a48de93094d32cda84f4724506c185aae1899be84c991917fe448899c8e"
+  },
+  {
+    "file": "backend/routes/seatIntelligence.js",
+    "sha256": "1c3b5b7fdfa044df8ace463e40e40556c48d9fcb712d2e162daf626d050d44d5"
+  },
+  {
+    "file": "backend/routes/seatLocks.js",
+    "sha256": "2fd8bf2a3de4acd9ae5062d224cf1b429bb89f1220e6028f81cd064b6cf51df5"
+  },
+  {
+    "file": "backend/routes/shows.js",
+    "sha256": "022d9192ab23e200ea9da09c2f4ca25032ff3563df26da80d9456f5ceeac1c98"
+  },
+  {
+    "file": "backend/routes/stripeWebhook.js",
+    "sha256": "5b9d7e1c92654e6e1f73b015713866458bcde741710211a16475572a234a6ef0"
+  },
+  {
+    "file": "backend/routes/theatres.js",
+    "sha256": "bc7927c06d26315c9ec3e242a4da4f64bd7bb3ebcdf26378c8e500ea80772cd4"
+  },
+  {
+    "file": "backend/routes/tickets.js",
+    "sha256": "3c56e70eb429760376632a7ae21cd969f4a61a28b891bdf3949f6bbd593947e6"
+  },
+  {
+    "file": "backend/routes/virtualQueue.js",
+    "sha256": "e5b662997e6376c2ce611aeeb8706baf4da7b084ed6bcd9023b2a7f79dc84440"
+  },
+  {
+    "file": "backend/runWithAppDatabase.js",
+    "sha256": "0af905be1dff6dc228937fe034006480ceea0abda715c74779015fa8d3725f3b"
+  },
+  {
+    "file": "backend/scripts/migrateMovieLifecycle.js",
+    "sha256": "b1745f3144de521bea73900e5a4246368df6a9310791d128a80b9538c0c6536c"
+  },
+  {
+    "file": "backend/scripts/reconcilePaidTestBooking.js",
+    "sha256": "7e2d5f333d2d1938ad4c46b0d9cb2d45f701634c4efdae750448da8e44d54cd9"
+  },
+  {
+    "file": "backend/scripts/seedDemoCinema.js",
+    "sha256": "4d95baf2f88d6263213476ecfe30a40fd8202adb4528ffcbcb10f9d02c4356b0"
+  },
+  {
+    "file": "backend/scripts/verifyApiConcurrency.js",
+    "sha256": "758d22b2fad299dfa16a53448db26eb6914ff5f685ac54e7b63371859cd2d819"
+  },
+  {
+    "file": "backend/scripts/verifyRedisConcurrency.js",
+    "sha256": "348c0c3c2a8f902ceccc98eeff515a158c16cde85ea0123f8874ec0c27aa74ca"
+  },
+  {
+    "file": "backend/server.js",
+    "sha256": "4430dcb120e2845311eeb70364baea77649c5296d24ac947bb42954f431d8c85"
+  },
+  {
+    "file": "backend/services/bookingExpiryService.js",
+    "sha256": "dc43104a1d4321320723014c14ba48ce8e38fade8104e80aedd50f70d787ac36"
+  },
+  {
+    "file": "backend/services/bookingNotificationWorker.js",
+    "sha256": "9f0d7cb9a75a937ea736f2eef442571fbdc84a93b455e7b74c4c2d1b395532f2"
+  },
+  {
+    "file": "backend/services/dynamicPricingService.js",
+    "sha256": "fd089c79ad16bec5c3565d86605bd6a7cb69aab8a686a43df9768c7a2c7d2f3f"
+  },
+  {
+    "file": "backend/services/seatEventReplayConsumer.js",
+    "sha256": "f0802c778296691bca65d47c0df1fa070705abf169b2f2783e684f5f3b23f6eb"
+  },
+  {
+    "file": "backend/services/seatEventStream.js",
+    "sha256": "968defceb4e29644948bac0077ddfa6927d4beda6ff31006e7bb440c0efae7ef"
+  },
+  {
+    "file": "backend/services/seatIntelligenceService.js",
+    "sha256": "bd5e120a870eb531c6ec46ee0d941cfb3e64b5d369524b833e7b5845b36d52ce"
+  },
+  {
+    "file": "backend/services/seatLockService.js",
+    "sha256": "4e9abaedbf8485f6d0e92f82978a1ef7c3e18fdea40b0e97f2c42960878353e2"
+  },
+  {
+    "file": "backend/services/virtualQueueService.js",
+    "sha256": "90987925fb705f67f2d306a0a2b277b9a9ee5a1ce6b461451347af165198694f"
+  },
+  {
+    "file": "backend/setupFiveCinemas.js",
+    "sha256": "b136294c18d75a110be424ccc9cdf5afd7ad10d0ba79b54532a2168364bb2363"
+  },
+  {
+    "file": "backend/utils/authEmail.js",
+    "sha256": "2b6c0e67ace39e1a891d66f7e081cf074f58d43adbd0f5991542a1aa53b96ea5"
+  },
+  {
+    "file": "backend/utils/bookingNotificationEmail.js",
+    "sha256": "18e3d45c58eab8966be4461d5f5fa4455628d5b8262160cd2f81bdccf4f71fe4"
+  },
+  {
+    "file": "backend/utils/email.js",
+    "sha256": "def19b9d821c1797c201a9048d34bbaed06c4dc0480c0b91d876adaa474d4b3b"
+  },
+  {
+    "file": "backend/utils/seed.js",
+    "sha256": "a45d1bbdf3411cac2e71dce0bd51d050d43189e9b25e9755d07d1618b7b1bfb7"
+  },
+  {
+    "file": "backend/utils/stripe.js",
+    "sha256": "8c0f1017a5a28310eae8d74caee9a9629a2bf0139411032c5917a73ce932b955"
+  },
+  {
+    "file": "frontend/src/App.js",
+    "sha256": "af46141a8b612e902bcbc79969a75997715df023c44c190a5a2c6158ae50d056"
+  },
+  {
+    "file": "frontend/src/components/Navbar.jsx",
+    "sha256": "e45da6e5a1e316702ddbd16c30a032cdac083ca7dc260c71a02029c3a531d1f3"
+  },
+  {
+    "file": "frontend/src/components/SeatIntelligencePanel.jsx",
+    "sha256": "74433d15a8e8e149260f0c021d6d8a6d2d2a1ea76533a600357a77be32611cfa"
+  },
+  {
+    "file": "frontend/src/components/StripePaymentForm.jsx",
+    "sha256": "0a674b17f2af56e755ff0b2a850a685531257b1084f4364f3777a349cf625694"
+  },
+  {
+    "file": "frontend/src/components/VirtualQueueGate.jsx",
+    "sha256": "512052b7bb5a82ffefa75b1d037f9607326c05bd56f1924d44c4db8e51ea570c"
+  },
+  {
+    "file": "frontend/src/components/admin/ShowQueueControls.jsx",
+    "sha256": "46b8b2c9ef3d1c9df72062f09ea51128d68586d2f41d293764e211778746035d"
+  },
+  {
+    "file": "frontend/src/components/cinematic/CinematicUI.jsx",
+    "sha256": "de1f8148c1e3a84acc17352dda65b9642e8ef5d51446411f6e0dc27a946dc79a"
+  },
+  {
+    "file": "frontend/src/components/home/BookingFAQ.jsx",
+    "sha256": "f11ec4492d8e329224c8eb991a1c150d94ed629b8b238ebd570fa68a4689d1ee"
+  },
+  {
+    "file": "frontend/src/components/home/Journey.jsx",
+    "sha256": "e091fa72787c4d21993e8a51063bb9144356ad6f7ed9bec6fc5c798bcf5158ef"
+  },
+  {
+    "file": "frontend/src/components/home/copy.js",
+    "sha256": "fbd94dd413b5fc5ef2dd31d23ee470183efc3432347b86976407736a23431b11"
+  },
+  {
+    "file": "frontend/src/components/home/hooks/useHomeSnap.js",
+    "sha256": "8b19e9a0e694ceb21e2c0c81f4384f4e1ca1dadd464e0ac9599c429bacf6d9a5"
+  },
+  {
+    "file": "frontend/src/components/home/hooks/useMedia.js",
+    "sha256": "06332c78f19ee2d582e59ae845e2871db7562bc778ee743ba210a80d3e46901f"
+  },
+  {
+    "file": "frontend/src/components/home/hooks/useScrollProgress.js",
+    "sha256": "94b8da0ffd7afc0582e70e10fa6cef33a355491441efc74ce8d275e72987bb24"
+  },
+  {
+    "file": "frontend/src/components/home/lib/capabilities.js",
+    "sha256": "27f3b075d0d267472a196b0025468efe7c50b1cac3593ba2a6fa4b291ce66c94"
+  },
+  {
+    "file": "frontend/src/components/home/lib/capabilities.test.js",
+    "sha256": "fb4befc22b0da66b4f544b7760a368926e6b957d4564dbd8dc83fc12cafdc780"
+  },
+  {
+    "file": "frontend/src/components/home/lib/cx.js",
+    "sha256": "717c8ce5ab7b2382a4e9f0b8bec80db3297d82d609fefc9fa36cd6c5d90717ca"
+  },
+  {
+    "file": "frontend/src/components/home/lib/quad.js",
+    "sha256": "9c9a133bdae256cee3aa1cc0f531669898a83f0275fc62d08b2f74283ad40df4"
+  },
+  {
+    "file": "frontend/src/components/home/lib/quad.test.js",
+    "sha256": "721a170901db29f6b761a929d5c55d4f8ed523d7b79d9c1d4520dc642b9ff35f"
+  },
+  {
+    "file": "frontend/src/components/home/lib/schedule.js",
+    "sha256": "0eb6c4bf6300bf6866acdf53108ba541a2762d6cf26363a59ee2f1e5db5c26f5"
+  },
+  {
+    "file": "frontend/src/components/home/lib/schedule.test.js",
+    "sha256": "a51c41ce273fdc2853b332696a660d997d9ea87df80aa7c88052fd9ba3f1f71b"
+  },
+  {
+    "file": "frontend/src/components/home/primitives/Backdrop.jsx",
+    "sha256": "2d2479b0835173cfe285c636f224fbacdff079741fb722c7678cb789c0339ff7"
+  },
+  {
+    "file": "frontend/src/components/home/primitives/Button.jsx",
+    "sha256": "40743505dad83d540b27ebd630fc530ae457bb608e1c84cec57285a75d8a3d26"
+  },
+  {
+    "file": "frontend/src/components/home/primitives/CountUp.jsx",
+    "sha256": "7d1c4ef9a23ccdd3d8d089689aa504a2e9b149e07e78d26ab87a3a3415e9cf51"
+  },
+  {
+    "file": "frontend/src/components/home/primitives/FilmArt.jsx",
+    "sha256": "fbd53e1be43ab60fe31a457ff8995f79b82950c37808c2b51f3bc8865dddcf70"
+  },
+  {
+    "file": "frontend/src/components/home/primitives/LazyBoundary.jsx",
+    "sha256": "37c6644800ee2a9d77291bda5c236e59c215845c47b5b607123e1e877e7a70f3"
+  },
+  {
+    "file": "frontend/src/components/home/primitives/Magnetic.jsx",
+    "sha256": "ebf95dd13c7aa101d9febbec82926860ef26189df7ab426dbcd4c8fd69c11ade"
+  },
+  {
+    "file": "frontend/src/components/home/primitives/MaskText.jsx",
+    "sha256": "e11eea6179d7caafb4ae20f950661043f29e3534684dd1ae3152e9edc72ff4ed"
+  },
+  {
+    "file": "frontend/src/components/home/primitives/Poster.jsx",
+    "sha256": "03598ab6f1b8b7cbbe43f6f05de1005fd6cac538717304698bcffe3520d640b9"
+  },
+  {
+    "file": "frontend/src/components/home/primitives/ScrubWords.jsx",
+    "sha256": "43ba9917da6c43d5cf13e9f50f68b22598f0c18f4a4b47d59cc43e71bb669d4f"
+  },
+  {
+    "file": "frontend/src/components/home/primitives/Tilt.jsx",
+    "sha256": "b5b68cc42e53a698878e4874bbebeb0756dc07b211aab4805f722df20991605f"
+  },
+  {
+    "file": "frontend/src/components/home/sections/AccountFooter.jsx",
+    "sha256": "0c13092dfb7959f8cf33a1a368bef3116ffab8a13ffd88bd10dd85b6d15209f5"
+  },
+  {
+    "file": "frontend/src/components/home/sections/Ask.jsx",
+    "sha256": "0ccc9dc216fbd213fd723eb242faf63ff2e5a4556f3919a8eb952dc270e7627e"
+  },
+  {
+    "file": "frontend/src/components/home/sections/NextOnScreen.jsx",
+    "sha256": "55037bd0e82f52410a944a467a3e3efb7e67d74973c6f56b99bdb39d41e40454"
+  },
+  {
+    "file": "frontend/src/components/home/sections/NextSevenDays.jsx",
+    "sha256": "4155e4992652675c429b786df2b58913dc6a0d47c7e1647e313bd131595966c9"
+  },
+  {
+    "file": "frontend/src/components/home/sections/Opening.jsx",
+    "sha256": "602caf416941a54cee57adff2a4ee997488fdaf16ab0a5910ab8f3653739c9fa"
+  },
+  {
+    "file": "frontend/src/components/home/sections/Programme.jsx",
+    "sha256": "6134a1b12336f297d1b4ee0bc1d9f1456c11cbb911e861eb997c8c30fa764957"
+  },
+  {
+    "file": "frontend/src/components/home/sections/TrailerDialog.jsx",
+    "sha256": "052734e489f042f94f4a1c0f9a8cf6f5550c7facce1d41c7b01e2116fd305372"
+  },
+  {
+    "file": "frontend/src/components/home/stage/HallFallback.jsx",
+    "sha256": "14149fb555a770ae993a62d11a8a2589012d6d370f1f6b93ef56c8c712d5d9f9"
+  },
+  {
+    "file": "frontend/src/components/home/stage/HallScene.jsx",
+    "sha256": "f7ea2e3e22bcca5e345cf684b4ab2c188c40a353cb576feebff2a27d38176523"
+  },
+  {
+    "file": "frontend/src/components/home/stage/HallStage.js",
+    "sha256": "50ca69704ff044810b2a0003512dea0ddf042cd5e9a3da97fecd3dcad1c1ac31"
+  },
+  {
+    "file": "frontend/src/components/home/trailerCatalogue.js",
+    "sha256": "bc144700d242e5cb5521ac2e9e75797344d9779e3f9d4d8ec3aa8e1a899622e5"
+  },
+  {
+    "file": "frontend/src/components/home/ui.jsx",
+    "sha256": "92b44869092b0d417604320599fcace0e9dee30fa5f35f1ad43dff14e891a902"
+  },
+  {
+    "file": "frontend/src/components/home/useHomeData.js",
+    "sha256": "4c7ee6f8f6f5458cd90ec27253829d142b6e1985aa67f0834e7445bf43196279"
+  },
+  {
+    "file": "frontend/src/components/nav/AccountMenu.jsx",
+    "sha256": "6bc22768f9edec57b484cf2124c96396950771cb3725a9c51fa7d75256e6f87c"
+  },
+  {
+    "file": "frontend/src/components/nav/AccountTrigger.jsx",
+    "sha256": "770b4ac9a45293c7c2f4d1fa4823463b05e21facbf834f35069b6401553297d2"
+  },
+  {
+    "file": "frontend/src/components/nav/MobileSheet.jsx",
+    "sha256": "9f4a8cae500745b9872a6e48f16e20573cec4b830cf6d66e53dcaf6f7fb64db0"
+  },
+  {
+    "file": "frontend/src/components/ui/Btn.jsx",
+    "sha256": "a41a90a0e7507fda716bd2b3eb3ee8ab82f418fbc38694fe83336b2fe322898e"
+  },
+  {
+    "file": "frontend/src/components/ui/PageHeader.jsx",
+    "sha256": "b2e98644c409466a27c4b8d801558b384eda64ff3d03abc9c6461a505fbcf2a5"
+  },
+  {
+    "file": "frontend/src/components/ui/PageShell.jsx",
+    "sha256": "dddaaaf0ae8c6e120a1b719833d3bf6974f509cda3fddf4ad4a65ba4c6fbe895"
+  },
+  {
+    "file": "frontend/src/components/ui/Panel.jsx",
+    "sha256": "033cd4a9600c6bf2b03aebd46e953df5ee83829314232fd0b9cc7ae5ea73b397"
+  },
+  {
+    "file": "frontend/src/components/ui/admin.jsx",
+    "sha256": "f22bd43161a35e400a3ee065763c2d0baff506375da0e2f0da0243896f1eb6ce"
+  },
+  {
+    "file": "frontend/src/components/ui/bits.jsx",
+    "sha256": "0f668741fea24855b24b43899029b5eb0314ca48bb9cb4f8def45ec3b4242f07"
+  },
+  {
+    "file": "frontend/src/components/ui/cx.js",
+    "sha256": "c8b74ea3965c8499190ba04d7fc328d634b9c75e522b27d12c05c5dd11a087a6"
+  },
+  {
+    "file": "frontend/src/components/ui/frames.jsx",
+    "sha256": "3669839cbd1d015c0eda1dbfce4dc2d19ba6569cf2282048ce8fab9b852842d4"
+  },
+  {
+    "file": "frontend/src/context/AuthContext.jsx",
+    "sha256": "8e3729965c1672a7371582a72210bff086799c5d90c5dbbeb8d019f65c2672b1"
+  },
+  {
+    "file": "frontend/src/context/BookingContext.jsx",
+    "sha256": "3d6eb1a9f0ab259f79f73b0d5853bce14aa0b0a2670a7553640feecd355969b1"
+  },
+  {
+    "file": "frontend/src/index.js",
+    "sha256": "63adbf50e0f85c19191f7085ba3458791833ebc3d2edb49a88168d1c5ca0e33c"
+  },
+  {
+    "file": "frontend/src/pages/AiSearch.jsx",
+    "sha256": "a542d2598c823bd2bde5b2e3087aa2877ea1df856669f54bab568e1bdb01b9fe"
+  },
+  {
+    "file": "frontend/src/pages/Auth.jsx",
+    "sha256": "dff3acd8c2547b95e532a133d5fc23b16ebb213124d895e0fa1b93ac1e4c8fc4"
+  },
+  {
+    "file": "frontend/src/pages/Booking.jsx",
+    "sha256": "ac623235962de08f1866aeab24d7150165cafbe721cc72fae008208f79c597c2"
+  },
+  {
+    "file": "frontend/src/pages/BookingSuccess.jsx",
+    "sha256": "3c2a3e23b188362015bc24f45f959f9fe8fdcadcee909d95a894339ea4f62f80"
+  },
+  {
+    "file": "frontend/src/pages/BookingSuccessOriginal.jsx",
+    "sha256": "9de0acf05d7635685fbb12de09f3ff5baee30f73d6660aeb9aeba0270be7c2c3"
+  },
+  {
+    "file": "frontend/src/pages/Checkout.jsx",
+    "sha256": "30517d7fcb76cb383c37095e0b866a7a8bb6a81616fca35be08a9b8900f4ee77"
+  },
+  {
+    "file": "frontend/src/pages/Cinemas.jsx",
+    "sha256": "9a0557ee228e6e2b15fa1c1275a180c2b5f2006339e6f292d622ba868cba845d"
+  },
+  {
+    "file": "frontend/src/pages/Contact.jsx",
+    "sha256": "570c5c8068d36128cf0b2aaba89b58bdf4fa1e54f9a9e9836ceccdc0696bba74"
+  },
+  {
+    "file": "frontend/src/pages/Home.jsx",
+    "sha256": "cc65d73f5c9d75f52ec1443d2f825f84427632ba0d04a5dfb8a659a3094e4071"
+  },
+  {
+    "file": "frontend/src/pages/MovieDetails.jsx",
+    "sha256": "19007f6017717d692a622599e222ae154523d9a09f06b92f74a861bde7821794"
+  },
+  {
+    "file": "frontend/src/pages/Movies.jsx",
+    "sha256": "be2579765fb0f8d7e3eae422bf3c1fb7e14b796db9eaf5282d7b5a51ecf3fc88"
+  },
+  {
+    "file": "frontend/src/pages/MyBookings.jsx",
+    "sha256": "ddd567ad9eb823c2849bd54198706869f074ecc9745f4f5f3ab5b776cfd0ac5e"
+  },
+  {
+    "file": "frontend/src/pages/admin/AddShow.jsx",
+    "sha256": "df8662d6023266c54ee815b09555485004652c078efa21a58d6334e75f3e28de"
+  },
+  {
+    "file": "frontend/src/pages/admin/Admin.jsx",
+    "sha256": "36177088237c02f187263d8e8c7d45e9e031a97482f5d0aceacabf19011f88a9"
+  },
+  {
+    "file": "frontend/src/pages/admin/AdminAnalytics.jsx",
+    "sha256": "fd9952cc96a6c11185b54a9177f00007624249aa7840a9010393af3c2dbca826"
+  },
+  {
+    "file": "frontend/src/pages/admin/AdminBookings.jsx",
+    "sha256": "67c2e1f59469667273be9ebaa3d3ce84efb26c2fe6b41df4fc25c08eee2e8902"
+  },
+  {
+    "file": "frontend/src/pages/admin/AdminDynamicPricing.jsx",
+    "sha256": "eef55aada8597a128a8227ed80935812ab584cb8cb7bc2691dfcda7541fae2a5"
+  },
+  {
+    "file": "frontend/src/pages/admin/AdminMovies.jsx",
+    "sha256": "02180e728953f4cc74bab52e09a4c3b281f282fd46a474a3892e22688261d6f6"
+  },
+  {
+    "file": "frontend/src/pages/admin/AdminResourceList.jsx",
+    "sha256": "7bf88e8fe4e33d51a77f12ce459a43cc23dbac67d15acf53c70f113ecc7390ea"
+  },
+  {
+    "file": "frontend/src/pages/admin/AdminRiskMonitoring.jsx",
+    "sha256": "906d50caa60984bd5d55d6622a5b02a079e1ac2eaf58a79bc881be337bfdc65f"
+  },
+  {
+    "file": "frontend/src/pages/admin/AdminScreens.jsx",
+    "sha256": "7311e8e52f7fa4bbb81381bb09029d5f4cc4910adba08a50639d1ac265b8e2c3"
+  },
+  {
+    "file": "frontend/src/pages/admin/AdminShows.jsx",
+    "sha256": "711d288abcac1750102ba2331c611948d8dc08ea04324e8b6bfaced0de0f04cb"
+  },
+  {
+    "file": "frontend/src/pages/admin/AdminTheatres.jsx",
+    "sha256": "78be70ec683141bbebd4fc8e2387bc6e003004935c667d25fd063935b2d0187c"
+  },
+  {
+    "file": "frontend/src/pages/admin/AdminUsers.jsx",
+    "sha256": "ac0baa5b267103c9f227035c089c7c8319934d00dd80825fdbac7062cebad0d4"
+  },
+  {
+    "file": "frontend/src/pages/admin/ListBookings.jsx",
+    "sha256": "70112a1f8af29cb2a1765adeb04a4070b4a37b14784509777588f506e8413eee"
+  },
+  {
+    "file": "frontend/src/pages/admin/ListShows.jsx",
+    "sha256": "9635c4ce133ca2d47075ec5e7ad7fdf8f546f96843a7b0b0319e7069977ab1f9"
+  },
+  {
+    "file": "frontend/src/pages/admin/TicketScanner.jsx",
+    "sha256": "3f7e8d5193e9d68a4b3f05106818f16ed9382546b592245a90ed9842bb3d4aba"
+  },
+  {
+    "file": "frontend/src/pages/partner/PartnerDashboard.jsx",
+    "sha256": "4c6c04b4adf6aa22ec7ed237b32c47cf2faba0960458bb6daec577532f7f04ca"
+  },
+  {
+    "file": "frontend/src/pages/partner/PartnerShowtimeCreate.jsx",
+    "sha256": "049133c5bf8a610db6e6ab9c4b21c7a50ccce7a027780a69c7294510e639dad4"
+  },
+  {
+    "file": "frontend/src/services/socket.js",
+    "sha256": "7d8f833248985ef169d9a615c0b4f57555cd38db56a6857f03c33695829c356c"
+  },
+  {
+    "file": "frontend/src/utils/seatEventRecovery.js",
+    "sha256": "9106b18505b73c1dbfcb96ae1de6527cd064c9c161294d1b4587e78640c015fc"
+  },
+  {
+    "file": "frontend/package.json",
+    "sha256": "74013d29aac81aefc6aca5cf61750dfb6a61e266a27cf38a657fc4bfeb443fb3"
+  },
+  {
+    "file": "frontend/package-lock.json",
+    "sha256": "b615a1444dc0f33fc9536efa31141754636f8fb3c57403dc8fed80fb1419da63"
+  },
+  {
+    "file": "frontend/src/components/home/sections/opening-v2.css",
+    "sha256": "b4d5ca7dd73cce033c1517fde5cf07e7e664dfa4e686a7aecf58e1af44508d42"
+  },
+  {
+    "file": "frontend/src/styles/cinematic-v2.css",
+    "sha256": "a7ff404addeba994293982edf8ef925e40c3d2042bce94ecf6c59ae9748639b9"
+  },
+  {
+    "file": "frontend/src/setupTests.js",
+    "sha256": "1cb1c14db6dab20d19d8ef11035d5a94b8d624e4df0205bde6ea77fe6270f0a3"
+  },
+  {
+    "file": "frontend/src/test-support/motion.js",
+    "sha256": "d1224157dffa839507bac442367eb6c096f76f8dd6fcf428b8cc20a23c345729"
+  }
+]

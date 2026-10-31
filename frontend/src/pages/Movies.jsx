@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import PageShell from "../components/ui/PageShell";
+import { formatDuration } from "../utils/formatDuration";
 
 // =============================================================
 // BOOKMYSEAT / CINEMA GALLERY V5
@@ -296,11 +297,11 @@ function FilmCard({
   const shows = movie.availableShows || [];
 
   const meta = [
-    movie.duration,
-    movie.language,
-  ]
-    .filter(Boolean)
-    .join("  /  ");
+  formatDuration(movie.duration),
+  movie.language,
+]
+  .filter(Boolean)
+  .join("  /  ");
 
   return (
     <motion.article

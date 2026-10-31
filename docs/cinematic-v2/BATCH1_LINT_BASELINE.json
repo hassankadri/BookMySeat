@@ -1,0 +1,696 @@
+{
+  "scope": "Original audited frontend files, byte-identical to Phase 0, checked with the Batch 1 ESLint configuration.",
+  "files": [
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\App.js",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\Navbar.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\SeatIntelligencePanel.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\StripePaymentForm.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\VirtualQueueGate.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\admin\\ShowQueueControls.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\cinematic\\CinematicUI.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\BookingFAQ.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\Journey.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\copy.js",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\hooks\\useHomeSnap.js",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\hooks\\useMedia.js",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\hooks\\useScrollProgress.js",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\lib\\capabilities.js",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\lib\\capabilities.test.js",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\lib\\cx.js",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\lib\\quad.js",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\lib\\quad.test.js",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\lib\\schedule.js",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\lib\\schedule.test.js",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\primitives\\Backdrop.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\primitives\\Button.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\primitives\\CountUp.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\primitives\\FilmArt.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\primitives\\LazyBoundary.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\primitives\\Magnetic.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\primitives\\MaskText.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\primitives\\Poster.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\primitives\\ScrubWords.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\primitives\\Tilt.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\sections\\AccountFooter.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\sections\\Ask.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\sections\\NextOnScreen.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\sections\\NextSevenDays.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\sections\\Opening.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\sections\\Programme.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\sections\\TrailerDialog.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\stage\\HallFallback.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\stage\\HallScene.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\stage\\HallStage.js",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\trailerCatalogue.js",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\ui.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\home\\useHomeData.js",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\nav\\AccountMenu.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\nav\\AccountTrigger.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\nav\\MobileSheet.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\ui\\Btn.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\ui\\PageHeader.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\ui\\PageShell.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\ui\\Panel.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\ui\\admin.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\ui\\bits.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\ui\\cx.js",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\components\\ui\\frames.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\context\\AuthContext.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\context\\BookingContext.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\index.js",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\pages\\AiSearch.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\pages\\Auth.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\pages\\Booking.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\pages\\BookingSuccess.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\pages\\BookingSuccessOriginal.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\pages\\Checkout.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\pages\\Cinemas.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\pages\\Contact.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\pages\\Home.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\pages\\MovieDetails.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\pages\\Movies.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\pages\\MyBookings.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\pages\\admin\\AddShow.jsx",
+      "errorCount": 0,
+      "warningCount": 2,
+      "messages": [
+        {
+          "ruleId": "no-unused-vars",
+          "severity": 1,
+          "message": "'easing' is assigned a value but never used.",
+          "line": 16,
+          "column": 7,
+          "nodeType": "Identifier",
+          "messageId": "unusedVar",
+          "endLine": 16,
+          "endColumn": 13,
+          "suggestions": [
+            {
+              "messageId": "removeVar",
+              "data": {
+                "varName": "easing"
+              },
+              "fix": {
+                "range": [
+                  641,
+                  675
+                ],
+                "text": ""
+              },
+              "desc": "Remove unused variable 'easing'."
+            }
+          ]
+        },
+        {
+          "ruleId": "react-hooks/exhaustive-deps",
+          "severity": 1,
+          "message": "React Hook useEffect has a missing dependency: 'loadInitial'. Either include it or remove the dependency array.",
+          "line": 191,
+          "column": 6,
+          "nodeType": "ArrayExpression",
+          "endLine": 191,
+          "endColumn": 13,
+          "suggestions": [
+            {
+              "desc": "Update the dependencies array to be: [loadInitial, token]",
+              "fix": {
+                "range": [
+                  6053,
+                  6060
+                ],
+                "text": "[loadInitial, token]"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\pages\\admin\\Admin.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\pages\\admin\\AdminAnalytics.jsx",
+      "errorCount": 0,
+      "warningCount": 1,
+      "messages": [
+        {
+          "ruleId": "react-hooks/exhaustive-deps",
+          "severity": 1,
+          "message": "The 'trend' conditional could make the dependencies of useMemo Hook (at line 291) change on every render. Move it inside the useMemo callback. Alternatively, wrap the initialization of 'trend' in its own useMemo() Hook.",
+          "line": 286,
+          "column": 9,
+          "nodeType": "VariableDeclarator",
+          "endLine": 286,
+          "endColumn": 75
+        }
+      ]
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\pages\\admin\\AdminBookings.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\pages\\admin\\AdminDynamicPricing.jsx",
+      "errorCount": 0,
+      "warningCount": 1,
+      "messages": [
+        {
+          "ruleId": "no-unused-vars",
+          "severity": 1,
+          "message": "'SlidersHorizontal' is defined but never used.",
+          "line": 8,
+          "column": 54,
+          "nodeType": "Identifier",
+          "messageId": "unusedVar",
+          "endLine": 8,
+          "endColumn": 71,
+          "suggestions": [
+            {
+              "messageId": "removeVar",
+              "data": {
+                "varName": "SlidersHorizontal"
+              },
+              "fix": {
+                "range": [
+                  353,
+                  372
+                ],
+                "text": ""
+              },
+              "desc": "Remove unused variable 'SlidersHorizontal'."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\pages\\admin\\AdminMovies.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\pages\\admin\\AdminResourceList.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\pages\\admin\\AdminRiskMonitoring.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\pages\\admin\\AdminScreens.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\pages\\admin\\AdminShows.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\pages\\admin\\AdminTheatres.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\pages\\admin\\AdminUsers.jsx",
+      "errorCount": 0,
+      "warningCount": 1,
+      "messages": [
+        {
+          "ruleId": "no-unused-vars",
+          "severity": 1,
+          "message": "'UserRoundCog' is defined but never used.",
+          "line": 20,
+          "column": 3,
+          "nodeType": "Identifier",
+          "messageId": "unusedVar",
+          "endLine": 20,
+          "endColumn": 15,
+          "suggestions": [
+            {
+              "messageId": "removeVar",
+              "data": {
+                "varName": "UserRoundCog"
+              },
+              "fix": {
+                "range": [
+                  279,
+                  296
+                ],
+                "text": ""
+              },
+              "desc": "Remove unused variable 'UserRoundCog'."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\pages\\admin\\ListBookings.jsx",
+      "errorCount": 0,
+      "warningCount": 1,
+      "messages": [
+        {
+          "ruleId": "react-hooks/exhaustive-deps",
+          "severity": 1,
+          "message": "React Hook useEffect has a missing dependency: 'fetchBookings'. Either include it or remove the dependency array.",
+          "line": 17,
+          "column": 6,
+          "nodeType": "ArrayExpression",
+          "endLine": 17,
+          "endColumn": 8,
+          "suggestions": [
+            {
+              "desc": "Update the dependencies array to be: [fetchBookings]",
+              "fix": {
+                "range": [
+                  525,
+                  527
+                ],
+                "text": "[fetchBookings]"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\pages\\admin\\ListShows.jsx",
+      "errorCount": 0,
+      "warningCount": 1,
+      "messages": [
+        {
+          "ruleId": "react-hooks/exhaustive-deps",
+          "severity": 1,
+          "message": "React Hook useEffect has a missing dependency: 'fetchShows'. Either include it or remove the dependency array.",
+          "line": 17,
+          "column": 6,
+          "nodeType": "ArrayExpression",
+          "endLine": 17,
+          "endColumn": 8,
+          "suggestions": [
+            {
+              "desc": "Update the dependencies array to be: [fetchShows]",
+              "fix": {
+                "range": [
+                  513,
+                  515
+                ],
+                "text": "[fetchShows]"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\pages\\admin\\TicketScanner.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\pages\\partner\\PartnerDashboard.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\pages\\partner\\PartnerShowtimeCreate.jsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\services\\socket.js",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "filePath": "D:\\My Projects\\BookMySeat-main new\\frontend\\src\\utils\\seatEventRecovery.js",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    }
+  ]
+}

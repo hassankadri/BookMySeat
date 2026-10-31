@@ -1,0 +1,940 @@
+
+/* =====================================================
+   BOOKMYSEAT V2 — CINEMATIC OPENING
+
+   Scoped to the homepage's opening section.
+   Does not change booking, authentication or admin UI.
+===================================================== */
+
+.bms-home .bms-v2-opening {
+  position: relative;
+  isolation: isolate;
+  background: #070609;
+  color: #f8f6f4;
+  font-family: "Instrument Sans", "Manrope", system-ui, sans-serif;
+}
+
+.bms-home .bms-v2-opening--runway {
+  height: 225svh;
+}
+
+.bms-home .bms-v2-opening--static {
+  min-height: 720px;
+}
+
+.bms-home .bms-v2-opening__viewport {
+  position: relative;
+  width: 100%;
+  height: 100svh;
+  min-height: 700px;
+  overflow: hidden;
+}
+
+.bms-home .bms-v2-opening__viewport--sticky {
+  position: sticky;
+  top: 0;
+}
+
+/* =====================================================
+   STAGE / ATMOSPHERE
+===================================================== */
+
+.bms-home .bms-v2-opening__scene {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.bms-home .bms-v2-opening__shade {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(3, 3, 6, 0.94) 0%,
+      rgba(3, 3, 6, 0.86) 27%,
+      rgba(3, 3, 6, 0.49) 52%,
+      rgba(3, 3, 6, 0.04) 87%
+    ),
+    linear-gradient(
+      0deg,
+      rgba(3, 3, 6, 0.83) 0%,
+      transparent 23%,
+      transparent 67%,
+      rgba(3, 3, 6, 0.28) 100%
+    );
+}
+
+.bms-home .bms-v2-opening__frame {
+  pointer-events: none;
+  position: absolute;
+  inset: 81px 3.2vw 76px;
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  border-top-color: rgba(255, 255, 255, 0.13);
+}
+
+.bms-home .bms-v2-opening__frame::before,
+.bms-home .bms-v2-opening__frame::after {
+  content: "";
+  position: absolute;
+  width: 31px;
+  height: 31px;
+  border-color: rgba(255, 255, 255, 0.38);
+  border-style: solid;
+}
+
+.bms-home .bms-v2-opening__frame::before {
+  left: -1px;
+  top: -1px;
+  border-width: 1px 0 0 1px;
+}
+
+.bms-home .bms-v2-opening__frame::after {
+  right: -1px;
+  bottom: -1px;
+  border-width: 0 1px 1px 0;
+}
+
+/* =====================================================
+   HERO CONTENT
+===================================================== */
+
+.bms-home .bms-v2-opening__copy {
+  position: absolute;
+  z-index: 10;
+  inset: 66px auto 80px max(5.1vw, 30px);
+
+  display: flex;
+  align-items: center;
+  width: min(700px, 53vw);
+}
+
+.bms-home .bms-v2-opening__copy-inner {
+  width: 100%;
+}
+
+.bms-home .bms-v2-opening__eyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 11px;
+
+  margin: 0 0 27px;
+  color: #d4bfc6;
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1.6;
+  letter-spacing: 0.17em;
+}
+
+.bms-home .bms-v2-opening__eyebrow-line {
+  flex: none;
+  width: 31px;
+  height: 1px;
+  background: #ff4968;
+}
+
+.bms-home .bms-v2-opening__eyebrow-slash {
+  color: #ff4968;
+}
+
+/* Readable typography — no squeezed letters */
+
+.bms-home .bms-v2-opening__title {
+  margin: 0;
+  color: #f8f5f3;
+
+  font-family:
+    "Bricolage Grotesque",
+    "Outfit",
+    system-ui,
+    sans-serif;
+
+  font-weight: 760;
+
+  font-variation-settings:
+    "wdth" 100,
+    "opsz" 72;
+
+  font-size: clamp(3.2rem, 5.05vw, 6.15rem);
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+
+.bms-home .bms-v2-opening__title-mask {
+  display: block;
+  padding-bottom: 0.12em;
+  margin-bottom: -0.12em;
+  overflow: hidden;
+}
+
+.bms-home .bms-v2-opening__title-mask > span {
+  display: block;
+}
+
+.bms-home .bms-v2-opening__title-accent {
+  color: #ff5470;
+}
+
+.bms-home .bms-v2-opening__title-period {
+  color: #f8f5f3;
+}
+
+.bms-home .bms-v2-opening__intro {
+  max-width: 440px;
+  margin: 24px 0 0;
+
+  color: #c7bac2;
+  font-size: clamp(14px, 1.15vw, 16px);
+  line-height: 1.75;
+}
+
+/* =====================================================
+   CINEMA FINDER
+===================================================== */
+
+.bms-home .bms-v2-opening__finder {
+  width: min(610px, 100%);
+  margin-top: 33px;
+}
+
+.bms-home .bms-v2-opening__finder-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 11px;
+
+  color: #e6b6c2;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.19em;
+  white-space: nowrap;
+}
+
+.bms-home .bms-v2-opening__finder-rule {
+  height: 1px;
+  flex: 1;
+  background: rgba(255, 255, 255, 0.17);
+}
+
+.bms-home .bms-v2-opening__fields {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 0.72fr)
+    minmax(0, 1.28fr);
+  gap: 8px;
+}
+
+.bms-home .bms-v2-opening__field {
+  position: relative;
+  min-width: 0;
+}
+
+.bms-home .bms-v2-opening__field-number {
+  position: absolute;
+  z-index: 2;
+  top: 9px;
+  left: 13px;
+
+  color: rgba(255, 255, 255, 0.35);
+  font: 650 9px/1 ui-monospace, monospace;
+}
+
+.bms-home .bms-v2-opening__select {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  width: 100%;
+  height: 74px;
+  padding: 13px 15px 8px;
+
+  text-align: left;
+  color: #fff;
+  background: rgba(27, 23, 29, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+
+  cursor: pointer;
+  outline: none;
+
+  transition:
+    border-color 250ms ease,
+    background-color 250ms ease;
+}
+
+.bms-home .bms-v2-opening__select:hover,
+.bms-home .bms-v2-opening__select[data-state="open"] {
+  border-color: #e65b75;
+  background: #252027;
+}
+
+.bms-home .bms-v2-opening__select:focus-visible {
+  outline: 2px solid #ff718b;
+  outline-offset: 2px;
+}
+
+.bms-home .bms-v2-opening__select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.bms-home .bms-v2-opening__field-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fd617b;
+}
+
+.bms-home .bms-v2-opening__field-value {
+  min-width: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bms-home .bms-v2-opening__field-label {
+  color: #c5b9c1;
+  text-transform: uppercase;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  font-weight: 750;
+}
+
+.bms-home .bms-v2-opening__field-choice {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 650;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.bms-home .bms-v2-opening__chevron {
+  color: #a69ca2;
+  transition: transform 250ms ease;
+}
+
+.bms-home
+  .bms-v2-opening__select[data-state="open"]
+  .bms-v2-opening__chevron {
+  transform: rotate(180deg);
+}
+
+/* Radix Select uses a portal outside .bms-home */
+
+.bms-v2-opening__options {
+  z-index: 140;
+  width: var(--radix-select-trigger-width);
+  min-width: 200px;
+  max-height: min(360px, 65vh);
+  overflow: hidden;
+
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 14px;
+  background: #18151b;
+  color: #fff;
+  box-shadow: 0 20px 80px rgba(0, 0, 0, 0.75);
+  padding: 7px;
+}
+
+.bms-v2-opening__option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 13px 12px;
+  font-size: 13px;
+  border-radius: 9px;
+  outline: none;
+  cursor: pointer;
+  color: #ece4e8;
+}
+
+.bms-v2-opening__option[data-highlighted] {
+  background: rgba(215, 25, 53, 0.18);
+  color: #fff;
+}
+
+.bms-v2-opening__option[data-state="checked"] {
+  color: #ff8298;
+}
+
+.bms-v2-opening__option-scroll {
+  padding: 6px;
+  font-size: 10px;
+  color: #afa5aa;
+  text-align: center;
+}
+
+/* =====================================================
+   CTA
+===================================================== */
+
+.bms-home .bms-v2-opening__submit {
+  width: 100%;
+  min-height: 57px;
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+
+  margin-top: 8px;
+  padding: 9px 12px 9px 20px;
+
+  border: 1px solid #ed3655;
+  border-radius: 12px;
+  background: #d71935;
+  color: #fff;
+
+  font-size: 13px;
+  font-weight: 750;
+  letter-spacing: 0.012em;
+  text-decoration: none;
+  cursor: pointer;
+
+  transition:
+    background-color 200ms ease,
+    border-color 200ms ease;
+}
+
+.bms-home .bms-v2-opening__submit:hover {
+  background: #ee3150;
+  border-color: #ee3150;
+}
+
+.bms-home .bms-v2-opening__submit:focus-visible {
+  outline: 2px solid #ff9aaa;
+  outline-offset: 3px;
+}
+
+.bms-home .bms-v2-opening__submit:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.bms-home .bms-v2-opening__submit-arrow {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  flex: none;
+
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 100%;
+}
+
+.bms-home .bms-v2-opening__browse {
+  justify-content: center;
+}
+
+.bms-home .bms-v2-opening__finder-loading {
+  padding: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: rgba(27, 23, 29, 0.85);
+  color: #d8cbd2;
+  font-size: 13px;
+}
+
+.bms-home .bms-v2-opening__service-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+
+  margin-top: 12px;
+  color: #efbfc8;
+  font-size: 11px;
+}
+
+.bms-home .bms-v2-opening__service-note button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+
+  border: 0;
+  background: none;
+  color: white;
+  font-size: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* =====================================================
+   SECONDARY ACTIONS
+===================================================== */
+
+.bms-home .bms-v2-opening__under-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  margin-top: 25px;
+}
+
+.bms-home .bms-v2-opening__explore {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+
+  border: 0;
+  background: none;
+  color: #f7eff2;
+  font-size: 12px;
+  font-weight: 680;
+  cursor: pointer;
+}
+
+.bms-home .bms-v2-opening__explore-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 35px;
+  height: 35px;
+
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 100%;
+
+  transition:
+    border-color 250ms ease,
+    transform 250ms ease;
+}
+
+.bms-home
+  .bms-v2-opening__explore:hover
+  .bms-v2-opening__explore-icon {
+  border-color: #fa6883;
+  transform: translateY(3px);
+}
+
+.bms-home .bms-v2-opening__film-link {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+  gap: 5px;
+
+  text-align: right;
+  min-width: 0;
+  max-width: 53%;
+  text-decoration: none;
+}
+
+.bms-home
+  .bms-v2-opening__film-link
+  > span:first-child {
+  color: #a99ba4;
+  letter-spacing: 0.12em;
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.bms-home
+  .bms-v2-opening__film-link
+  > span:last-child {
+  color: #f7f3f6;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+  line-height: 1.4;
+}
+
+.bms-home
+  .bms-v2-opening__film-link:hover
+  > span:last-child {
+  color: #ff6982;
+}
+
+/* =====================================================
+   CAMERA CHAPTER NAVIGATION
+===================================================== */
+
+.bms-home .bms-v2-opening__chapter-rail {
+  position: absolute;
+  right: max(5.1vw, 30px);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 12;
+
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.bms-home .bms-v2-opening__chapter {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 13px;
+
+  width: 160px;
+  padding: 9px 0;
+
+  color: #bfb6be;
+  text-align: right;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-size: 11px;
+
+  transition: color 260ms ease;
+}
+
+.bms-home .bms-v2-opening__chapter:hover,
+.bms-home .bms-v2-opening__chapter[data-active="true"] {
+  color: #fff;
+}
+
+.bms-home .bms-v2-opening__chapter-number {
+  color: #ff6985;
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+}
+
+.bms-home .bms-v2-opening__chapter-name {
+  flex: 1;
+  font-weight: 680;
+  letter-spacing: 0.03em;
+}
+
+.bms-home .bms-v2-opening__chapter-bar {
+  display: block;
+  width: 18px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.36);
+
+  transition:
+    width 300ms ease,
+    background 300ms ease;
+}
+
+.bms-home
+  .bms-v2-opening__chapter[data-active="true"]
+  .bms-v2-opening__chapter-bar {
+  width: 34px;
+  background: #fd607d;
+}
+
+/* =====================================================
+   CINEMA HUD
+===================================================== */
+
+.bms-home .bms-v2-opening__hud {
+  position: absolute;
+  top: 95px;
+  right: max(5.1vw, 30px);
+  z-index: 10;
+
+  display: flex;
+  align-items: center;
+  gap: 14px;
+
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  font-weight: 750;
+  color: #d8c4c9;
+}
+
+.bms-home .bms-v2-opening__hud-mark {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #fff;
+}
+
+.bms-home .bms-v2-opening__live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  flex: none;
+
+  border-radius: 50%;
+  background: #ff4968;
+  box-shadow: 0 0 12px rgba(255, 73, 104, 0.65);
+}
+
+.bms-home .bms-v2-opening__hud-divider {
+  height: 13px;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.bms-home .bms-v2-opening__bottom {
+  position: absolute;
+  z-index: 12;
+  left: max(5.1vw, 30px);
+  right: max(5.1vw, 30px);
+  bottom: 40px;
+
+  display: flex;
+  align-items: center;
+  gap: 13px;
+
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  font-weight: 700;
+  color: #dad0d3;
+}
+
+.bms-home .bms-v2-opening__bottom-line {
+  width: 36px;
+  height: 1px;
+  background: #ff627a;
+}
+
+.bms-home .bms-v2-opening__skip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+
+  border: none;
+  background: none;
+  color: #f8f4f5;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: normal;
+  cursor: pointer;
+}
+
+.bms-home .bms-v2-opening__skip:hover {
+  color: #ff7390;
+}
+
+.bms-home .bms-v2-opening__motion-optin {
+  position: absolute;
+  z-index: 30;
+  right: 6vw;
+  bottom: 100px;
+
+  background: #231a21;
+  border: 1px solid #d71935;
+  border-radius: 50px;
+
+  color: #fff;
+  font-size: 12px;
+  padding: 12px 20px;
+  cursor: pointer;
+}
+
+.bms-home .bms-v2-opening__loading-scene {
+  position: absolute;
+  inset: 0;
+
+  display: grid;
+  place-items: center;
+
+  background: radial-gradient(
+    circle at 70% 45%,
+    #231b28,
+    #060507 70%
+  );
+
+  color: #a49ca4;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+/* =====================================================
+   RESPONSIVE
+===================================================== */
+
+@media (max-width: 1400px) {
+  .bms-home .bms-v2-opening__title {
+    font-size: clamp(3.05rem, 5vw, 5rem);
+  }
+
+  .bms-home .bms-v2-opening__copy {
+    width: min(610px, 54vw);
+  }
+
+  .bms-home .bms-v2-opening__hud {
+    top: 92px;
+  }
+}
+
+@media (min-width: 1024px) and (max-height: 770px) {
+  .bms-home .bms-v2-opening__copy {
+    top: 68px;
+    bottom: 65px;
+  }
+
+  .bms-home .bms-v2-opening__title {
+    font-size: clamp(2.6rem, 4.2vw, 4.15rem);
+  }
+
+  .bms-home .bms-v2-opening__eyebrow {
+    margin-bottom: 14px;
+  }
+
+  .bms-home .bms-v2-opening__intro {
+    margin-top: 15px;
+  }
+
+  .bms-home .bms-v2-opening__finder {
+    margin-top: 15px;
+  }
+
+  .bms-home .bms-v2-opening__under-cta {
+    margin-top: 13px;
+  }
+
+  .bms-home .bms-v2-opening__select {
+    height: 62px;
+  }
+
+  .bms-home .bms-v2-opening__submit {
+    min-height: 50px;
+  }
+}
+
+@media (max-width: 1023px) {
+  .bms-home .bms-v2-opening--mobile {
+    overflow: hidden;
+  }
+
+  .bms-home .bms-v2-opening__mobile-copy {
+    position: relative;
+    z-index: 2;
+
+    padding: 116px max(22px, 5vw) 32px;
+
+    background:
+      radial-gradient(
+        ellipse at 10% 20%,
+        rgba(110, 16, 37, 0.21),
+        transparent 75%
+      ),
+      #070609;
+  }
+
+  .bms-home .bms-v2-opening__copy-inner {
+    max-width: 740px;
+    margin: 0 auto;
+  }
+
+  .bms-home .bms-v2-opening__title {
+    font-size: clamp(3.4rem, 7.7vw, 5.5rem);
+  }
+
+  .bms-home .bms-v2-opening__mobile-scene {
+    position: relative;
+    height: clamp(350px, 55vw, 580px);
+    overflow: hidden;
+    background: #08070b;
+  }
+
+  .bms-home .bms-v2-opening__mobile-scene-label {
+    position: absolute;
+    z-index: 2;
+    bottom: 20px;
+    left: 22px;
+    right: 22px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    color: #eacbd1;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.19em;
+  }
+
+  .bms-home .bms-v2-opening__mobile-scene::after {
+    content: "";
+    position: absolute;
+    inset: auto 0 0;
+    height: 90px;
+    pointer-events: none;
+    background: linear-gradient(
+      to top,
+      #070609,
+      transparent
+    );
+  }
+
+  .bms-home .bms-v2-opening__motion-optin {
+    bottom: 65px;
+  }
+}
+
+@media (max-width: 600px) {
+  .bms-home .bms-v2-opening__mobile-copy {
+    padding-top: 100px;
+  }
+
+  .bms-home .bms-v2-opening__eyebrow {
+    font-size: 9px;
+    letter-spacing: 0.13em;
+    margin-bottom: 21px;
+  }
+
+  .bms-home .bms-v2-opening__title {
+    font-size: clamp(2.5rem, 10vw, 3.8rem);
+    line-height: 1.13;
+    letter-spacing: -0.018em;
+  }
+
+  .bms-home .bms-v2-opening__intro {
+    font-size: 14px;
+    margin-top: 18px;
+  }
+
+  .bms-home .bms-v2-opening__finder {
+    margin-top: 26px;
+  }
+
+  .bms-home .bms-v2-opening__fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .bms-home .bms-v2-opening__select {
+    height: 68px;
+  }
+
+  .bms-home .bms-v2-opening__under-cta {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .bms-home .bms-v2-opening__film-link {
+    align-items: flex-start;
+    text-align: left;
+    max-width: 100%;
+  }
+
+  .bms-home
+    .bms-v2-opening__film-link
+    > span:last-child {
+    text-align: left;
+  }
+
+  .bms-home .bms-v2-opening__mobile-scene {
+    height: 370px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bms-home .bms-v2-opening__chapter *,
+  .bms-home .bms-v2-opening__select,
+  .bms-home .bms-v2-opening__submit,
+  .bms-home .bms-v2-opening__explore-icon {
+    transition-duration: 0.01ms !important;
+  }
+}

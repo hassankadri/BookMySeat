@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import PageShell from "../components/ui/PageShell";
+import { formatDuration } from "../utils/formatDuration";
 
 // ============================================================
 // BOOKMYSEAT — EDITORIAL FILM DOSSIER
@@ -462,7 +463,7 @@ export default function MovieDetails() {
               {movie.duration && (
                 <span className="inline-flex items-center gap-2">
                   <Clock3 size={16} className="text-[#ff536e]" />
-                  {movie.duration}
+                  {formatDuration(movie.duration)}
                 </span>
               )}
               {movie.releaseYear && (
